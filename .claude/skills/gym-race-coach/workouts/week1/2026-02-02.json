@@ -1,0 +1,83 @@
+{
+  "workout": {
+    "id": "gymrace-w1-d1",
+    "date": "2026-02-02",
+    "week": 1,
+    "day": "Monday",
+    "phase": "wall_ball_intensive",
+    "type": "wall_ball_intensive",
+    "title": "Wall Ball Intensive",
+    "description": "Heavy wall ball focus with volume building - 8x15 reps with 90sec rest",
+    
+    "split_session": {
+      "enabled": true,
+      "morning": {
+        "type": "recovery_run",
+        "duration": "30-45 min",
+        "intensity": "zone2",
+        "pace": "6:45-7:15/km",
+        "description": "Easy recovery run",
+        "optional": true
+      },
+      "evening": {
+        "type": "primary_workout",
+        "duration": "60 min",
+        "focus": ["wall_balls", "goblet_squats", "plank"]
+      }
+    },
+    
+    "primary_workout": {
+      "warmup": {
+        "duration": "5 min",
+        "activities": ["row", "dynamic_warmup"]
+      },
+      "main_sets": [
+        {
+          "exercise": "wall_balls",
+          "sets": 8,
+          "reps": 15,
+          "weight_kg": 9,
+          "rest_sec": 90,
+          "focus": "Rhythm, breathing, consistent height",
+          "goal": "Smooth unbroken sets of 15"
+        }
+      ],
+      "accessory": [
+        {"exercise": "goblet_squats", "sets": 3, "reps": 10, "note": "heavy"},
+        {"exercise": "plank_hold", "sets": 3, "duration_sec": 30}
+      ],
+      "cooldown": {
+        "duration": "5 min",
+        "activities": ["easy_row", "stretching"]
+      }
+    },
+    
+    "target_metrics": {
+      "hr_zone": "3-4",
+      "rpe": "7-8",
+      "calories_burned_estimate": 450
+    },
+    
+    "focus_areas": ["wall_ball_volume", "breathing_rhythm"],
+    "weak_point_focus": ["wall_balls"],
+    "strong_point_leverage": [],
+    
+    "garmin_tags": ["hyrox", "strength_training", "wall_balls", "high_intensity"],
+    
+    "nutrition_guidance": {
+      "daily_calories_target": 2100,
+      "protein_target_g": 180,
+      "pre_workout": "Carbs 60-90 min before",
+      "post_workout": "Protein within 30 min"
+    },
+    
+    "water_reminders": [
+      {"time": "08:00", "amount_ml": 500, "message": "Morning hydration - start with 500ml"},
+      {"time": "pre_workout", "amount_ml": 300, "message": "Pre-workout: 300ml (30 min before)"},
+      {"time": "post_workout", "amount_ml": 500, "message": "Post-workout: 500ml within 30 min"},
+      {"time": "20:00", "amount_ml": 200, "message": "Evening sips"}
+    ],
+    
+    "race_day_countdown": 27
+  }
+}

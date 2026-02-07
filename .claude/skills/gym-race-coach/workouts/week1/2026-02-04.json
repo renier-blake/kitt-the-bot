@@ -1,0 +1,52 @@
+{
+  "workout": {
+    "id": "gymrace-w1-d3",
+    "date": "2026-02-04",
+    "week": 1,
+    "day": "Wednesday",
+    "phase": "wall_ball_intensive",
+    "type": "rest_day",
+    "title": "Rest Day",
+    "description": "Complete rest or active recovery - PRIORITY: SLEEP",
+    
+    "split_session": {
+      "enabled": false
+    },
+    
+    "primary_workout": {
+      "type": "rest",
+      "optional_activity": "20-30 min easy walk",
+      "recovery": ["foam_rolling", "quads", "shoulders", "back"],
+      "sleep_priority": true,
+      "sleep_target_hours": 8
+    },
+    
+    "target_metrics": {
+      "hr_zone": "N/A",
+      "rpe": "1-2",
+      "calories_burned_estimate": 100
+    },
+    
+    "focus_areas": ["recovery", "sleep_quality"],
+    "weak_point_focus": [],
+    "strong_point_leverage": [],
+    
+    "garmin_tags": ["rest_day", "recovery"],
+    
+    "nutrition_guidance": {
+      "daily_calories_target": 2400,
+      "protein_target_g": 120,
+      "focus": "Maintain protein, reduce carbs slightly"
+    },
+    
+    "water_reminders": [
+      {"time": "08:00", "amount_ml": 500, "message": "Morning hydration"},
+      {"time": "12:00", "amount_ml": 300, "message": "Midday top-up"},
+      {"time": "16:00", "amount_ml": 300, "message": "Afternoon hydration"},
+      {"time": "20:00", "amount_ml": 200, "message": "Evening sips"}
+    ],
+    
+    "race_day_countdown": 25,
+    "sleep_check": true
+  }
+}

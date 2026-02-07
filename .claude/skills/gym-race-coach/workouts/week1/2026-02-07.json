@@ -1,0 +1,73 @@
+{
+  "workout": {
+    "id": "gymrace-w1-d6",
+    "date": "2026-02-07",
+    "week": 1,
+    "day": "Saturday",
+    "phase": "wall_ball_intensive",
+    "type": "long_run",
+    "title": "Long Run + Light Skills",
+    "description": "10-12km Zone 2 run with optional light skills",
+    
+    "split_session": {
+      "enabled": true,
+      "morning": {
+        "type": "long_run",
+        "duration": "60-75 min",
+        "distance_km": "10-12",
+        "intensity": "zone2",
+        "pace": "6:30-7:00/km"
+      },
+      "afternoon": {
+        "type": "light_skills",
+        "duration": "15 min",
+        "optional": true,
+        "activities": ["20 wall balls", "25m slam ball carry"]
+      }
+    },
+    
+    "primary_workout": {
+      "run": {
+        "type": "zone2",
+        "distance_km": "10-12",
+        "pace": "6:30-7:00/km",
+        "focus": "HR consistency, easy conversational pace"
+      },
+      "optional_skills": {
+        "duration": "15 min",
+        "activities": [
+          {"name": "wall_balls", "reps": 20},
+          {"name": "slam_ball_carry", "distance": "25m"}
+        ]
+      }
+    },
+    
+    "target_metrics": {
+      "hr_zone": "2",
+      "rpe": "5-6",
+      "calories_burned_estimate": 800
+    },
+    
+    "focus_areas": ["aerobic_base", "endurance"],
+    "weak_point_focus": [],
+    "strong_point_leverage": ["running"],
+    
+    "garmin_tags": ["running", "long_run", "zone2"],
+    
+    "nutrition_guidance": {
+      "daily_calories_target": 3000,
+      "protein_target_g": 180,
+      "note": "Higher calories for long run day"
+    },
+    
+    "water_reminders": [
+      {"time": "08:00", "amount_ml": 500, "message": "Morning hydration"},
+      {"time": "pre_run", "amount_ml": 300, "message": "Pre-run: 300ml"},
+      {"time": "during_run", "message": "Bring water on run"},
+      {"time": "post_run", "amount_ml": 500, "message": "Post-run: 500ml within 30 min"},
+      {"time": "20:00", "amount_ml": 200, "message": "Evening sips"}
+    ],
+    
+    "race_day_countdown": 22
+  }
+}

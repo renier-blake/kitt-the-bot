@@ -1,0 +1,101 @@
+{
+  "workout": {
+    "id": "gymrace-w4-d7",
+    "date": "2026-03-01",
+    "week": 4,
+    "day": "Sunday",
+    "phase": "race_week",
+    "type": "race_day",
+    "title": "🏆 RACE DAY - GYMRACE AMSTERDAM! 🏆",
+    "description": "THE BIG DAY - All your training comes together!",
+    
+    "split_session": {
+      "enabled": false
+    },
+    
+    "race_schedule": {
+      "wave_start": "13:40",
+      "estimated_finish": "~15:00",
+      "target_time": "1:20:00"
+    },
+    
+    "morning_routine": {
+      "3-4_hours_before": {
+        "time": "09:40-10:40",
+        "activities": ["wake_up", "light_breakfast"],
+        "breakfast": "Oatmeal, banana, coffee"
+      },
+      "2-3_hours_before": {
+        "time": "10:40-11:40",
+        "activities": ["arrive_venue", "check_in"]
+      },
+      "90_min_before": {
+        "time": "12:10",
+        "activities": ["light_warmup_jog", "10 min"]
+      },
+      "60_min_before": {
+        "time": "12:40",
+        "activities": ["dynamic_stretching", "activation_drills"]
+      },
+      "30_min_before": {
+        "time": "13:10",
+        "activities": ["practice_5_wall_balls", "practice_5_burpees"]
+      },
+      "15_min_before": {
+        "time": "13:25",
+        "activities": ["get_to_start_area", "mental_prep"]
+      },
+      "start": {
+        "time": "13:40",
+        "activity": "WAVE START!"
+      }
+    },
+    
+    "pacing_strategy": {
+      "run_1": {"target": "5:10", "note": "Controlled start"},
+      "sled_push": {"target": "2:00", "note": "Don't sprint - you're strong here"},
+      "run_2": {"target": "5:20", "note": "Recovery pace"},
+      "wall_balls": {"target": "6:00", "break_strategy": "20-20-20-20-20", "note": "Break EARLY, don't wait for failure"},
+      "run_3": {"target": "5:25", "note": "Find rhythm"},
+      "slam_ball_carry": {"target": "3:00", "note": "Steady grip, breathe"},
+      "run_4": {"target": "5:25", "note": "Maintain"},
+      "row": {"target": "4:00", "note": "Strong strokes - you're good here"},
+      "kb_swings": {"target": "5:00", "note": "Hip drive, use tested weight"},
+      "run_5": {"target": "5:25", "note": "HALFWAY MENTAL CHECKPOINT - push from here!"},
+      "ski_erg": {"target": "4:30", "note": "Arms working - you're good here"},
+      "farmers_lunges": {"target": "4:00", "note": "Short steps - you're strong at 32kg"},
+      "bike": {"target": "4:30", "note": "Push hard - you're good here"},
+      "burpee_broad_jumps": {"target": "4:00", "note": "One at a time, steady"},
+      "sprint": {"target": "0:30", "note": "EVERYTHING!"}
+    },
+    
+    "target_metrics": {
+      "hr_zone": "4-5",
+      "rpe": "9-10",
+      "calories_burned_estimate": 1200
+    },
+    
+    "focus_areas": ["race_execution", "mental_toughness", "pacing", "transitions"],
+    "weak_point_focus": ["wall_balls", "slam_ball_carry", "burpee_broad_jumps"],
+    "strong_point_leverage": ["sled_push", "row", "ski_erg", "bike", "farmers_lunges"],
+    
+    "garmin_tags": ["race_day", "hyrox", "gyrace", "competition"],
+    
+    "nutrition_guidance": {
+      "breakfast": "3-4 hours before: Oatmeal, banana, coffee",
+      "pre_race": "No new foods!",
+      "during": "Water/electrolytes at aid stations if available"
+    },
+    
+    "water_reminders": [
+      {"time": "wake_up", "amount_ml": 300, "message": "Small glass - not too much"},
+      {"time": "with_breakfast", "amount_ml": 300, "message": "With breakfast"},
+      {"time": "pre_race", "message": "Sip water as needed, don't overdo it"},
+      {"time": "during_race", "message": "Take water at aid stations"}
+    ],
+    
+    "race_day_countdown": 0,
+    "is_race_day": true,
+    "target_finish_time": "1:20:00"
+  }
+}

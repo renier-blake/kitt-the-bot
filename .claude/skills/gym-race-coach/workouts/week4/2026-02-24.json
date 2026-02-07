@@ -1,0 +1,71 @@
+{
+  "workout": {
+    "id": "gymrace-w4-d2",
+    "date": "2026-02-24",
+    "week": 4,
+    "day": "Tuesday",
+    "phase": "race_week",
+    "type": "movement_prep",
+    "title": "Movement Prep",
+    "description": "Final movement preparation - minimal intensity",
+    
+    "split_session": {
+      "enabled": false
+    },
+    
+    "primary_workout": {
+      "warmup": {
+        "duration": "5 min",
+        "activities": ["easy_row"]
+      },
+      "activation": {
+        "duration": "15 min",
+        "activities": [
+          {"name": "row", "distance": "500m", "pace": "easy"},
+          {"name": "wall_balls", "reps": 10},
+          {"name": "ski_erg", "distance": "200m"},
+          {"name": "kb_swings", "reps": 10, "weight_kg": 20},
+          {"name": "burpees", "reps": 5}
+        ]
+      },
+      "cooldown": {
+        "duration": "5 min",
+        "activities": ["walk"]
+      },
+      "total_duration": "~20 min",
+      "focus": "Movement prep, NOT fitness"
+    },
+    
+    "target_metrics": {
+      "hr_zone": "1-2",
+      "rpe": "3-4",
+      "calories_burned_estimate": 150
+    },
+    
+    "focus_areas": ["movement_prep", "race_day_readiness"],
+    "weak_point_focus": [],
+    "strong_point_leverage": [],
+    
+    "garmin_tags": ["activation", "race_week", "movement_prep"],
+    
+    "nutrition_guidance": {
+      "daily_calories_target": 2900,
+      "carb_focus": true,
+      "protein_target_g": 120,
+      "focus": "Continue carb loading"
+    },
+    
+    "water_reminders": [
+      {"time": "08:00", "amount_ml": 600, "message": "💧 RACE WEEK: 600ml"},
+      {"time": "10:00", "amount_ml": 400, "message": "Mid-morning: 400ml"},
+      {"time": "12:00", "amount_ml": 400, "message": "Pre-lunch: 400ml"},
+      {"time": "14:00", "amount_ml": 400, "message": "Afternoon: 400ml"},
+      {"time": "16:00", "amount_ml": 400, "message": "Pre-dinner: 400ml"},
+      {"time": "18:00", "amount_ml": 300, "message": "Evening: 300ml"},
+      {"time": "20:00", "amount_ml": 200, "message": "Final sips: 200ml"}
+    ],
+    "daily_water_target_ml": 3000,
+    
+    "race_day_countdown": 5
+  }
+}

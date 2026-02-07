@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# State files
+bridge-state.json
+
+# Message queues (runtime data)
+inbox/*.json
+outbox/*.json
+
+# Keep the directories
+!inbox/.gitkeep
+!outbox/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo
+.vscode/settings.json
+
+# Logs
+*.log
+npm-debug.log*
+logs/*.log
+!logs/.gitkeep
+
+# SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Lock files (optional - some projects prefer to commit these)
+# package-lock.json
+
+# Browser skill data (persistent profile, screenshots)
+.claude/skills/browser/data/
+.claude/skills/browser/node_modules/

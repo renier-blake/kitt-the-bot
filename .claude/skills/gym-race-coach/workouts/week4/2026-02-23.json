@@ -1,0 +1,63 @@
+{
+  "workout": {
+    "id": "gymrace-w4-d1",
+    "date": "2026-02-23",
+    "week": 4,
+    "day": "Monday",
+    "phase": "race_week",
+    "type": "activation",
+    "title": "Activation Day",
+    "description": "Minimal volume - light movement prep only",
+    
+    "split_session": {
+      "enabled": false
+    },
+    
+    "primary_workout": {
+      "activity": {
+        "type": "light_movement",
+        "duration": "20 min",
+        "activities": ["walk", "light_swim"]
+      },
+      "mobility": {
+        "duration": "15 min",
+        "activities": ["gentle_stretching"]
+      },
+      "nutrition": {
+        "focus": "Begin carb loading preparation"
+      }
+    },
+    
+    "target_metrics": {
+      "hr_zone": "1",
+      "rpe": "2",
+      "calories_burned_estimate": 100
+    },
+    
+    "focus_areas": ["activation", "carb_loading_prep", "recovery"],
+    "weak_point_focus": [],
+    "strong_point_leverage": [],
+    
+    "garmin_tags": ["activation", "race_week", "taper"],
+    
+    "nutrition_guidance": {
+      "daily_calories_target": 2100,
+      "carb_focus": true,
+      "protein_target_g": 120,
+      "focus": "Begin carb loading - increase carbs 10-15%"
+    },
+    
+    "water_reminders": [
+      {"time": "08:00", "amount_ml": 600, "message": "💧 RACE WEEK: 600ml to start"},
+      {"time": "10:00", "amount_ml": 400, "message": "Mid-morning: 400ml"},
+      {"time": "12:00", "amount_ml": 400, "message": "Pre-lunch: 400ml"},
+      {"time": "14:00", "amount_ml": 400, "message": "Afternoon: 400ml"},
+      {"time": "16:00", "amount_ml": 400, "message": "Pre-dinner: 400ml"},
+      {"time": "18:00", "amount_ml": 300, "message": "Evening: 300ml"},
+      {"time": "20:00", "amount_ml": 200, "message": "Final sips: 200ml"}
+    ],
+    "daily_water_target_ml": 3000,
+    
+    "race_day_countdown": 6
+  }
+}

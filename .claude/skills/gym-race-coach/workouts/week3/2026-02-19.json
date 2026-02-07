@@ -1,0 +1,72 @@
+{
+  "workout": {
+    "id": "gymrace-w3-d4",
+    "date": "2026-02-19",
+    "week": 3,
+    "day": "Thursday",
+    "phase": "pre_taper",
+    "type": "easy_run_skills",
+    "title": "Easy Run + Light Skills",
+    "description": "5km easy Zone 2 run with optional light skills",
+    
+    "split_session": {
+      "enabled": true,
+      "morning": {
+        "type": "easy_run",
+        "distance_km": 5,
+        "intensity": "zone2",
+        "pace": "6:30+/km",
+        "description": "Conversational pace - feeling fresh? HR should be low"
+      },
+      "evening": {
+        "type": "light_skills",
+        "duration": "15 min",
+        "optional": true,
+        "activities": ["10 wall balls", "25m slam ball carry"]
+      }
+    },
+    
+    "primary_workout": {
+      "run": {
+        "type": "zone2",
+        "distance_km": 5,
+        "pace": "6:30+/km",
+        "focus": "Conversational, feeling fresh"
+      },
+      "optional_skills": {
+        "duration": "15 min",
+        "activities": [
+          {"name": "wall_balls", "reps": 10},
+          {"name": "slam_ball_carry", "distance": "25m"}
+        ]
+      }
+    },
+    
+    "target_metrics": {
+      "hr_zone": "2",
+      "rpe": "4-5",
+      "calories_burned_estimate": 350
+    },
+    
+    "focus_areas": ["feeling_fresh", "aerobic_maintenance"],
+    "weak_point_focus": [],
+    "strong_point_leverage": [],
+    
+    "garmin_tags": ["running", "easy_run", "zone2", "taper"],
+    
+    "nutrition_guidance": {
+      "daily_calories_target": 2500,
+      "protein_target_g": 125,
+      "focus": "Maintain nutrition"
+    },
+    
+    "water_reminders": [
+      {"time": "08:00", "amount_ml": 500, "message": "Morning hydration"},
+      {"time": "pre_run", "amount_ml": 300, "message": "Pre-run: 300ml"},
+      {"time": "post_run", "amount_ml": 500, "message": "Post-run: 500ml"},
+      {"time": "20:00", "amount_ml": 200, "message": "Evening sips"}
+    ],
+    
+    "race_day_countdown": 10
+  }
+}

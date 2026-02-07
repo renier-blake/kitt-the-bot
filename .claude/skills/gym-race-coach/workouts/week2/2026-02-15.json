@@ -1,0 +1,57 @@
+{
+  "workout": {
+    "id": "gymrace-w2-d7",
+    "date": "2026-02-15",
+    "week": 2,
+    "day": "Sunday",
+    "phase": "first_simulation",
+    "type": "rest_day",
+    "title": "Rest & Recovery + Simulation Review",
+    "description": "Complete rest - log simulation experience and recover",
+    
+    "split_session": {
+      "enabled": false
+    },
+    
+    "primary_workout": {
+      "type": "rest",
+      "activities": ["complete_rest"],
+      "recovery": ["foam_rolling", "light_stretching"],
+      "review": {
+        "log_simulation": true,
+        "note_improvements": "What went well? What needs work?"
+      },
+      "sleep_priority": true,
+      "sleep_target_hours": 8
+    },
+    
+    "target_metrics": {
+      "hr_zone": "N/A",
+      "rpe": "1",
+      "calories_burned_estimate": 50
+    },
+    
+    "focus_areas": ["recovery", "simulation_review", "week_3_prep"],
+    "weak_point_focus": [],
+    "strong_point_leverage": [],
+    
+    "garmin_tags": ["rest_day", "recovery"],
+    
+    "nutrition_guidance": {
+      "daily_calories_target": 2500,
+      "protein_target_g": 130,
+      "focus": "Recovery nutrition, anti-inflammatory foods"
+    },
+    
+    "water_reminders": [
+      {"time": "08:00", "amount_ml": 500, "message": "Recovery hydration"},
+      {"time": "12:00", "amount_ml": 400, "message": "Midday top-up"},
+      {"time": "16:00", "amount_ml": 400, "message": "Afternoon hydration"},
+      {"time": "20:00", "amount_ml": 200, "message": "Evening sips"}
+    ],
+    
+    "race_day_countdown": 14,
+    "weekly_review": true,
+    "simulation_debrief": true
+  }
+}

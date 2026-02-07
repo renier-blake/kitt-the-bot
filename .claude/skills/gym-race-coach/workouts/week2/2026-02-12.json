@@ -1,0 +1,68 @@
+{
+  "workout": {
+    "id": "gymrace-w2-d4",
+    "date": "2026-02-12",
+    "week": 2,
+    "day": "Thursday",
+    "phase": "first_simulation",
+    "type": "skills_strength",
+    "title": "Skills + Strength (Split Option)",
+    "description": "Skills practice with strength maintenance",
+    
+    "split_session": {
+      "enabled": true,
+      "morning": {
+        "type": "recovery_run",
+        "duration": "30 min",
+        "intensity": "zone2",
+        "pace": "7:00/km",
+        "optional": true
+      },
+      "evening": {
+        "type": "skills_strength",
+        "duration": "50 min",
+        "focus": ["wall_balls", "slam_ball_carry", "sled_push", "farmers_walk"]
+      }
+    },
+    
+    "primary_workout": {
+      "skills": [
+        {"exercise": "wall_balls", "sets": 4, "reps": 25, "goal": "unbroken!"},
+        {"exercise": "slam_ball_carry", "sets": 3, "distance": "50m"},
+        {"exercise": "burpee_broad_jumps", "sets": 4, "distance": "15m"}
+      ],
+      "strength": [
+        {"exercise": "sled_push", "sets": 8, "distance": "15m", "note": "heavy, fast"},
+        {"exercise": "farmers_walk", "sets": 4, "distance": "40m", "weight_kg": 32, "note": "32kg+"},
+        {"exercise": "overhead_press", "sets": 3, "reps": 10}
+      ]
+    },
+    
+    "target_metrics": {
+      "hr_zone": "3-4",
+      "rpe": "7-8",
+      "calories_burned_estimate": 500
+    },
+    
+    "focus_areas": ["wall_ball_endurance", "sled_push_power", "farmers_walk_strength"],
+    "weak_point_focus": ["wall_balls", "burpee_broad_jumps"],
+    "strong_point_leverage": ["sled_push", "farmers_walk"],
+    
+    "garmin_tags": ["strength_training", "skills_practice", "hyrox"],
+    
+    "nutrition_guidance": {
+      "daily_calories_target": 2100,
+      "protein_target_g": 145,
+      "note": "Higher protein for strength day"
+    },
+    
+    "water_reminders": [
+      {"time": "08:00", "amount_ml": 500, "message": "Morning hydration"},
+      {"time": "pre_workout", "amount_ml": 300, "message": "Pre-workout: 300ml"},
+      {"time": "post_workout", "amount_ml": 500, "message": "Post-workout: 500ml"},
+      {"time": "20:00", "amount_ml": 200, "message": "Evening sips"}
+    ],
+    
+    "race_day_countdown": 17
+  }
+}

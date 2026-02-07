@@ -1,0 +1,79 @@
+{
+  "workout": {
+    "id": "gymrace-w2-d1",
+    "date": "2026-02-09",
+    "week": 2,
+    "day": "Monday",
+    "phase": "first_simulation",
+    "type": "hyrox_circuit",
+    "title": "HYROX Circuit Training",
+    "description": "3 rounds of race-specific stations with reduced rest",
+    
+    "split_session": {
+      "enabled": true,
+      "morning": {
+        "type": "recovery_run",
+        "duration": "30 min",
+        "intensity": "zone2",
+        "pace": "7:00/km",
+        "description": "Easy recovery run",
+        "optional": true
+      },
+      "evening": {
+        "type": "primary_workout",
+        "duration": "50 min",
+        "focus": ["wall_balls", "rowing", "ski_erg", "kb_swings"]
+      }
+    },
+    
+    "primary_workout": {
+      "warmup": {
+        "duration": "10 min",
+        "activities": ["row", "dynamic_stretches"]
+      },
+      "circuit": {
+        "rounds": 3,
+        "rest_between_rounds": "2 min",
+        "exercises": [
+          {"name": "row", "distance": "600m"},
+          {"name": "wall_balls", "reps": 25, "weight_kg": 9},
+          {"name": "ski_erg", "distance": "300m"},
+          {"name": "kb_swings", "reps": 20, "weight_kg": 20},
+          {"name": "burpee_broad_jumps", "distance": "15m"}
+        ]
+      },
+      "cooldown": {
+        "duration": "10 min",
+        "activities": ["easy_spin", "stretching"]
+      }
+    },
+    
+    "target_metrics": {
+      "hr_zone": "3-4",
+      "rpe": "7-8",
+      "calories_burned_estimate": 550
+    },
+    
+    "focus_areas": ["circuit_endurance", "transition_speed"],
+    "weak_point_focus": ["wall_balls"],
+    "strong_point_leverage": ["row", "ski_erg"],
+    
+    "garmin_tags": ["hyrox", "circuit_training", "crossfit", "high_intensity"],
+    
+    "nutrition_guidance": {
+      "daily_calories_target": 2100,
+      "protein_target_g": 180,
+      "pre_workout": "Carbs 60-90 min before",
+      "post_workout": "Protein within 30 min"
+    },
+    
+    "water_reminders": [
+      {"time": "08:00", "amount_ml": 500, "message": "Morning hydration"},
+      {"time": "pre_workout", "amount_ml": 300, "message": "Pre-workout: 300ml"},
+      {"time": "post_workout", "amount_ml": 500, "message": "Post-workout: 500ml"},
+      {"time": "20:00", "amount_ml": 200, "message": "Evening sips"}
+    ],
+    
+    "race_day_countdown": 20
+  }
+}

@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KITT Portal - Database</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: #0d1117;
+      color: #c9d1d9;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo {
+      font-size: 18px;
+      font-weight: 600;
+      color: #58a6ff;
+    }
+
+    .nav {
+      display: flex;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .nav a {
+      color: #c9d1d9;
+      text-decoration: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      background: #21262d;
+      border: 1px solid #30363d;
+      font-size: 13px;
+    }
+
+    .nav a:hover { background: #30363d; }
+    .nav a.active { background: #238636; border-color: #238636; }
+
+    main {
+      padding: 20px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    h2 {
+      color: #8b949e;
+      font-size: 1.1em;
+      margin: 24px 0 12px 0;
+      font-weight: 500;
+    }
+
+    .stats {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+
+    .stat-box {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 16px 20px;
+      min-width: 140px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    .stat-box:hover { border-color: #58a6ff; }
+    .stat-box.active { border-color: #238636; }
+
+    .stat-box h3 {
+      color: #8b949e;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+      font-weight: 500;
+    }
+
+    .stat-box .value {
+      font-size: 28px;
+      font-weight: 600;
+      color: #58a6ff;
+    }
+
+    .stat-box .sub {
+      font-size: 12px;
+      color: #8b949e;
+      margin-top: 2px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #161b22;
+      border-radius: 8px;
+    }
+
+    th, td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid #30363d;
+    }
+
+    th {
+      background: #21262d;
+      color: #8b949e;
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    tr:hover td { background: #1c2128; }
+    tr:last-child td { border-bottom: none; }
+
+    .content-cell {
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .content-cell:hover {
+      white-space: normal;
+      word-break: break-word;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .badge-high { background: #f85149; color: white; }
+    .badge-medium { background: #d29922; color: white; }
+    .badge-low { background: #238636; color: white; }
+    .badge-daily { background: #1f6feb; color: white; }
+    .badge-weekly { background: #8957e5; color: white; }
+    .badge-monthly { background: #a371f7; color: white; }
+    .badge-once { background: #6e7681; color: white; }
+    .badge-active { background: #238636; color: white; }
+    .badge-inactive { background: #6e7681; color: white; }
+
+    .timestamp {
+      color: #8b949e;
+      font-size: 12px;
+      font-family: 'SF Mono', Monaco, monospace;
+    }
+
+    .json-cell {
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 12px;
+      color: #7ee787;
+    }
+
+    .pagination {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin: 16px 0;
+    }
+
+    .pagination button {
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #c9d1d9;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .pagination button:hover:not(:disabled) { background: #30363d; }
+    .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .empty {
+      color: #6e7681;
+      font-style: italic;
+      padding: 40px;
+      text-align: center;
+    }
+
+    .query-section {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 24px;
+    }
+
+    .query-section textarea {
+      width: 100%;
+      height: 80px;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      color: #c9d1d9;
+      padding: 10px;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 13px;
+      resize: vertical;
+    }
+
+    .query-section button {
+      margin-top: 10px;
+      padding: 8px 16px;
+      background: #238636;
+      border: none;
+      border-radius: 6px;
+      color: white;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    .query-section button:hover { background: #2ea043; }
+
+    .quick-queries {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .quick-queries button {
+      background: #21262d;
+      border: 1px solid #30363d;
+      margin: 0;
+      font-size: 12px;
+      padding: 4px 10px;
+    }
+
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+      color: #8b949e;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid #30363d;
+      border-top-color: #58a6ff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: 10px;
+    }
+
+    footer {
+      background: #161b22;
+      border-top: 1px solid #30363d;
+      padding: 8px 16px;
+      font-size: 11px;
+      color: #8b949e;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">KITT Portal</div>
+    <div class="nav">
+      <a href="index.html">Logs</a>
+      <a href="database.html" class="active">Database</a>
+      <a href="docs.html">Docs</a>
+    </div>
+  </header>
+
+  <main>
+    <div class="stats" id="stats">
+      <!-- Stats loaded via JS -->
+    </div>
+
+    <div id="tableView">
+      <div class="loading"><div class="spinner"></div>Loading...</div>
+    </div>
+  </main>
+
+  <footer>
+    <span id="dbPath">Loading...</span>
+  </footer>
+
+  <script>
+    let currentTable = 'overview';
+    let currentPage = 1;
+    const pageSize = 50;
+
+    // API helper
+    async function api(endpoint) {
+      const res = await fetch(`/api/db${endpoint}`);
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      return res.json();
+    }
+
+    // Format timestamp
+    function formatTime(ts) {
+      if (!ts) return '<span class="empty">-</span>';
+      const d = new Date(ts);
+      return `<span class="timestamp">${d.toLocaleDateString('nl-NL')} ${d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}</span>`;
+    }
+
+    // Badges
+    function priorityBadge(p) {
+      return `<span class="badge badge-${p}">${p}</span>`;
+    }
+
+    function frequencyBadge(f) {
+      return `<span class="badge badge-${f}">${f}</span>`;
+    }
+
+    function activeBadge(a) {
+      return a ? '<span class="badge badge-active">active</span>' : '<span class="badge badge-inactive">inactive</span>';
+    }
+
+    // Escape HTML
+    function esc(str) {
+      if (str === null || str === undefined) return '-';
+      const div = document.createElement('div');
+      div.textContent = String(str);
+      return div.innerHTML;
+    }
+
+    // Load stats
+    async function loadStats() {
+      const data = await api('/stats');
+      document.getElementById('dbPath').textContent = `Database: ${data.path}`;
+
+      const statsHtml = `
+        <div class="stat-box ${currentTable === 'overview' ? 'active' : ''}" onclick="loadTable('overview')">
+          <h3>Overview</h3>
+          <div class="value" style="font-size:18px">Dashboard</div>
+        </div>
+        <div class="stat-box ${currentTable === 'kitt_tasks' ? 'active' : ''}" onclick="loadTable('kitt_tasks')">
+          <h3>Tasks</h3>
+          <div class="value">${data.kitt_tasks}</div>
+        </div>
+        <div class="stat-box ${currentTable === 'transcripts' ? 'active' : ''}" onclick="loadTable('transcripts')">
+          <h3>Transcripts</h3>
+          <div class="value">${data.transcripts}</div>
+          <div class="sub">${data.transcripts_today} today</div>
+        </div>
+        <div class="stat-box ${currentTable === 'chunks' ? 'active' : ''}" onclick="loadTable('chunks')">
+          <h3>Chunks</h3>
+          <div class="value">${data.chunks}</div>
+        </div>
+        <div class="stat-box ${currentTable === 'foods' ? 'active' : ''}" onclick="loadTable('foods')">
+          <h3>Foods</h3>
+          <div class="value">${data.foods}</div>
+        </div>
+        <div class="stat-box ${currentTable === 'food_log' ? 'active' : ''}" onclick="loadTable('food_log')">
+          <h3>Food Log</h3>
+          <div class="value">${data.food_log}</div>
+          <div class="sub">${data.food_log_today} today</div>
+        </div>
+        <div class="stat-box ${currentTable === 'query' ? 'active' : ''}" onclick="loadTable('query')">
+          <h3>Custom Query</h3>
+          <div class="value" style="font-size:18px">SQL</div>
+        </div>
+      `;
+      document.getElementById('stats').innerHTML = statsHtml;
+    }
+
+    // Load table
+    async function loadTable(table, page = 1) {
+      currentTable = table;
+      currentPage = page;
+      await loadStats();
+
+      const view = document.getElementById('tableView');
+
+      if (table === 'overview') {
+        view.innerHTML = await renderOverview();
+      } else if (table === 'query') {
+        view.innerHTML = renderQuerySection();
+      } else {
+        view.innerHTML = '<div class="loading"><div class="spinner"></div>Loading...</div>';
+        const data = await api(`/table/${table}?page=${page}&limit=${pageSize}`);
+        view.innerHTML = renderTable(table, data);
+      }
+    }
+
+    // Render overview
+    async function renderOverview() {
+      const [tasks, transcripts] = await Promise.all([
+        api('/table/kitt_tasks?limit=10'),
+        api('/table/transcripts?limit=10')
+      ]);
+
+      return `
+        <h2>Active Tasks</h2>
+        ${renderTasksTable(tasks.rows)}
+
+        <h2>Recent Transcripts</h2>
+        ${renderTranscriptsTable(transcripts.rows, false)}
+      `;
+    }
+
+    // Render tasks table
+    function renderTasksTable(rows) {
+      if (!rows.length) return '<div class="empty">No tasks</div>';
+
+      return `
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th><th>Title</th><th>Frequency</th><th>Priority</th>
+              <th>Time Window</th><th>Skills</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                <td>${r.id}</td>
+                <td><strong>${esc(r.title)}</strong><br><small style="color:#8b949e">${esc(r.description)}</small></td>
+                <td>${frequencyBadge(r.frequency)}</td>
+                <td>${priorityBadge(r.priority)}</td>
+                <td>${r.time_window_start || '-'} - ${r.time_window_end || '-'}</td>
+                <td class="json-cell">${esc(r.skill_refs)}</td>
+                <td>${r.snoozed_until && r.snoozed_until > Date.now() ? 'Snoozed' : activeBadge(r.active)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    // Render transcripts table
+    function renderTranscriptsTable(rows, showPagination = true) {
+      if (!rows.length) return '<div class="empty">No transcripts</div>';
+
+      return `
+        <table>
+          <thead>
+            <tr><th>Time</th><th>Role</th><th>Content</th></tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                <td>${formatTime(r.created_at)}</td>
+                <td>${r.role}</td>
+                <td class="content-cell">${esc(String(r.content).slice(0, 200))}${String(r.content).length > 200 ? '...' : ''}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    // Generic table render
+    function renderTable(table, data) {
+      if (!data.rows.length) return '<div class="empty">No data</div>';
+
+      const columns = Object.keys(data.rows[0]);
+
+      let html = `
+        <div class="pagination">
+          <button onclick="loadTable('${table}', ${currentPage - 1})" ${currentPage <= 1 ? 'disabled' : ''}>Previous</button>
+          <span>Page ${currentPage} of ${Math.ceil(data.total / pageSize)}</span>
+          <button onclick="loadTable('${table}', ${currentPage + 1})" ${currentPage >= Math.ceil(data.total / pageSize) ? 'disabled' : ''}>Next</button>
+          <span style="margin-left:auto;color:#8b949e">${data.total} total rows</span>
+        </div>
+        <table>
+          <thead>
+            <tr>${columns.map(c => `<th>${c}</th>`).join('')}</tr>
+          </thead>
+          <tbody>
+      `;
+
+      for (const row of data.rows) {
+        html += '<tr>';
+        for (const col of columns) {
+          let val = row[col];
+
+          // Format special columns
+          if (col === 'created_at' || col === 'snoozed_until' || col === 'next_run') {
+            val = formatTime(val);
+          } else if (col === 'priority') {
+            val = priorityBadge(val);
+          } else if (col === 'frequency') {
+            val = frequencyBadge(val);
+          } else if (col === 'active') {
+            val = activeBadge(val);
+          } else if (col === 'content' || col === 'description' || col === 'metadata') {
+            val = `<span class="content-cell">${esc(String(val || '').slice(0, 150))}${String(val || '').length > 150 ? '...' : ''}</span>`;
+          } else if (col === 'skill_refs') {
+            val = `<span class="json-cell">${esc(val)}</span>`;
+          } else {
+            val = esc(val);
+          }
+
+          html += `<td>${val}</td>`;
+        }
+        html += '</tr>';
+      }
+
+      html += '</tbody></table>';
+      return html;
+    }
+
+    // Query section
+    function renderQuerySection() {
+      return `
+        <div class="query-section">
+          <textarea id="sqlInput" placeholder="SELECT * FROM kitt_tasks LIMIT 10"></textarea>
+          <button onclick="runQuery()">Run Query</button>
+          <div class="quick-queries">
+            <button onclick="setQuery('SELECT * FROM kitt_tasks')">All Tasks</button>
+            <button onclick="setQuery(\`SELECT role, COUNT(*) as count FROM transcripts GROUP BY role\`)">Transcripts by Role</button>
+            <button onclick="setQuery(\`SELECT logged_date, SUM(calories) as cal, SUM(protein_g) as protein FROM food_log GROUP BY logged_date ORDER BY logged_date DESC LIMIT 7\`)">Daily Nutrition</button>
+            <button onclick="setQuery('SELECT * FROM meta')">Metadata</button>
+            <button onclick="setQuery(\`SELECT name FROM sqlite_master WHERE type='table'\`)">All Tables</button>
+          </div>
+        </div>
+        <div id="queryResult"></div>
+      `;
+    }
+
+    function setQuery(sql) {
+      document.getElementById('sqlInput').value = sql;
+    }
+
+    async function runQuery() {
+      const sql = document.getElementById('sqlInput').value;
+      const resultDiv = document.getElementById('queryResult');
+
+      try {
+        resultDiv.innerHTML = '<div class="loading"><div class="spinner"></div>Running...</div>';
+        const data = await api(`/query?sql=${encodeURIComponent(sql)}`);
+
+        if (!data.rows.length) {
+          resultDiv.innerHTML = '<div class="empty">No results</div>';
+          return;
+        }
+
+        const columns = Object.keys(data.rows[0]);
+        resultDiv.innerHTML = `
+          <p style="color:#8b949e;margin-bottom:10px">${data.rows.length} rows returned</p>
+          <table>
+            <tr>${columns.map(c => `<th>${c}</th>`).join('')}</tr>
+            ${data.rows.slice(0, 100).map(row => `
+              <tr>${columns.map(c => `<td class="content-cell">${esc(row[c])}</td>`).join('')}</tr>
+            `).join('')}
+          </table>
+          ${data.rows.length > 100 ? '<div class="empty">Showing first 100 rows</div>' : ''}
+        `;
+      } catch (e) {
+        resultDiv.innerHTML = `<div style="color:#f85149;padding:20px">Error: ${e.message}</div>`;
+      }
+    }
+
+    // Init
+    loadStats().then(() => loadTable('overview'));
+  </script>
+</body>
+</html>

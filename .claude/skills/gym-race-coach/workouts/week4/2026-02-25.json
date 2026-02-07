@@ -1,0 +1,61 @@
+{
+  "workout": {
+    "id": "gymrace-w4-d3",
+    "date": "2026-02-25",
+    "week": 4,
+    "day": "Wednesday",
+    "phase": "race_week",
+    "type": "rest_day",
+    "title": "Rest & Travel Prep",
+    "description": "Complete rest - pack race bag, plan nutrition",
+    
+    "split_session": {
+      "enabled": false
+    },
+    
+    "primary_workout": {
+      "type": "rest",
+      "activities": ["complete_rest"],
+      "prep": {
+        "pack_race_bag": true,
+        "plan_nutrition": true,
+        "check_gear": ["race_outfit", "shoes", "towel", "water_bottle"]
+      },
+      "sleep_priority": true,
+      "sleep_target_hours": 9
+    },
+    
+    "target_metrics": {
+      "hr_zone": "N/A",
+      "rpe": "1",
+      "calories_burned_estimate": 50
+    },
+    
+    "focus_areas": ["race_prep", "gear_check", "nutrition_planning"],
+    "weak_point_focus": [],
+    "strong_point_leverage": [],
+    
+    "garmin_tags": ["rest_day", "race_week", "prep"],
+    
+    "nutrition_guidance": {
+      "daily_calories_target": 2900,
+      "carb_focus": true,
+      "protein_target_g": 120,
+      "focus": "Carb loading peak - pasta, rice, potatoes"
+    },
+    
+    "water_reminders": [
+      {"time": "08:00", "amount_ml": 600, "message": "💧 RACE WEEK: 600ml - start aggressive hydration"},
+      {"time": "10:00", "amount_ml": 400, "message": "Mid-morning: 400ml"},
+      {"time": "12:00", "amount_ml": 400, "message": "Pre-lunch: 400ml"},
+      {"time": "14:00", "amount_ml": 400, "message": "Afternoon: 400ml"},
+      {"time": "16:00", "amount_ml": 400, "message": "Pre-dinner: 400ml"},
+      {"time": "18:00", "amount_ml": 300, "message": "Evening: 300ml"},
+      {"time": "20:00", "amount_ml": 200, "message": "Final sips: 200ml"}
+    ],
+    "daily_water_target_ml": 3000,
+    
+    "race_day_countdown": 4,
+    "sleep_check": true
+  }
+}

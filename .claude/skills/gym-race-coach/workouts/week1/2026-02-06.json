@@ -1,0 +1,62 @@
+{
+  "workout": {
+    "id": "gymrace-w1-d5",
+    "date": "2026-02-06",
+    "week": 1,
+    "day": "Friday",
+    "phase": "wall_ball_intensive",
+    "type": "skills_practice",
+    "title": "GYMRACE Skills Focus",
+    "description": "Station practice - wall balls, KB swings, burpees, slam ball",
+    
+    "split_session": {
+      "enabled": false
+    },
+    
+    "primary_workout": {
+      "station_practice": {
+        "duration": "60 min",
+        "stations": [
+          {"name": "wall_balls", "sets": 5, "reps": 20, "rest": "1 min between sets", "note": "BUILD VOLUME"},
+          {"name": "kb_swings_test", "sets": 6, "progression": [
+            {"sets": 2, "reps": 20, "weight_kg": 16},
+            {"sets": 2, "reps": 20, "weight_kg": 20},
+            {"sets": 2, "reps": 15, "weight_kg": 24}
+          ]},
+          {"name": "burpee_broad_jumps", "sets": 5, "distance": "10m", "focus": "rhythm"},
+          {"name": "slam_ball_carry", "sets": 3, "distance": "50m", "note": "build to full race distance"}
+        ],
+        "transitions": "Short transitions between each station"
+      }
+    },
+    
+    "target_metrics": {
+      "hr_zone": "3-4",
+      "rpe": "7-8",
+      "calories_burned_estimate": 500
+    },
+    
+    "focus_areas": ["kb_weight_testing", "wall_ball_endurance", "slam_ball_carry_building"],
+    "weak_point_focus": ["wall_balls", "slam_ball_carry", "burpee_broad_jumps"],
+    "strong_point_leverage": [],
+    
+    "garmin_tags": ["hyrox", "skills_practice", "crossfit", "functional_fitness"],
+    
+    "nutrition_guidance": {
+      "daily_calories_target": 2100,
+      "protein_target_g": 180,
+      "pre_workout": "Carbs 60 min before",
+      "post_workout": "Recovery meal with protein"
+    },
+    
+    "water_reminders": [
+      {"time": "08:00", "amount_ml": 500, "message": "Morning hydration"},
+      {"time": "pre_workout", "amount_ml": 300, "message": "Pre-workout: 300ml"},
+      {"time": "post_workout", "amount_ml": 500, "message": "Post-workout: 500ml"},
+      {"time": "20:00", "amount_ml": 200, "message": "Evening sips"}
+    ],
+    
+    "race_day_countdown": 23,
+    "kb_weight_test": true
+  }
+}

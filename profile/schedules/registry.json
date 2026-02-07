@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "timezone": "Europe/Amsterdam",
+  "tasks": [],
+  "thinkLoop": {
+    "model": "haiku",
+    "lastRun": "2026-02-07T20:02:07.398Z"
+  },
+  "telegramChatId": 1306998969
+}

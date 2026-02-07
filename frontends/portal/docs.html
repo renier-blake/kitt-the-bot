@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KITT Portal - Docs</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: #0d1117;
+      color: #c9d1d9;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo {
+      font-size: 18px;
+      font-weight: 600;
+      color: #58a6ff;
+    }
+
+    .nav {
+      display: flex;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .nav a {
+      color: #c9d1d9;
+      text-decoration: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      background: #21262d;
+      border: 1px solid #30363d;
+      font-size: 13px;
+    }
+
+    .nav a:hover { background: #30363d; }
+    .nav a.active { background: #238636; border-color: #238636; }
+
+    main {
+      padding: 20px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      border-bottom: 1px solid #30363d;
+      margin-bottom: 24px;
+    }
+
+    .tab {
+      padding: 12px 20px;
+      background: transparent;
+      border: none;
+      color: #8b949e;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .tab:hover {
+      color: #c9d1d9;
+    }
+
+    .tab.active {
+      color: #58a6ff;
+      border-bottom-color: #58a6ff;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* Architecture Diagram */
+    .architecture {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 32px;
+      margin-bottom: 24px;
+    }
+
+    .arch-title {
+      text-align: center;
+      color: #58a6ff;
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 32px;
+    }
+
+    .arch-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 24px;
+      position: relative;
+    }
+
+    .arch-layer {
+      background: #21262d;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .arch-layer h3 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #8b949e;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .arch-layer h3::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .layer-channels h3::before { background: #3fb950; }
+    .layer-bridge h3::before { background: #58a6ff; }
+    .layer-agent h3::before { background: #a371f7; }
+    .layer-data h3::before { background: #f0883e; }
+    .layer-skills h3::before { background: #f85149; }
+    .layer-portal h3::before { background: #d29922; }
+
+    .component {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-bottom: 8px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .component:hover {
+      border-color: #58a6ff;
+      transform: translateX(4px);
+    }
+
+    .component:last-child {
+      margin-bottom: 0;
+    }
+
+    .component .name {
+      font-weight: 600;
+      color: #c9d1d9;
+    }
+
+    .component .desc {
+      color: #8b949e;
+      font-size: 11px;
+      margin-top: 2px;
+    }
+
+    .component .tech {
+      display: inline-block;
+      background: #21262d;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      color: #7ee787;
+      margin-top: 4px;
+      font-family: 'SF Mono', Monaco, monospace;
+    }
+
+    /* Flow Arrows */
+    .flow-section {
+      text-align: center;
+      padding: 16px;
+      color: #8b949e;
+    }
+
+    .flow-arrow {
+      font-size: 24px;
+      color: #30363d;
+    }
+
+    /* Components Grid */
+    .components-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      gap: 20px;
+    }
+
+    .component-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 20px;
+      transition: border-color 0.2s;
+    }
+
+    .component-card:hover {
+      border-color: #58a6ff;
+    }
+
+    .component-card h3 {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .component-card h3 .icon {
+      font-size: 24px;
+    }
+
+    .component-card h3 .title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #c9d1d9;
+    }
+
+    .component-card p {
+      color: #8b949e;
+      margin-bottom: 16px;
+    }
+
+    .component-card .files {
+      background: #0d1117;
+      border-radius: 6px;
+      padding: 12px;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 12px;
+    }
+
+    .component-card .files .file {
+      color: #7ee787;
+      padding: 2px 0;
+    }
+
+    .component-card .files .folder {
+      color: #79c0ff;
+    }
+
+    /* Skills Grid */
+    .skills-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .skill-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 16px;
+      transition: all 0.2s;
+    }
+
+    .skill-card:hover {
+      border-color: #58a6ff;
+      transform: translateY(-2px);
+    }
+
+    .skill-card .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .skill-card .emoji {
+      font-size: 28px;
+    }
+
+    .skill-card .name {
+      font-weight: 600;
+      color: #c9d1d9;
+      font-size: 15px;
+    }
+
+    .skill-card .desc {
+      color: #8b949e;
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+
+    .skill-card .badges {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .badge-type { background: #1f6feb; color: white; }
+    .badge-scheduled { background: #8957e5; color: white; }
+    .badge-tool { background: #238636; color: white; }
+    .badge-data { background: #f0883e; color: white; }
+    .badge-os { background: #6e7681; color: white; }
+
+    /* Data Flow */
+    .flow-diagram {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 32px;
+    }
+
+    .flow-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #c9d1d9;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .flow-title::before {
+      content: '';
+      width: 4px;
+      height: 20px;
+      background: #58a6ff;
+      border-radius: 2px;
+    }
+
+    .flow-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .flow-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 16px 0;
+      position: relative;
+    }
+
+    .flow-step:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      left: 15px;
+      top: 48px;
+      bottom: 0;
+      width: 2px;
+      background: #30363d;
+    }
+
+    .flow-step .number {
+      width: 32px;
+      height: 32px;
+      background: #21262d;
+      border: 2px solid #30363d;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      color: #58a6ff;
+      font-size: 14px;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 1;
+    }
+
+    .flow-step .content {
+      flex: 1;
+    }
+
+    .flow-step .content h4 {
+      color: #c9d1d9;
+      margin-bottom: 4px;
+    }
+
+    .flow-step .content p {
+      color: #8b949e;
+      font-size: 13px;
+    }
+
+    .flow-step .content code {
+      background: #0d1117;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 12px;
+      color: #7ee787;
+    }
+
+    /* Info Box */
+    .info-box {
+      background: rgba(56, 139, 253, 0.1);
+      border: 1px solid rgba(56, 139, 253, 0.4);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 24px;
+    }
+
+    .info-box h4 {
+      color: #58a6ff;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .info-box p {
+      color: #c9d1d9;
+      font-size: 13px;
+    }
+
+    /* Quick Reference */
+    .quick-ref {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .quick-ref-item {
+      background: #21262d;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 12px;
+    }
+
+    .quick-ref-item h5 {
+      color: #8b949e;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .quick-ref-item .value {
+      color: #58a6ff;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 13px;
+    }
+
+    footer {
+      background: #161b22;
+      border-top: 1px solid #30363d;
+      padding: 12px 16px;
+      font-size: 11px;
+      color: #8b949e;
+      margin-top: 40px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">KITT Portal</div>
+    <div class="nav">
+      <a href="index.html">Logs</a>
+      <a href="database.html">Database</a>
+      <a href="docs.html" class="active">Docs</a>
+    </div>
+  </header>
+
+  <main>
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" data-tab="architecture">Architecture</button>
+      <button class="tab" data-tab="components">Components</button>
+      <button class="tab" data-tab="skills">Skills</button>
+      <button class="tab" data-tab="dataflow">Data Flow</button>
+    </div>
+
+    <!-- Architecture Tab -->
+    <div id="architecture" class="tab-content active">
+      <div class="info-box">
+        <h4>KITT - Knowledge Interface for Transparent Tasks</h4>
+        <p>Transparante, multi-channel AI assistent met Claude Code als engine. Klik op componenten voor meer details.</p>
+      </div>
+
+      <div class="architecture">
+        <div class="arch-title">System Architecture Overview</div>
+
+        <div class="arch-grid">
+          <!-- Channels Layer -->
+          <div class="arch-layer layer-channels">
+            <h3>Input Channels</h3>
+            <div class="component">
+              <div class="name">Telegram Bot</div>
+              <div class="desc">Primary chat interface</div>
+              <div class="tech">grammy</div>
+            </div>
+            <div class="component">
+              <div class="name">VS Code</div>
+              <div class="desc">Development interface</div>
+              <div class="tech">Claude Code Extension</div>
+            </div>
+            <div class="component" style="opacity:0.5">
+              <div class="name">WhatsApp</div>
+              <div class="desc">Planned channel</div>
+              <div class="tech">baileys</div>
+            </div>
+          </div>
+
+          <!-- Bridge Layer -->
+          <div class="arch-layer layer-bridge">
+            <h3>Message Bridge</h3>
+            <div class="component">
+              <div class="name">Bridge Core</div>
+              <div class="desc">Node.js orchestrator</div>
+              <div class="tech">src/bridge/index.ts</div>
+            </div>
+            <div class="component">
+              <div class="name">Session Manager</div>
+              <div class="desc">Context persistence</div>
+              <div class="tech">sessions.json</div>
+            </div>
+            <div class="component">
+              <div class="name">Scheduler</div>
+              <div class="desc">Task engine + Think Loop</div>
+              <div class="tech">src/scheduler/</div>
+            </div>
+          </div>
+
+          <!-- Agent Layer -->
+          <div class="arch-layer layer-agent">
+            <h3>Claude Agent</h3>
+            <div class="component">
+              <div class="name">Agent SDK</div>
+              <div class="desc">Core AI engine</div>
+              <div class="tech">@anthropic-ai/claude-agent-sdk</div>
+            </div>
+            <div class="component">
+              <div class="name">Sub-Agents</div>
+              <div class="desc">Explore, Bash, Plan</div>
+              <div class="tech">Task tool</div>
+            </div>
+            <div class="component">
+              <div class="name">Tool Access</div>
+              <div class="desc">Read, Write, Edit, Bash, Glob, Grep</div>
+              <div class="tech">Full permissions</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flow-section">
+          <div class="flow-arrow">↓ ↑</div>
+        </div>
+
+        <div class="arch-grid">
+          <!-- Data Layer -->
+          <div class="arch-layer layer-data">
+            <h3>Data Layer</h3>
+            <div class="component">
+              <div class="name">Memory DB</div>
+              <div class="desc">SQLite + vectors</div>
+              <div class="tech">profile/memory/kitt.db</div>
+            </div>
+            <div class="component">
+              <div class="name">Working Memory</div>
+              <div class="desc">Active context</div>
+              <div class="tech">MEMORY.md</div>
+            </div>
+            <div class="component">
+              <div class="name">Identity</div>
+              <div class="desc">KITT personality</div>
+              <div class="tech">SOUL.md, IDENTITY.md</div>
+            </div>
+          </div>
+
+          <!-- Skills Layer -->
+          <div class="arch-layer layer-skills">
+            <h3>Skills</h3>
+            <div class="component">
+              <div class="name">Tool Skills</div>
+              <div class="desc">Reminders, Browser</div>
+              <div class="tech">.claude/skills/</div>
+            </div>
+            <div class="component">
+              <div class="name">Data Skills</div>
+              <div class="desc">Garmin, Nutrition</div>
+              <div class="tech">SKILL.md</div>
+            </div>
+            <div class="component">
+              <div class="name">Scheduled Skills</div>
+              <div class="desc">Daily reflection, Coach</div>
+              <div class="tech">Think Loop</div>
+            </div>
+          </div>
+
+          <!-- Portal Layer -->
+          <div class="arch-layer layer-portal">
+            <h3>KITT Portal</h3>
+            <div class="component">
+              <div class="name">Live Logs</div>
+              <div class="desc">Real-time log viewer</div>
+              <div class="tech">WebSocket</div>
+            </div>
+            <div class="component">
+              <div class="name">Database Browser</div>
+              <div class="desc">SQLite explorer</div>
+              <div class="tech">REST API</div>
+            </div>
+            <div class="component">
+              <div class="name">Documentation</div>
+              <div class="desc">This page</div>
+              <div class="tech">Static HTML</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="quick-ref">
+        <div class="quick-ref-item">
+          <h5>Workspace</h5>
+          <div class="value">KITT V1/</div>
+        </div>
+        <div class="quick-ref-item">
+          <h5>Model</h5>
+          <div class="value">Opus 4.5</div>
+        </div>
+        <div class="quick-ref-item">
+          <h5>Portal URL</h5>
+          <div class="value">localhost:3000</div>
+        </div>
+        <div class="quick-ref-item">
+          <h5>Process Manager</h5>
+          <div class="value">PM2</div>
+        </div>
+        <div class="quick-ref-item">
+          <h5>Primary Channel</h5>
+          <div class="value">Telegram</div>
+        </div>
+        <div class="quick-ref-item">
+          <h5>Think Loop</h5>
+          <div class="value">Every 5 min</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Components Tab -->
+    <div id="components" class="tab-content">
+      <div class="components-grid">
+        <div class="component-card">
+          <h3>
+            <span class="icon">🔌</span>
+            <span class="title">Message Bridge</span>
+          </h3>
+          <p>Node.js process dat messages ontvangt van channels en doorstuurt naar de Claude Agent SDK. Beheert sessions en context loading.</p>
+          <div class="files">
+            <div class="folder">src/bridge/</div>
+            <div class="file">├── index.ts (entry point)</div>
+            <div class="file">├── agent.ts (SDK wrapper)</div>
+            <div class="file">├── telegram.ts (Telegram bot)</div>
+            <div class="file">├── sessions.ts (session mgmt)</div>
+            <div class="file">├── context.ts (KITT personality)</div>
+            <div class="file">├── transcribe.ts (Whisper)</div>
+            <div class="file">└── tts.ts (ElevenLabs)</div>
+          </div>
+        </div>
+
+        <div class="component-card">
+          <h3>
+            <span class="icon">🧠</span>
+            <span class="title">Memory System</span>
+          </h3>
+          <p>Hybrid search over KITT's geheugen met SQLite + sqlite-vec voor vectors en FTS5 voor keyword search.</p>
+          <div class="files">
+            <div class="folder">profile/memory/</div>
+            <div class="file">├── MEMORY.md (working memory)</div>
+            <div class="file">└── kitt.db (long-term)</div>
+            <div class="folder">src/memory/</div>
+            <div class="file">├── index.ts</div>
+            <div class="file">├── db.ts (SQLite)</div>
+            <div class="file">└── embeddings.ts (OpenAI)</div>
+          </div>
+        </div>
+
+        <div class="component-card">
+          <h3>
+            <span class="icon">⏰</span>
+            <span class="title">Scheduler</span>
+          </h3>
+          <p>Task engine voor scheduled skills en de Think Loop. Draait autonome taken op basis van frequentie en time windows.</p>
+          <div class="files">
+            <div class="folder">src/scheduler/</div>
+            <div class="file">├── index.ts (entry)</div>
+            <div class="file">├── think-loop.ts (5 min cycle)</div>
+            <div class="file">├── task-runner.ts</div>
+            <div class="file">└── db.ts (kitt_tasks)</div>
+          </div>
+        </div>
+
+        <div class="component-card">
+          <h3>
+            <span class="icon">👤</span>
+            <span class="title">Profile Directory</span>
+          </h3>
+          <p>Alle user-specific data, portable tussen installaties. Scheidt user data van source code.</p>
+          <div class="files">
+            <div class="folder">profile/</div>
+            <div class="file">├── identity/ (SOUL, IDENTITY)</div>
+            <div class="file">├── memory/ (MEMORY.md, kitt.db)</div>
+            <div class="file">├── user/ (USER.md)</div>
+            <div class="file">├── config/ (preferences)</div>
+            <div class="file">└── state/ (sessions, bridge)</div>
+          </div>
+        </div>
+
+        <div class="component-card">
+          <h3>
+            <span class="icon">🛠️</span>
+            <span class="title">Skills System</span>
+          </h3>
+          <p>Uitbreidingen die KITT extra capabilities geven. Gedocumenteerd in SKILL.md files die KITT leest voor instructies.</p>
+          <div class="files">
+            <div class="folder">.claude/skills/</div>
+            <div class="file">├── garmin/ (health data)</div>
+            <div class="file">├── nutrition-log/ (meals)</div>
+            <div class="file">├── daily-reflection/ (routines)</div>
+            <div class="file">├── gym-race-coach/ (training)</div>
+            <div class="file">├── browser/ (Playwright)</div>
+            <div class="file">└── apple-reminders/ (macOS)</div>
+          </div>
+        </div>
+
+        <div class="component-card">
+          <h3>
+            <span class="icon">🖥️</span>
+            <span class="title">KITT Portal</span>
+          </h3>
+          <p>Web UI voor monitoring en beheer. Static HTML served door de log-server.</p>
+          <div class="files">
+            <div class="folder">.claude/portal/</div>
+            <div class="file">├── index.html (logs)</div>
+            <div class="file">├── database.html (DB browser)</div>
+            <div class="file">└── docs.html (documentation)</div>
+            <div class="folder">src/bridge/</div>
+            <div class="file">└── log-server.ts (serves portal)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Skills Tab -->
+    <div id="skills" class="tab-content">
+      <div class="info-box">
+        <h4>Skills Overview</h4>
+        <p>Skills staan in <code>.claude/skills/</code>. Elke skill heeft een SKILL.md die KITT leest om te weten HOE de skill te gebruiken.</p>
+      </div>
+
+      <div class="skills-grid">
+        <div class="skill-card">
+          <div class="header">
+            <span class="emoji">📊</span>
+            <span class="name">garmin</span>
+          </div>
+          <div class="desc">Health data (slaap, HRV, stappen, hartslag, activiteiten) via Garmin Connect.</div>
+          <div class="badges">
+            <span class="badge badge-data">Data</span>
+            <span class="badge badge-type">Python API</span>
+          </div>
+        </div>
+
+        <div class="skill-card">
+          <div class="header">
+            <span class="emoji">🥗</span>
+            <span class="name">nutrition-log</span>
+          </div>
+          <div class="desc">Log meals en track macros (calories, protein, carbs, fat). SQLite opslag.</div>
+          <div class="badges">
+            <span class="badge badge-data">Data</span>
+            <span class="badge badge-type">SQLite</span>
+          </div>
+        </div>
+
+        <div class="skill-card">
+          <div class="header">
+            <span class="emoji">🌅</span>
+            <span class="name">daily-reflection</span>
+          </div>
+          <div class="desc">Dagelijkse check-in met ochtend en avond routine.</div>
+          <div class="badges">
+            <span class="badge badge-scheduled">Scheduled</span>
+            <span class="badge badge-type">Daily</span>
+          </div>
+        </div>
+
+        <div class="skill-card">
+          <div class="header">
+            <span class="emoji">🏋️</span>
+            <span class="name">gym-race-coach</span>
+          </div>
+          <div class="desc">Training coach voor GYMRACE/HYROX met Garmin en nutrition integratie.</div>
+          <div class="badges">
+            <span class="badge badge-scheduled">Scheduled</span>
+            <span class="badge badge-data">Data</span>
+          </div>
+        </div>
+
+        <div class="skill-card">
+          <div class="header">
+            <span class="emoji">⏰</span>
+            <span class="name">apple-reminders</span>
+          </div>
+          <div class="desc">Manage Apple Reminders via remindctl CLI. MacOS only.</div>
+          <div class="badges">
+            <span class="badge badge-tool">Tool</span>
+            <span class="badge badge-os">macOS</span>
+          </div>
+        </div>
+
+        <div class="skill-card">
+          <div class="header">
+            <span class="emoji">🌐</span>
+            <span class="name">browser</span>
+          </div>
+          <div class="desc">Browser automation via Playwright + Chrome. Web navigation, screenshots.</div>
+          <div class="badges">
+            <span class="badge badge-tool">Tool</span>
+            <span class="badge badge-type">Playwright</span>
+          </div>
+        </div>
+
+        <div class="skill-card">
+          <div class="header">
+            <span class="emoji">🍌</span>
+            <span class="name">nano-banana</span>
+          </div>
+          <div class="desc">Generate images via fal.ai (Gemini 3 Pro Image).</div>
+          <div class="badges">
+            <span class="badge badge-tool">Tool</span>
+            <span class="badge badge-type">fal.ai</span>
+          </div>
+        </div>
+
+        <div class="skill-card">
+          <div class="header">
+            <span class="emoji">⚡</span>
+            <span class="name">daily-energy-balance</span>
+          </div>
+          <div class="desc">Daily energy balance summary (eaten vs burned).</div>
+          <div class="badges">
+            <span class="badge badge-scheduled">Scheduled</span>
+            <span class="badge badge-type">Evening</span>
+          </div>
+        </div>
+
+        <div class="skill-card">
+          <div class="header">
+            <span class="emoji">🔧</span>
+            <span class="name">feat</span>
+          </div>
+          <div class="desc">Start een feature bouwen. Gebruik als /feat F## (bijv. /feat F54)</div>
+          <div class="badges">
+            <span class="badge badge-tool">Tool</span>
+            <span class="badge badge-type">Development</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Flow Tab -->
+    <div id="dataflow" class="tab-content">
+      <div class="flow-diagram" style="margin-bottom: 24px;">
+        <div class="flow-title">Incoming Message (Telegram)</div>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="number">1</div>
+            <div class="content">
+              <h4>User sends message</h4>
+              <p>Message arrives at <code>@kittthebot</code> via Telegram</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="number">2</div>
+            <div class="content">
+              <h4>Bridge receives via grammy</h4>
+              <p>Telegram adapter in <code>telegram.ts</code> processes incoming update</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="number">3</div>
+            <div class="content">
+              <h4>Session lookup</h4>
+              <p>Bridge finds or creates session for <code>chatId</code> in sessions.json</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="number">4</div>
+            <div class="content">
+              <h4>Context loading</h4>
+              <p>Load IDENTITY.md, SOUL.md, USER.md, MEMORY.md for KITT personality</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="number">5</div>
+            <div class="content">
+              <h4>Agent SDK call</h4>
+              <p>Call <code>query()</code> with message + session_id + system prompt</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="number">6</div>
+            <div class="content">
+              <h4>Agent processes</h4>
+              <p>Claude processes with full tool access, may update memory</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="number">7</div>
+            <div class="content">
+              <h4>Response formatting</h4>
+              <p>Format response for Telegram (MarkdownV2, chunking)</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="number">8</div>
+            <div class="content">
+              <h4>Send response</h4>
+              <p>Bridge sends via Telegram, updates session state</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flow-diagram" style="margin-bottom: 24px;">
+        <div class="flow-title">Think Loop (Every 5 Minutes)</div>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="number">1</div>
+            <div class="content">
+              <h4>Scheduler triggers</h4>
+              <p>Think loop wakes up via cron (*/5 * * * *)</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="number">2</div>
+            <div class="content">
+              <h4>Collect context</h4>
+              <p>Load transcripts, scheduled tasks, current time, last user activity</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="number">3</div>
+            <div class="content">
+              <h4>Agent evaluates</h4>
+              <p>Agent reads all data and decides: should I act?</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="number">4</div>
+            <div class="content">
+              <h4>Action decision</h4>
+              <p>Returns: <code>HEARTBEAT_OK</code> (nothing), <code>MEMORY:</code> (store), or message (act)</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flow-diagram">
+        <div class="flow-title">Memory Access</div>
+        <div class="flow-steps">
+          <div class="flow-step">
+            <div class="number">1</div>
+            <div class="content">
+              <h4>Working memory</h4>
+              <p>Agent always reads <code>MEMORY.md</code> (active context)</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="number">2</div>
+            <div class="content">
+              <h4>Deep search</h4>
+              <p>Query <code>kitt.db</code> for long-term memory</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="number">3</div>
+            <div class="content">
+              <h4>Hybrid search</h4>
+              <p>0.7 × vector similarity + 0.3 × BM25 keyword</p>
+            </div>
+          </div>
+          <div class="flow-step">
+            <div class="number">4</div>
+            <div class="content">
+              <h4>Store new facts</h4>
+              <p>New facts written to MEMORY.md, transcripts to kitt.db</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <span>KITT Portal v1.0 - Documentation</span>
+  </footer>
+
+  <script>
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        // Remove active from all tabs and contents
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+        // Add active to clicked tab and corresponding content
+        tab.classList.add('active');
+        const tabId = tab.dataset.tab;
+        document.getElementById(tabId).classList.add('active');
+      });
+    });
+
+    // Component hover effects for architecture diagram
+    document.querySelectorAll('.architecture .component').forEach(comp => {
+      comp.addEventListener('click', () => {
+        // Could navigate to component details or show modal
+        const name = comp.querySelector('.name').textContent;
+        console.log('Clicked:', name);
+      });
+    });
+  </script>
+</body>
+</html>

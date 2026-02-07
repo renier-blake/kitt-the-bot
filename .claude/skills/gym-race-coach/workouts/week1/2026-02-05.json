@@ -1,0 +1,73 @@
+{
+  "workout": {
+    "id": "gymrace-w1-d4",
+    "date": "2026-02-05",
+    "week": 1,
+    "day": "Thursday",
+    "phase": "wall_ball_intensive",
+    "type": "split_session",
+    "title": "Split Session: Run + Strength",
+    "description": "Morning easy run, evening strength and skills",
+    
+    "split_session": {
+      "enabled": true,
+      "morning": {
+        "type": "recovery_run",
+        "duration": "30-45 min",
+        "intensity": "zone2",
+        "pace": "6:30-7:00/km",
+        "description": "Easy run, focus on recovery and easy breathing"
+      },
+      "evening": {
+        "type": "strength_skills",
+        "duration": "50 min",
+        "focus": ["front_squats", "sled_push", "burpee_broad_jumps"]
+      }
+    },
+    
+    "primary_workout": {
+      "strength": [
+        {"exercise": "front_squats", "sets": 4, "reps": 8, "note": "moderate-heavy"},
+        {"exercise": "push_press", "sets": 3, "reps": 10},
+        {"exercise": "romanian_deadlifts", "sets": 3, "reps": 10},
+        {"exercise": "pull_ups", "sets": 3, "reps": "6-8"}
+      ],
+      "skills": [
+        {"exercise": "sled_push", "sets": 6, "distance": "15m", "note": "go heavier - you're strong here!"},
+        {"exercise": "burpee_broad_jump", "sets": 4, "distance": "10m", "note": "practice rhythm"}
+      ],
+      "cooldown": {
+        "duration": "10 min",
+        "activities": ["stretching"]
+      }
+    },
+    
+    "target_metrics": {
+      "hr_zone": "2-4",
+      "rpe": "6-7",
+      "calories_burned_estimate": 700
+    },
+    
+    "focus_areas": ["sled_push_strength", "burpee_broad_jump_practice"],
+    "weak_point_focus": ["burpee_broad_jumps"],
+    "strong_point_leverage": ["sled_push"],
+    
+    "garmin_tags": ["running", "strength_training", "split_session"],
+    
+    "nutrition_guidance": {
+      "daily_calories_target": 2900,
+      "protein_target_g": 150,
+      "note": "Higher calories for double session day"
+    },
+    
+    "water_reminders": [
+      {"time": "08:00", "amount_ml": 500, "message": "Morning hydration (before run)"},
+      {"time": "post_run", "amount_ml": 500, "message": "Post-run: 500ml"},
+      {"time": "pre_workout", "amount_ml": 300, "message": "Pre-workout: 300ml"},
+      {"time": "post_workout", "amount_ml": 500, "message": "Post-workout: 500ml"},
+      {"time": "20:00", "amount_ml": 200, "message": "Evening sips"}
+    ],
+    
+    "race_day_countdown": 24
+  }
+}

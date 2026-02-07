@@ -1,0 +1,56 @@
+{
+  "workout": {
+    "id": "gymrace-w2-d5",
+    "date": "2026-02-13",
+    "week": 2,
+    "day": "Friday",
+    "phase": "first_simulation",
+    "type": "easy_run_mobility",
+    "title": "Easy Run + Mobility",
+    "description": "6km Zone 2 run followed by hip/shoulder mobility",
+    
+    "split_session": {
+      "enabled": false
+    },
+    
+    "primary_workout": {
+      "run": {
+        "type": "zone2",
+        "distance_km": 6,
+        "pace": "6:30+/km",
+        "focus": "HR Zone 2 consistency, conversational pace"
+      },
+      "mobility": {
+        "duration": "20 min",
+        "focus": ["hips", "shoulders"]
+      }
+    },
+    
+    "target_metrics": {
+      "hr_zone": "2",
+      "rpe": "5-6",
+      "calories_burned_estimate": 400
+    },
+    
+    "focus_areas": ["active_recovery", "mobility"],
+    "weak_point_focus": [],
+    "strong_point_leverage": [],
+    
+    "garmin_tags": ["running", "easy_run", "zone2", "recovery"],
+    
+    "nutrition_guidance": {
+      "daily_calories_target": 2600,
+      "protein_target_g": 130,
+      "focus": "Recovery nutrition"
+    },
+    
+    "water_reminders": [
+      {"time": "08:00", "amount_ml": 500, "message": "Morning hydration"},
+      {"time": "pre_run", "amount_ml": 300, "message": "Pre-run: 300ml"},
+      {"time": "post_run", "amount_ml": 500, "message": "Post-run: 500ml"},
+      {"time": "20:00", "amount_ml": 200, "message": "Evening sips"}
+    ],
+    
+    "race_day_countdown": 16
+  }
+}

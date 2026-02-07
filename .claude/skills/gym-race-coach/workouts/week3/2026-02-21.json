@@ -1,0 +1,59 @@
+{
+  "workout": {
+    "id": "gymrace-w3-d6",
+    "date": "2026-02-21",
+    "week": 3,
+    "day": "Saturday",
+    "phase": "pre_taper",
+    "type": "active_recovery",
+    "title": "Active Recovery + Visualization",
+    "description": "Easy movement, recovery, and mental preparation",
+    
+    "split_session": {
+      "enabled": false
+    },
+    
+    "primary_workout": {
+      "activity": {
+        "type": "easy_walk_or_swim",
+        "duration": "30 min",
+        "intensity": "very low"
+      },
+      "recovery": {
+        "activities": ["stretching", "foam_rolling"]
+      },
+      "mental": {
+        "activity": "race_day_visualization",
+        "duration": "10 min"
+      }
+    },
+    
+    "target_metrics": {
+      "hr_zone": "1-2",
+      "rpe": "2-3",
+      "calories_burned_estimate": 150
+    },
+    
+    "focus_areas": ["recovery", "mental_prep", "visualization"],
+    "weak_point_focus": [],
+    "strong_point_leverage": [],
+    
+    "garmin_tags": ["recovery", "active_recovery", "taper"],
+    
+    "nutrition_guidance": {
+      "daily_calories_target": 2400,
+      "protein_target_g": 120,
+      "focus": "Recovery nutrition"
+    },
+    
+    "water_reminders": [
+      {"time": "08:00", "amount_ml": 500, "message": "Morning hydration"},
+      {"time": "12:00", "amount_ml": 300, "message": "Midday top-up"},
+      {"time": "16:00", "amount_ml": 300, "message": "Afternoon hydration"},
+      {"time": "20:00", "amount_ml": 200, "message": "Evening sips"}
+    ],
+    
+    "race_day_countdown": 8,
+    "visualization": true
+  }
+}

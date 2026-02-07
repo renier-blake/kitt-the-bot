@@ -1,0 +1,70 @@
+{
+  "workout": {
+    "id": "gymrace-w4-d6",
+    "date": "2026-02-28",
+    "week": 4,
+    "day": "Saturday",
+    "phase": "race_week",
+    "type": "rest_day",
+    "title": "Day Before Race",
+    "description": "Final preparations, early sleep",
+    
+    "split_session": {
+      "enabled": false
+    },
+    
+    "primary_workout": {
+      "type": "rest",
+      "activity": {
+        "type": "light_walk",
+        "duration": "10-15 min"
+      },
+      "hydration": {
+        "taper": "After 18:00, taper water intake",
+        "urine_target": "pale yellow"
+      },
+      "nutrition": {
+        "focus": "Carb-focused meals",
+        "prep": "Prepare race morning food"
+      },
+      "sleep": {
+        "target": "21:00 bedtime",
+        "goal_hours": 9
+      }
+    },
+    
+    "target_metrics": {
+      "hr_zone": "N/A",
+      "rpe": "1",
+      "calories_burned_estimate": 50
+    },
+    
+    "focus_areas": ["final_prep", "sleep_priority", "hydration_taper"],
+    "weak_point_focus": [],
+    "strong_point_leverage": [],
+    
+    "garmin_tags": ["rest_day", "race_week", "race_eve"],
+    
+    "nutrition_guidance": {
+      "daily_calories_target": 2700,
+      "carb_focus": true,
+      "protein_target_g": 110,
+      "focus": "Carb loading complete, early dinner"
+    },
+    
+    "water_reminders": [
+      {"time": "08:00", "amount_ml": 600, "message": "💧 Morning: 600ml"},
+      {"time": "10:00", "amount_ml": 400, "message": "Mid-morning: 400ml"},
+      {"time": "12:00", "amount_ml": 400, "message": "Pre-lunch: 400ml"},
+      {"time": "14:00", "amount_ml": 400, "message": "Afternoon: 400ml"},
+      {"time": "16:00", "amount_ml": 300, "message": "Pre-dinner: 300ml"},
+      {"time": "18:00", "amount_ml": 200, "message": "TAPER: 200ml - reduce now"},
+      {"time": "after_18:00", "message": "SIP only - avoid waking up to pee!"}
+    ],
+    "daily_water_target_ml": 2500,
+    "hydration_taper": "After 18:00",
+    
+    "race_day_countdown": 1,
+    "race_eve": true
+  }
+}

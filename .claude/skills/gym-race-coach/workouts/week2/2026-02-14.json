@@ -1,0 +1,79 @@
+{
+  "workout": {
+    "id": "gymrace-w2-d6",
+    "date": "2026-02-14",
+    "week": 2,
+    "day": "Saturday",
+    "phase": "first_simulation",
+    "type": "race_simulation",
+    "title": "FIRST FULL GYMRACE SIMULATION",
+    "description": "Full race simulation at 85-90% effort - THE BIG ONE!",
+    
+    "split_session": {
+      "enabled": false
+    },
+    
+    "primary_workout": {
+      "type": "full_race_simulation",
+      "effort_percent": "85-90",
+      "target_time": "Under 1:25:00",
+      "warmup": {
+        "duration": "15 min",
+        "activities": ["row", "dynamic_movements"]
+      },
+      "race_sequence": [
+        {"segment": "run_1", "distance": "1km", "pace": "race_pace"},
+        {"segment": "sled_push", "distance": "50m", "note": "go heavy!"},
+        {"segment": "run_2", "distance": "1km", "pace": "recovery"},
+        {"segment": "wall_balls", "reps": 100, "break_strategy": "20-20-20-20-20"},
+        {"segment": "run_3", "distance": "1km"},
+        {"segment": "slam_ball_carry", "distance": "100m"},
+        {"segment": "run_4", "distance": "1km"},
+        {"segment": "row", "distance": "1000m"},
+        {"segment": "kb_swings", "reps": 100, "weight_kg": 20},
+        {"segment": "run_5", "distance": "1km"},
+        {"segment": "ski_erg", "distance": "1000m"},
+        {"segment": "farmers_lunges", "distance": "100m", "weight_kg": 32},
+        {"segment": "bike", "distance": "2000m"},
+        {"segment": "burpee_broad_jumps", "distance": "50m"},
+        {"segment": "sprint", "distance": "50m", "note": "FINISH!"}
+      ],
+      "cooldown": {
+        "duration": "15 min",
+        "activities": ["easy_spin", "stretching"]
+      }
+    },
+    
+    "target_metrics": {
+      "hr_zone": "3-5",
+      "rpe": "8-9",
+      "calories_burned_estimate": 1200
+    },
+    
+    "focus_areas": ["race_pacing", "transitions", "mental_prep", "fueling_strategy"],
+    "weak_point_focus": ["wall_balls", "slam_ball_carry", "burpee_broad_jumps"],
+    "strong_point_leverage": ["sled_push", "row", "ski_erg", "bike", "farmers_lunges"],
+    
+    "garmin_tags": ["hyrox", "race_simulation", "endurance", "functional_fitness"],
+    
+    "nutrition_guidance": {
+      "daily_calories_target": 3200,
+      "protein_target_g": 150,
+      "pre_simulation": "Carb loading day before, light meal 2-3 hours prior",
+      "during": "Water as needed, electrolytes optional",
+      "post_simulation": "BIG recovery meal within 60 min"
+    },
+    
+    "water_reminders": [
+      {"time": "wake_up", "amount_ml": 500, "message": "Pre-race hydration: 500ml"},
+      {"time": "pre_sim", "amount_ml": 300, "message": "Pre-simulation: 300ml (2 hours before)"},
+      {"time": "during", "message": "Sip water during rest periods"},
+      {"time": "post_sim", "amount_ml": 700, "message": "Post-simulation: 700ml within 30 min"},
+      {"time": "evening", "amount_ml": 300, "message": "Recovery hydration continues"}
+    ],
+    
+    "race_day_countdown": 15,
+    "simulation_number": 1,
+    "critical_day": true
+  }
+}

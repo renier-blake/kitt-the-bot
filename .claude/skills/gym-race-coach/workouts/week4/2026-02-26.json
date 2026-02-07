@@ -1,0 +1,61 @@
+{
+  "workout": {
+    "id": "gymrace-w4-d4",
+    "date": "2026-02-26",
+    "week": 4,
+    "day": "Thursday",
+    "phase": "race_week",
+    "type": "rest_day",
+    "title": "Easy Shake-Out (Optional)",
+    "description": "If traveling: easy walk after arrival, light stretching",
+    
+    "split_session": {
+      "enabled": false
+    },
+    
+    "primary_workout": {
+      "type": "optional",
+      "if_traveling": {
+        "activity": "15 min easy walk after arrival",
+        "stretching": "light stretching"
+      },
+      "hydration": {
+        "focus": "Continue hydration (urine should be pale)",
+        "monitor": "urine_color"
+      }
+    },
+    
+    "target_metrics": {
+      "hr_zone": "1",
+      "rpe": "2",
+      "calories_burned_estimate": 75
+    },
+    
+    "focus_areas": ["travel_recovery", "hydration_monitoring"],
+    "weak_point_focus": [],
+    "strong_point_leverage": [],
+    
+    "garmin_tags": ["rest_day", "race_week", "travel"],
+    
+    "nutrition_guidance": {
+      "daily_calories_target": 2100,
+      "carb_focus": true,
+      "protein_target_g": 120,
+      "focus": "Maintain carb loading"
+    },
+    
+    "water_reminders": [
+      {"time": "08:00", "amount_ml": 600, "message": "💧 RACE WEEK: 600ml"},
+      {"time": "10:00", "amount_ml": 400, "message": "Mid-morning: 400ml"},
+      {"time": "12:00", "amount_ml": 400, "message": "Pre-lunch: 400ml"},
+      {"time": "14:00", "amount_ml": 400, "message": "Afternoon: 400ml"},
+      {"time": "16:00", "amount_ml": 400, "message": "Pre-dinner: 400ml"},
+      {"time": "18:00", "amount_ml": 300, "message": "Evening: 300ml"},
+      {"time": "20:00", "amount_ml": 200, "message": "Final sips: 200ml"}
+    ],
+    "daily_water_target_ml": 3000,
+    "urine_check": true,
+    
+    "race_day_countdown": 3
+  }
+}

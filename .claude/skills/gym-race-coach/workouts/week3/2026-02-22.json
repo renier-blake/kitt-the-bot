@@ -1,0 +1,59 @@
+{
+  "workout": {
+    "id": "gymrace-w3-d7",
+    "date": "2026-02-22",
+    "week": 3,
+    "day": "Sunday",
+    "phase": "pre_taper",
+    "type": "rest_day",
+    "title": "Rest & Mental Prep",
+    "description": "Complete rest - visualize race day and plan Week 4",
+    
+    "split_session": {
+      "enabled": false
+    },
+    
+    "primary_workout": {
+      "type": "rest",
+      "activities": ["complete_rest"],
+      "mental": {
+        "activity": "race_visualization",
+        "note": "Walk through each station mentally"
+      },
+      "prep": {
+        "activities": ["check_gear", "plan_race_week"]
+      },
+      "sleep_priority": true,
+      "sleep_target_hours": 8
+    },
+    
+    "target_metrics": {
+      "hr_zone": "N/A",
+      "rpe": "1",
+      "calories_burned_estimate": 50
+    },
+    
+    "focus_areas": ["mental_prep", "race_week_planning", "final_simulation_review"],
+    "weak_point_focus": [],
+    "strong_point_leverage": [],
+    
+    "garmin_tags": ["rest_day", "recovery", "taper"],
+    
+    "nutrition_guidance": {
+      "daily_calories_target": 2400,
+      "protein_target_g": 120,
+      "focus": "Quality foods, start thinking about carb loading"
+    },
+    
+    "water_reminders": [
+      {"time": "08:00", "amount_ml": 500, "message": "Morning hydration"},
+      {"time": "12:00", "amount_ml": 300, "message": "Midday top-up"},
+      {"time": "16:00", "amount_ml": 300, "message": "Afternoon hydration"},
+      {"time": "20:00", "amount_ml": 200, "message": "Evening sips"}
+    ],
+    
+    "race_day_countdown": 7,
+    "weekly_review": true,
+    "simulation_debrief": true
+  }
+}

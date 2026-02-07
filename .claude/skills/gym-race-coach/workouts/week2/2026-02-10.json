@@ -1,0 +1,62 @@
+{
+  "workout": {
+    "id": "gymrace-w2-d2",
+    "date": "2026-02-10",
+    "week": 2,
+    "day": "Tuesday",
+    "phase": "first_simulation",
+    "type": "interval_run",
+    "title": "Interval Run",
+    "description": "4 x 1km at race pace with 90 sec rest",
+    
+    "split_session": {
+      "enabled": false
+    },
+    
+    "primary_workout": {
+      "warmup": {
+        "duration": "10 min",
+        "activities": ["easy_jog", "dynamic_stretches"]
+      },
+      "main_set": {
+        "type": "intervals",
+        "sets": 4,
+        "distance": "1km",
+        "pace": "5:00-5:15/km",
+        "rest": "90 sec between reps"
+      },
+      "cooldown": {
+        "duration": "10 min",
+        "activities": ["easy_jog", "stretching"]
+      },
+      "total_duration": "~45 min"
+    },
+    
+    "target_metrics": {
+      "hr_zone": "4-5",
+      "rpe": "8",
+      "calories_burned_estimate": 450
+    },
+    
+    "focus_areas": ["race_pace", "vo2max", "pace_consistency"],
+    "weak_point_focus": [],
+    "strong_point_leverage": ["running"],
+    
+    "garmin_tags": ["running", "intervals", "track", "high_intensity"],
+    
+    "nutrition_guidance": {
+      "daily_calories_target": 2700,
+      "protein_target_g": 135,
+      "pre_workout": "Light carbs 60 min before"
+    },
+    
+    "water_reminders": [
+      {"time": "08:00", "amount_ml": 500, "message": "Morning hydration"},
+      {"time": "pre_run", "amount_ml": 300, "message": "Pre-run: 300ml"},
+      {"time": "post_run", "amount_ml": 500, "message": "Post-run: 500ml"},
+      {"time": "20:00", "amount_ml": 200, "message": "Evening sips"}
+    ],
+    
+    "race_day_countdown": 19
+  }
+}

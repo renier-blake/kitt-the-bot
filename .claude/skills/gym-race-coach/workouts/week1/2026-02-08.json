@@ -1,0 +1,60 @@
+{
+  "workout": {
+    "id": "gymrace-w1-d7",
+    "date": "2026-02-08",
+    "week": 1,
+    "day": "Sunday",
+    "phase": "wall_ball_intensive",
+    "type": "active_recovery",
+    "title": "Active Recovery + Week 2 Prep",
+    "description": "Easy movement, mobility, and preparation for Week 2",
+    
+    "split_session": {
+      "enabled": false
+    },
+    
+    "primary_workout": {
+      "activity": {
+        "type": "easy_walk_or_cycle",
+        "duration": "30-40 min",
+        "intensity": "very low"
+      },
+      "mobility": {
+        "duration": "20 min",
+        "focus": ["hips", "shoulders", "ankles"]
+      },
+      "prep": {
+        "activities": ["Plan Week 2", "check gear"]
+      }
+    },
+    
+    "target_metrics": {
+      "hr_zone": "1-2",
+      "rpe": "2-3",
+      "calories_burned_estimate": 150
+    },
+    
+    "focus_areas": ["recovery", "mobility", "week_2_prep"],
+    "weak_point_focus": [],
+    "strong_point_leverage": [],
+    
+    "garmin_tags": ["recovery", "active_recovery", "mobility"],
+    
+    "nutrition_guidance": {
+      "daily_calories_target": 2400,
+      "protein_target_g": 120,
+      "focus": "Maintain protein, normal eating"
+    },
+    
+    "water_reminders": [
+      {"time": "08:00", "amount_ml": 500, "message": "Morning hydration"},
+      {"time": "12:00", "amount_ml": 300, "message": "Midday top-up"},
+      {"time": "16:00", "amount_ml": 300, "message": "Afternoon hydration"},
+      {"time": "20:00", "amount_ml": 200, "message": "Evening sips"}
+    ],
+    
+    "race_day_countdown": 21,
+    "weekly_review": true,
+    "sleep_priority": true
+  }
+}
