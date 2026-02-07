@@ -78,7 +78,7 @@ cinematic lighting, humorous digital art style
 
 **Technisch:**
 - Size: `square_hd` (1024x1024)
-- Opslaan: `frontends/blog/images/YYYY-MM-DD.png`
+- Opslaan: `frontends/kitt-website/blog/images/YYYY-MM-DD.png`
 
 ```bash
 # Genereer image
@@ -92,7 +92,7 @@ URL=$(curl -s -X POST "https://fal.ai/api/models/fal-ai/nano-banana-pro" \
   }' | jq -r '.images[0].url')
 
 # Download naar blog/images
-curl -s "$URL" > "frontends/blog/images/$(date +%Y-%m-%d).png"
+curl -s "$URL" > "frontends/kitt-website/blog/images/$(date +%Y-%m-%d).png"
 ```
 
 ### 5. HTML maken
@@ -100,7 +100,7 @@ curl -s "$URL" > "frontends/blog/images/$(date +%Y-%m-%d).png"
 Kopieer en vul de template in:
 
 ```bash
-cp frontends/blog/post-template.html frontends/blog/YYYY-MM-DD-slug.html
+cp frontends/kitt-website/blog/post-template.html frontends/kitt-website/blog/YYYY-MM-DD-slug.html
 ```
 
 Vervang placeholders:
@@ -117,7 +117,7 @@ Vervang placeholders:
 
 ### 6. Index updaten
 
-Open `frontends/blog/index.html` en voeg een nieuwe card toe **bovenaan** de `.posts-grid`:
+Open `frontends/kitt-website/blog/index.html` en voeg een nieuwe card toe **bovenaan** de `.posts-grid`:
 
 ```html
 <a href="/blog/YYYY-MM-DD-slug.html" class="post-card">
@@ -132,7 +132,7 @@ Open `frontends/blog/index.html` en voeg een nieuwe card toe **bovenaan** de `.p
 
 ### 7. RSS updaten
 
-Open `frontends/blog/rss.xml` en voeg een nieuw `<item>` toe **bovenaan** na `<image>`:
+Open `frontends/kitt-website/blog/rss.xml` en voeg een nieuw `<item>` toe **bovenaan** na `<image>`:
 
 ```xml
 <item>
@@ -155,7 +155,7 @@ Update ook `<lastBuildDate>` met huidige datum.
 
 ```bash
 cd "/Users/renierbleeker/Projects/KITT V1"
-git add frontends/blog/
+git add frontends/kitt-website/blog/
 git commit -m "Add reflection: [Post Title]"
 git push origin main
 # Vercel auto-deploys on push
