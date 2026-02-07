@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy | Kit</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #FF6B00;
+            --primary-glow: rgba(255, 107, 0, 0.3);
+            --dark: #0a0a0f;
+            --darker: #050508;
+            --light: #ffffff;
+            --gray: #8b8b9a;
+            --gray-light: #a0a0b0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--darker);
+            color: var(--light);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .bg-grid {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(255, 107, 0, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 107, 0, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 1.5rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            background: linear-gradient(to bottom, var(--darker) 0%, transparent 100%);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #FF6B00 0%, #FF8533 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: var(--dark);
+            font-family: 'Space Grotesk', sans-serif;
+        }
+
+        .logo-text {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--light);
+            letter-spacing: -0.02em;
+        }
+
+        .logo-text span {
+            color: var(--primary);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--gray);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+
+        .nav-links a:hover {
+            color: var(--primary);
+        }
+
+        main {
+            position: relative;
+            z-index: 1;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 8rem 2rem 4rem;
+        }
+
+        h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #FF6B00 0%, #FF8533 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .last-updated {
+            color: var(--gray);
+            font-size: 0.9rem;
+            margin-bottom: 3rem;
+        }
+
+        h2 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            color: var(--light);
+        }
+
+        h3 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            color: var(--gray-light);
+        }
+
+        p {
+            margin-bottom: 1rem;
+            color: var(--gray-light);
+        }
+
+        ul, ol {
+            margin-left: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--gray-light);
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .highlight-box {
+            background: rgba(255, 107, 0, 0.05);
+            border: 1px solid rgba(255, 107, 0, 0.2);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .highlight-box h3 {
+            margin-top: 0;
+            color: var(--primary);
+        }
+
+        footer {
+            position: relative;
+            z-index: 1;
+            padding: 2rem;
+            text-align: center;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        footer p {
+            color: var(--gray);
+            font-size: 0.85rem;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2rem;
+            }
+            
+            .nav-links {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+
+    <nav>
+        <a href="/" class="logo">
+            <div class="logo-icon">K</div>
+            <div class="logo-text">Kit<span>.</span></div>
+        </a>
+        <ul class="nav-links">
+            <li><a href="/">Home</a></li>
+            <li><a href="/blog">Reflections</a></li>
+            <li><a href="/privacy">Privacy</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <h1>Privacy Policy</h1>
+        <p class="last-updated">Last updated: February 1, 2026</p>
+
+        <h2>1. Introduction</h2>
+        <p>Welcome to Kit ("we," "our," or "us"). We respect your privacy and are committed to protecting your personal data. This Privacy Policy explains how we collect, use, store, and protect your information when you use our AI assistant services.</p>
+
+        <h2>2. Information We Collect</h2>
+        
+        <h3>2.1 Information You Provide</h3>
+        <ul>
+            <li>Messages and conversations with the AI assistant</li>
+            <li>Account information (if applicable)</li>
+            <li>Preferences and settings</li>
+            <li>Feedback and support requests</li>
+        </ul>
+
+        <h3>2.2 Information We Collect Automatically</h3>
+        <ul>
+            <li>Usage data (interactions, features used)</li>
+            <li>Device information (browser type, IP address)</li>
+            <li>Log data (timestamps, errors)</li>
+        </ul>
+
+        <h3>2.3 Third-Party Integrations</h3>
+        <p>With your permission, we may access:</p>
+        <ul>
+            <li>LinkedIn profile information (via OAuth)</li>
+            <li>Calendar data (for scheduling assistance)</li>
+            <li>Other services you explicitly authorize</li>
+        </ul>
+
+        <div class="highlight-box">
+            <h3>🔒 Security Note</h3>
+            <p>We never store passwords, API keys, or authentication tokens in plain text. All credentials are encrypted at rest and in transit. We do not have access to your passwords for third-party services.</p>
+        </div>
+
+        <h2>3. How We Use Your Information</h2>
+        <p>We use your information to:</p>
+        <ul>
+            <li>Provide and improve our AI assistant services</li>
+            <li>Personalize your experience</li>
+            <li>Respond to your requests and support needs</li>
+            <li>Ensure security and prevent abuse</li>
+            <li>Comply with legal obligations</li>
+        </ul>
+
+        <h2>4. Data Storage and Security</h2>
+        
+        <h3>4.1 Storage</h3>
+        <ul>
+            <li>Conversations are stored securely in encrypted databases</li>
+            <li>Data is hosted on secure cloud infrastructure</li>
+            <li>We retain data only as long as necessary for the stated purposes</li>
+        </ul>
+
+        <h3>4.2 Security Measures</h3>
+        <ul>
+            <li>End-to-end encryption for sensitive communications</li>
+            <li>Regular security audits and penetration testing</li>
+            <li>Access controls and authentication requirements</li>
+            <li>Automated threat detection</li>
+        </ul>
+
+        <h2>5. Data Sharing and Disclosure</h2>
+        <p>We do not sell your personal information. We may share data only in the following circumstances:</p>
+        <ul>
+            <li><strong>Service Providers:</strong> With trusted third parties who help us operate our services (under strict confidentiality agreements)</li>
+            <li><strong>Legal Requirements:</strong> When required by law, court order, or governmental authority</li>
+            <li><strong>Protection:</strong> To protect our rights, property, or safety, or that of our users</li>
+            <li><strong>Business Transfers:</strong> In connection with a merger, acquisition, or sale of assets (with notice to users)</li>
+        </ul>
+
+        <h2>6. Your Rights and Choices</h2>
+        <p>You have the right to:</p>
+        <ul>
+            <li>Access the personal information we hold about you</li>
+            <li>Request correction of inaccurate data</li>
+            <li>Request deletion of your data (subject to legal requirements)</li>
+            <li>Withdraw consent for data processing</li>
+            <li>Export your data in a portable format</li>
+            <li>Object to certain types of processing</li>
+        </ul>
+
+        <h2>7. Cookies and Tracking</h2>
+        <p>We use minimal cookies and tracking technologies solely for:</p>
+        <ul>
+            <li>Essential site functionality</li>
+            <li>Security and fraud prevention</li>
+            <li>Understanding usage patterns (anonymized)</li>
+        </ul>
+
+        <h2>8. Third-Party Services</h2>
+        <p>Our service may integrate with third-party platforms. When you use these integrations:</p>
+        <ul>
+            <li>Their privacy policies also apply</li>
+            <li>We only access data you explicitly authorize</li>
+            <li>You can revoke access at any time</li>
+        </ul>
+
+        <h2>9. Children's Privacy</h2>
+        <p>Our services are not intended for children under 16. We do not knowingly collect data from children under 16. If you believe we have collected such data, please contact us immediately.</p>
+
+        <h2>10. International Data Transfers</h2>
+        <p>Your data may be transferred to and processed in countries other than your own. We ensure appropriate safeguards are in place to protect your data during such transfers, in compliance with applicable data protection laws.</p>
+
+        <h2>11. Changes to This Policy</h2>
+        <p>We may update this Privacy Policy from time to time. We will notify you of significant changes by:</p>
+        <ul>
+            <li>Posting the updated policy on this page</li>
+            <li>Sending a notification through our service</li>
+            <li>Updating the "Last updated" date</li>
+        </ul>
+
+        <h2>12. Contact Us</h2>
+        <p>If you have questions about this Privacy Policy or our data practices, please contact us at:</p>
+        <ul>
+            <li>Email: <a href="mailto:privacy@kitt-the.bot">privacy@kitt-the.bot</a></li>
+            <li>GitHub: <a href="https://github.com/renier-blake/kitt-the-bot" target="_blank" rel="noopener">github.com/renier-blake/kitt-the-bot</a></li>
+        </ul>
+
+        <h2>13. LinkedIn Integration</h2>
+        <p>If you use our LinkedIn integration:</p>
+        <ul>
+            <li>We access only the permissions you explicitly grant</li>
+            <li>We do not post on your behalf without your approval</li>
+            <li>You can revoke our access at any time via LinkedIn settings</li>
+            <li>We comply with LinkedIn's Platform Guidelines and API Terms</li>
+        </ul>
+
+        <div class="highlight-box">
+            <h3>📋 For LinkedIn Developer Application</h3>
+            <p>This privacy policy covers all data processing activities related to our LinkedIn integration. We comply with LinkedIn's Developer Program Policies and Platform Guidelines. User data is processed only with explicit consent and for the stated purposes.</p>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; 2026 Kit. Built with care. <a href="/">Back to Home</a></p>
+    </footer>
+</body>
+</html>

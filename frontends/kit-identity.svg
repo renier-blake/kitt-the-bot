@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <defs>
+    <!-- Background gradient -->
+    <radialGradient id="bgGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#0a0a0f"/>
+    </radialGradient>
+    
+    <!-- Scanner glow -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Orange gradient -->
+    <linearGradient id="orangeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF6B00"/>
+      <stop offset="50%" stop-color="#FF8533"/>
+      <stop offset="100%" stop-color="#FF6B00"/>
+    </linearGradient>
+    
+    <!-- Eye gradient -->
+    <radialGradient id="eyeGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FF8533"/>
+      <stop offset="70%" stop-color="#FF6B00"/>
+      <stop offset="100%" stop-color="#cc5500"/>
+    </radialGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="400" height="400" fill="url(#bgGrad)" rx="40"/>
+  
+  <!-- Decorative grid lines (subtle) -->
+  <g opacity="0.1" stroke="#FF6B00" stroke-width="1">
+    <line x1="50" y1="0" x2="50" y2="400"/>
+    <line x1="150" y1="0" x2="150" y2="400"/>
+    <line x1="250" y1="0" x2="250" y2="400"/>
+    <line x1="350" y1="0" x2="350" y2="400"/>
+    <line x1="0" y1="100" x2="400" y2="100"/>
+    <line x1="0" y1="200" x2="400" y2="200"/>
+    <line x1="0" y1="300" x2="400" y2="300"/>
+  </g>
+  
+  <!-- Main character body - tilted slightly (the lopsided charm) -->
+  <g transform="rotate(-5, 200, 200)">
+    <!-- Outer ring -->
+    <circle cx="200" cy="200" r="140" fill="none" stroke="url(#orangeGrad)" stroke-width="4" opacity="0.6"/>
+    
+    <!-- Inner body shape -->
+    <circle cx="200" cy="200" r="120" fill="#111118" stroke="#FF6B00" stroke-width="2"/>
+    
+    <!-- The "face" - asymmetric and quirky -->
+    <g transform="translate(200, 200)">
+      <!-- Left eye (bigger, curious) -->
+      <ellipse cx="-35" cy="-20" rx="25" ry="30" fill="#0a0a0f" stroke="url(#orangeGrad)" stroke-width="3"/>
+      <ellipse cx="-35" cy="-20" rx="15" ry="20" fill="url(#eyeGrad)" filter="url(#glow)"/>
+      <circle cx="-30" cy="-25" r="6" fill="#ffffff" opacity="0.8"/>
+      
+      <!-- Right eye (slightly smaller, playful wink vibe) -->
+      <ellipse cx="35" cy="-15" rx="22" ry="26" fill="#0a0a0f" stroke="url(#orangeGrad)" stroke-width="3"/>
+      <ellipse cx="35" cy="-15" rx="13" ry="17" fill="url(#eyeGrad)" filter="url(#glow)"/>
+      <circle cx="38" cy="-20" r="5" fill="#ffffff" opacity="0.8"/>
+      
+      <!-- The scanner bar (Knight Rider nod) - where a mouth would be -->
+      <rect x="-50" y="35" width="100" height="8" rx="4" fill="#0a0a0f" stroke="#FF6B00" stroke-width="1"/>
+      <rect x="-40" y="37" width="25" height="4" rx="2" fill="#FF0000" filter="url(#glow)">
+        <animate attributeName="x" values="-40;35;-40" dur="2s" repeatCount="indefinite"/>
+      </rect>
+      
+      <!-- Decorative elements - circuit-like patterns -->
+      <path d="M -80 60 Q -60 80 -40 70" fill="none" stroke="#FF6B00" stroke-width="2" opacity="0.5"/>
+      <path d="M 80 60 Q 60 80 40 70" fill="none" stroke="#FF6B00" stroke-width="2" opacity="0.5"/>
+      
+      <!-- Small accent dots -->
+      <circle cx="-70" cy="0" r="4" fill="#FF6B00" opacity="0.6"/>
+      <circle cx="70" cy="10" r="3" fill="#FF8533" opacity="0.7"/>
+      <circle cx="0" cy="-90" r="5" fill="#FF6B00" opacity="0.5"/>
+    </g>
+  </g>
+  
+  <!-- Floating elements (showing it's digital/AI) -->
+  <g opacity="0.4">
+    <rect x="30" y="80" width="20" height="20" rx="4" fill="none" stroke="#FF6B00" stroke-width="1">
+      <animateTransform attributeName="transform" type="translate" values="0,0; 0,10; 0,0" dur="3s" repeatCount="indefinite"/>
+    </rect>
+    <rect x="350" y="120" width="15" height="15" rx="3" fill="#FF6B00" opacity="0.3">
+      <animateTransform attributeName="transform" type="translate" values="0,0; 0,-8; 0,0" dur="2.5s" repeatCount="indefinite"/>
+    </rect>
+    <circle cx="320" cy="300" r="8" fill="none" stroke="#FF8533" stroke-width="1.5">
+      <animateTransform attributeName="transform" type="translate" values="0,0; 5,0; 0,0" dur="4s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="60" y="320" r="5" fill="#FF6B00" opacity="0.5">
+      <animateTransform attributeName="transform" type="translate" values="0,0; 0,-5; 0,0" dur="3.5s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+  
+  <!-- K text (subtle) -->
+  <text x="200" y="380" text-anchor="middle" fill="#FF6B00" font-family="Space Grotesk, sans-serif" font-size="24" font-weight="700" opacity="0.3">K</text>
+</svg>
