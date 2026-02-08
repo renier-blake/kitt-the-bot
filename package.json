@@ -11,6 +11,7 @@
     "tts": "tsx src/cli/kitt-tts.ts",
     "tts:elevenlabs": "tsx src/cli/kitt-tts.ts",
     "tts:kokoro": "tsx src/cli/kitt-tts-kokoro.ts",
+    "podcast": "tsx src/cli/kitt-podcast.ts",
     "build": "tsc && npm run portal:build",
     "typecheck": "tsc --noEmit",
     "pm2:start": "pm2 start ecosystem.config.cjs",

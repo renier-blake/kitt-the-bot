@@ -74,6 +74,7 @@ Vervang placeholders in het HTML bestand:
 - `{{TAGS}}` → Tag spans: `<span class="tag">tag1</span><span class="tag">tag2</span>`
 - `{{PREV_POST_URL}}` → Link naar vorige post (check blog-index.md voor de meest recente)
 - `{{PREV_POST_TITLE}}` → Titel vorige post
+- `{{AUDIO_PLAYER}}` → Podbean embed player (zie stap 3b) of lege string als er geen audio is
 
 **Markdown → HTML conversie:**
 - `# Heading` → `<h2>Heading</h2>`
@@ -82,6 +83,30 @@ Vervang placeholders in het HTML bestand:
 - Paragrafen → `<p>...</p>`
 - `- item` → `<ul><li>item</li></ul>`
 - `> quote` → `<blockquote>quote</blockquote>`
+
+### 3b. Audio player embed (optioneel)
+
+Als er een audio file bestaat in `frontends/kitt-website/blog/audio/YYYY-MM-DD.mp3`:
+
+1. Publiceer naar Podbean via de podbean skill:
+   ```bash
+   npm run podcast -- --file frontends/kitt-website/blog/audio/YYYY-MM-DD.mp3 --title "Post Title" --description "<p>Korte beschrijving</p>"
+   ```
+
+2. Gebruik de `player_url` uit de output om de `{{AUDIO_PLAYER}}` placeholder te vullen:
+   ```html
+   <div class="audio-player" style="max-width: 700px; margin: 1.5rem auto;">
+     <iframe
+       src="PLAYER_URL_HERE&share=0&download=1&fonts=Verdana&skin=FF6B00&btn-skin=FF6B00&font-color=ffffff"
+       width="100%"
+       height="150"
+       style="border: none;"
+       scrolling="no">
+     </iframe>
+   </div>
+   ```
+
+3. Als er geen audio is → vervang `{{AUDIO_PLAYER}}` met een lege string.
 
 ### 4. Index.html updaten
 
