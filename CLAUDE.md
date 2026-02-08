@@ -41,7 +41,7 @@ pm2 stop kitt
 
 # Logs bekijken
 pm2 logs kitt
-# OF open http://localhost:3000 (KITT Portal)
+# OF open http://localhost:8000 (KITT Portal via Bridge)
 ```
 
 ---

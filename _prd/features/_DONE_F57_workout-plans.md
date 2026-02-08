@@ -1,8 +1,8 @@
 # F57: Workout Plans & Programs
 
-> **Priority:** 🟡 P2
-> **Status:** 📝 Spec (Future)
-> **Owner:** -
+> **Priority:** 🟠 P1
+> **Status:** ✅ Done
+> **Owner:** Agent
 
 ---
 
@@ -10,7 +10,7 @@
 
 Structuur voor geprogrammeerde workout plannen (bijv. 12 weken HYROX prep). Bevat programs, workout templates, en exercise definities.
 
-**Note:** Dit is een future feature. F55 en F56 moeten eerst klaar zijn.
+**Note:** Dit is de basis voor workout tracking. F55 en F56 bouwen hierop voort.
 
 ---
 
@@ -152,16 +152,16 @@ WHERE name = ? OR aliases LIKE ?;
 
 ## Acceptance Criteria
 
-- [ ] Schema voor workout_programs, workout_templates, workout_exercises
-- [ ] Skill kan actief programma tonen
-- [ ] Skill kan vandaag's workout tonen
-- [ ] Exercise aliassen werken
+- [x] Schema voor workout_programs, workout_templates, workout_exercises
+- [x] Skill kan actief programma tonen
+- [x] Skill kan vandaag's workout tonen
+- [x] Exercise aliassen werken
 
 ---
 
 ## Dependencies
 
-- F56: Workout Log (voor workout_logs tabel)
+Geen — dit is de basis. F55 en F56 hangen af van F57.
 
 ---
 
@@ -195,3 +195,24 @@ WHERE name = ? OR aliases LIKE ?;
 - `src/memory/schema.ts` - Schema + migrations
 - `.claude/skills/gym-race-coach/SKILL.md` - Bestaande workout data
 - F56 spec voor workout_logs
+
+---
+
+## Implementation
+
+**Datum:** 2026-02-07
+
+### Gemaakte/Gewijzigde Files
+
+| File | Actie |
+|------|-------|
+| `src/memory/schema.ts` | Modified - v10→v11, 3 tabellen + seed exercises |
+| `.claude/skills/workout-plan/SKILL.md` | Created |
+
+### Database State
+
+```
+workout_programs - lege tabel (klaar voor programma's)
+workout_templates - lege tabel (klaar voor templates)
+workout_exercises - 15 basis exercises met aliassen geseeded
+```

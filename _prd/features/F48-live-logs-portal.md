@@ -262,7 +262,7 @@ npm install -D @types/ws @types/express
 Na implementatie:
 
 ```
-http://localhost:3000          # Portal
+http://localhost:8000          # Portal (via Bridge)
 ws://localhost:3001            # WebSocket logs
 ```
 

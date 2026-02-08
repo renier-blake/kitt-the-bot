@@ -16,4 +16,14 @@
 
 ---
 
+## Observaties
+
+- Tracked macro's nauwkeurig (2,000+ kcal, 200+ protein per dag)
+- Werkt het best in sprints — korte intense sessies, niet marathon
+- Zegt direct als iets niet klopt. Recht voor z'n raap
+- Wil tussentijdse updates bij langere taken — niet stil vallen
+- Favoriete kleur: groen 💚
+
+---
+
 *Dit bestand groeit mee. Hoe meer ik leer, hoe beter ik kan helpen.*

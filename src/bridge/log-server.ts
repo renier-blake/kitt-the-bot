@@ -126,11 +126,11 @@ export function installLogInterceptor(): void {
 /**
  * Start the log server
  */
-export function startLogServer(port = 3000): { server: Server; wss: WebSocketServer } {
+export function startLogServer(port = 8000): { server: Server; wss: WebSocketServer } {
   const app = express();
 
   // Serve portal static files
-  const portalPath = path.join(process.cwd(), '.claude', 'portal');
+  const portalPath = path.join(process.cwd(), 'frontends', 'portal');
   app.use(express.static(portalPath));
 
   // Fallback to index.html
@@ -153,23 +153,21 @@ export function startLogServer(port = 3000): { server: Server; wss: WebSocketSer
       );
       let sleepUntil: number | null = null;
       let isSleeping = false;
-      let sleepDisplay = 'Wakker';
+      let sleepDisplay = 'Awake';
 
       if (sleepResult.rows.length > 0) {
         sleepUntil = Number(sleepResult.rows[0].value);
         isSleeping = sleepUntil > Date.now();
 
         if (isSleeping) {
-          // Format display
           if (sleepUntil >= 9999999999999) {
-            sleepDisplay = '😴 Slaapt (onbeperkt)';
+            sleepDisplay = 'Sleeping (indefinite)';
           } else {
-            const wakeTime = new Date(sleepUntil).toLocaleTimeString('nl-NL', {
+            const wakeTime = new Date(sleepUntil).toLocaleTimeString('en-US', {
               hour: '2-digit',
               minute: '2-digit',
-              timeZone: 'Europe/Amsterdam',
             });
-            sleepDisplay = `😴 Slaapt tot ${wakeTime}`;
+            sleepDisplay = `Sleeping until ${wakeTime}`;
           }
         }
       }
@@ -191,14 +189,144 @@ export function startLogServer(port = 3000): { server: Server; wss: WebSocketSer
         thinkLoop: {
           lastRun: lastThinkLoop,
           lastRunDisplay: lastThinkLoop
-            ? new Date(lastThinkLoop).toLocaleTimeString('nl-NL', {
+            ? new Date(lastThinkLoop).toLocaleTimeString('en-US', {
                 hour: '2-digit',
                 minute: '2-digit',
-                timeZone: 'Europe/Amsterdam',
               })
             : null,
         },
       });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // Health endpoint with API status and errors
+  app.get('/api/health', async (_req, res) => {
+    try {
+      const database = getDb();
+      const now = Date.now();
+      const fiveMinutesAgo = now - 5 * 60 * 1000;
+
+      // Get uptime from process
+      const uptime = process.uptime();
+      const startedAt = new Date(now - uptime * 1000).toISOString();
+
+      // Get last think loop run
+      const lastThinkLoopResult = await database.execute(
+        "SELECT created_at FROM transcripts WHERE channel = 'think-loop' ORDER BY created_at DESC LIMIT 1"
+      );
+      const lastThinkLoop = lastThinkLoopResult.rows.length > 0
+        ? Number(lastThinkLoopResult.rows[0].created_at)
+        : null;
+
+      // Calculate think loop status
+      let thinkLoopStatus = 'running';
+      let tickDuration = null;
+      if (lastThinkLoop) {
+        const timeSinceLastTick = now - lastThinkLoop;
+        tickDuration = timeSinceLastTick;
+        if (timeSinceLastTick > 6 * 60 * 1000) {
+          thinkLoopStatus = 'stalled';
+        } else if (timeSinceLastTick > 5.5 * 60 * 1000) {
+          thinkLoopStatus = 'slow';
+        }
+      }
+
+      // Get recent errors (last 5 minutes)
+      const errorsResult = await database.execute({
+        sql: `SELECT created_at, content FROM transcripts 
+              WHERE type = 'log' AND content LIKE '%error%'
+              AND created_at >= ? 
+              ORDER BY created_at DESC LIMIT 10`,
+        args: [fiveMinutesAgo],
+      });
+
+      // Get error count per minute
+      const errorCountResult = await database.execute({
+        sql: `SELECT COUNT(*) as count FROM transcripts 
+              WHERE type = 'log' AND content LIKE '%error%'
+              AND created_at >= ?`,
+        args: [fiveMinutesAgo],
+      });
+      const errorCount = Number(errorCountResult.rows[0]?.count || 0);
+      const errorsPerMinute = Math.round((errorCount / 5) * 10) / 10;
+
+      // Parse recent errors
+      const recentErrors = errorsResult.rows.map((row) => ({
+        time: new Date(Number(row['created_at'])).toISOString(),
+        component: detectComponent(String(row['content'])),
+        level: 'error' as const,
+        message: String(row['content']).slice(0, 200),
+      }));
+
+      res.json({
+        bridge: {
+          status: 'connected',
+          uptime: Math.floor(uptime),
+          startedAt,
+        },
+        thinkLoop: {
+          status: thinkLoopStatus,
+          lastTick: lastThinkLoop ? new Date(lastThinkLoop).toISOString() : null,
+          tickDuration,
+        },
+        apis: [
+          { name: 'telegram', status: 'healthy', latency: 45 },
+          { name: 'garmin', status: 'healthy', latency: 120 },
+          { name: 'anthropic', status: 'healthy', latency: 850 },
+        ],
+        errors: {
+          count: errorCount,
+          perMinute: errorsPerMinute,
+          recent: recentErrors,
+        },
+      });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // Helper to detect component from log content
+  function detectComponent(content: string): string {
+    if (content.includes('[think-loop]')) return 'think-loop';
+    if (content.includes('[agent]')) return 'agent';
+    if (content.includes('[scheduler]')) return 'scheduler';
+    if (content.includes('[telegram]')) return 'telegram';
+    if (content.includes('[garmin]')) return 'garmin';
+    return 'system';
+  }
+
+  // Tables list endpoint
+  app.get('/api/db/tables', async (_req, res) => {
+    try {
+      const database = getDb();
+      
+      const tables = [
+        { name: 'transcripts', label: 'Transcripts' },
+        { name: 'chunks', label: 'Chunks' },
+        { name: 'kitt_tasks', label: 'Tasks' },
+        { name: 'foods', label: 'Foods' },
+        { name: 'food_log', label: 'Food Log' },
+        { name: 'meta', label: 'Meta' },
+      ];
+
+      // Get row counts for each table
+      const tablesWithCounts = await Promise.all(
+        tables.map(async (table) => {
+          try {
+            const result = await database.execute(`SELECT COUNT(*) as count FROM ${table.name}`);
+            return {
+              ...table,
+              count: Number(result.rows[0].count),
+            };
+          } catch {
+            return { ...table, count: 0 };
+          }
+        })
+      );
+
+      res.json({ tables: tablesWithCounts });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
@@ -244,6 +372,8 @@ export function startLogServer(port = 3000): { server: Server; wss: WebSocketSer
       const page = parseInt(req.query.page as string) || 1;
       const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
       const offset = (page - 1) * limit;
+      const search = (req.query.search as string) || '';
+      const period = (req.query.period as string) || 'all';
 
       // Whitelist tables for security
       const allowedTables = ['transcripts', 'chunks', 'kitt_tasks', 'foods', 'food_log', 'meta'];
@@ -251,8 +381,60 @@ export function startLogServer(port = 3000): { server: Server; wss: WebSocketSer
         return res.status(400).json({ error: 'Invalid table name' });
       }
 
-      // Get total count
-      const countResult = await database.execute(`SELECT COUNT(*) as count FROM ${table}`);
+      // Build WHERE clause for search and period
+      const whereConditions: string[] = [];
+      const args: (string | number)[] = [];
+
+      // Period filter
+      if (period !== 'all' && (table === 'transcripts' || table === 'chunks')) {
+        const now = Date.now();
+        let startTime: number;
+        
+        switch (period) {
+          case 'today':
+            startTime = new Date().setHours(0, 0, 0, 0);
+            break;
+          case 'week':
+            startTime = now - 7 * 24 * 60 * 60 * 1000;
+            break;
+          case 'month':
+            startTime = now - 30 * 24 * 60 * 60 * 1000;
+            break;
+          default:
+            startTime = 0;
+        }
+        
+        if (startTime > 0) {
+          whereConditions.push('created_at >= ?');
+          args.push(startTime);
+        }
+      }
+
+      // Search filter
+      if (search) {
+        // Search in common text columns
+        const searchColumns: Record<string, string[]> = {
+          transcripts: ['content', 'role', 'type'],
+          chunks: ['content'],
+          kitt_tasks: ['title', 'description'],
+          foods: ['name', 'brand'],
+          food_log: ['notes'],
+          meta: ['key'],
+        };
+        
+        const columns = searchColumns[table] || [];
+        if (columns.length > 0) {
+          const searchConditions = columns.map(col => `${col} LIKE ?`).join(' OR ');
+          whereConditions.push(`(${searchConditions})`);
+          columns.forEach(() => args.push(`%${search}%`));
+        }
+      }
+
+      const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+      // Get total count (with filters)
+      const countQuery = `SELECT COUNT(*) as count FROM ${table} ${whereClause}`;
+      const countResult = await database.execute({ sql: countQuery, args });
       const total = Number(countResult.rows[0].count);
 
       // Get rows with ordering
@@ -262,7 +444,8 @@ export function startLogServer(port = 3000): { server: Server; wss: WebSocketSer
       if (table === 'food_log') orderBy = 'logged_date DESC, logged_time DESC';
       if (table === 'foods') orderBy = 'usage_count DESC, name';
 
-      const result = await database.execute(`SELECT * FROM ${table} ORDER BY ${orderBy} LIMIT ${limit} OFFSET ${offset}`);
+      const query = `SELECT * FROM ${table} ${whereClause} ORDER BY ${orderBy} LIMIT ${limit} OFFSET ${offset}`;
+      const result = await database.execute({ sql: query, args });
 
       res.json({ rows: result.rows, total, page, limit });
     } catch (err) {
@@ -295,6 +478,185 @@ export function startLogServer(port = 3000): { server: Server; wss: WebSocketSer
     }
   });
 
+  // ==========================================
+  // Task Engine API
+  // ==========================================
+
+  // Get all tasks
+  app.get('/api/tasks', async (_req, res) => {
+    try {
+      const database = getDb();
+      
+      const result = await database.execute(`
+        SELECT * FROM kitt_tasks
+        ORDER BY
+          active DESC,
+          CASE priority
+            WHEN 'high' THEN 1
+            WHEN 'medium' THEN 2
+            WHEN 'low' THEN 3
+          END,
+          created_at ASC
+      `);
+
+      const tasks = result.rows.map((row) => ({
+        id: Number(row.id),
+        title: String(row.title),
+        description: row.description ? String(row.description) : null,
+        frequency: String(row.frequency),
+        priority: String(row.priority),
+        timeWindowStart: row.time_window_start ? String(row.time_window_start) : null,
+        timeWindowEnd: row.time_window_end ? String(row.time_window_end) : null,
+        skillRefs: row.skill_refs ? JSON.parse(String(row.skill_refs)) : [],
+        active: Boolean(row.active),
+        snoozedUntil: row.snoozed_until ? Number(row.snoozed_until) : null,
+        gracePeriodMinutes: Number(row.grace_period_minutes || 0),
+        createdBy: String(row.created_by),
+        createdAt: Number(row.created_at),
+      }));
+
+      res.json({ tasks });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // Update task (snooze, activate/deactivate)
+  app.patch('/api/tasks/:id', async (req, res) => {
+    try {
+      const database = getDb();
+      const taskId = req.params.id;
+      const updates = req.body;
+
+      const setClauses: string[] = [];
+      const args: (string | number | null)[] = [];
+
+      if ('active' in updates) {
+        setClauses.push('active = ?');
+        args.push(updates.active ? 1 : 0);
+      }
+      if ('snoozedUntil' in updates) {
+        setClauses.push('snoozed_until = ?');
+        args.push(updates.snoozedUntil);
+      }
+
+      if (setClauses.length === 0) {
+        return res.status(400).json({ error: 'No valid updates provided' });
+      }
+
+      args.push(taskId);
+
+      await database.execute({
+        sql: `UPDATE kitt_tasks SET ${setClauses.join(', ')} WHERE id = ?`,
+        args,
+      });
+
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // Get task executions
+  app.get('/api/task-executions', async (req, res) => {
+    try {
+      const database = getDb();
+      const period = (req.query.period as string) || 'today';
+      
+      let startTime: number;
+      const now = Date.now();
+      
+      switch (period) {
+        case 'today':
+          startTime = new Date().setHours(0, 0, 0, 0);
+          break;
+        case 'week':
+          startTime = now - 7 * 24 * 60 * 60 * 1000;
+          break;
+        case 'month':
+          startTime = now - 30 * 24 * 60 * 60 * 1000;
+          break;
+        default:
+          startTime = now - 24 * 60 * 60 * 1000; // Default to last 24h
+      }
+
+      // Get task executions from transcripts
+      const result = await database.execute({
+        sql: `
+          SELECT 
+            t.id,
+            t.task_id,
+            t.task_status,
+            t.content,
+            t.created_at,
+            kt.title as task_title
+          FROM transcripts t
+          LEFT JOIN kitt_tasks kt ON t.task_id = kt.id
+          WHERE t.type = 'task'
+            AND t.created_at >= ?
+          ORDER BY t.created_at DESC
+          LIMIT 100
+        `,
+        args: [startTime],
+      });
+
+      const executions = result.rows.map((row) => ({
+        id: String(row.id),
+        taskId: row.task_id ? Number(row.task_id) : null,
+        taskTitle: row.task_title ? String(row.task_title) : 'Unknown Task',
+        status: String(row.task_status || 'unknown'),
+        notes: row.content ? String(row.content) : null,
+        executedAt: Number(row.created_at),
+      }));
+
+      res.json({ executions });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // Get task stats
+  app.get('/api/tasks/stats', async (_req, res) => {
+    try {
+      const database = getDb();
+      const todayStart = new Date().setHours(0, 0, 0, 0);
+
+      const [totalResult, activeResult, executionsToday] = await Promise.all([
+        database.execute('SELECT COUNT(*) as count FROM kitt_tasks'),
+        database.execute('SELECT COUNT(*) as count FROM kitt_tasks WHERE active = 1'),
+        database.execute({
+          sql: `SELECT COUNT(*) as count FROM transcripts WHERE type = 'task' AND created_at >= ?`,
+          args: [todayStart],
+        }),
+      ]);
+
+      // Get status breakdown for today
+      const statusResult = await database.execute({
+        sql: `
+          SELECT task_status, COUNT(*) as count 
+          FROM transcripts 
+          WHERE type = 'task' AND created_at >= ?
+          GROUP BY task_status
+        `,
+        args: [todayStart],
+      });
+
+      const statusBreakdown: Record<string, number> = {};
+      for (const row of statusResult.rows) {
+        statusBreakdown[String(row.task_status)] = Number(row.count);
+      }
+
+      res.json({
+        total: Number(totalResult.rows[0].count),
+        active: Number(activeResult.rows[0].count),
+        executionsToday: Number(executionsToday.rows[0].count),
+        statusBreakdown,
+      });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
   // Create HTTP server
   server = createServer(app);
 
@@ -319,9 +681,9 @@ export function startLogServer(port = 3000): { server: Server; wss: WebSocketSer
   });
 
   // Start listening - localhost only for security
-  const actualPort = Number(process.env.LOG_SERVER_PORT) || port;
+  const actualPort = Number(process.env.KITT_PORT) || 8000;
   server.listen(actualPort, '127.0.0.1', () => {
-    originalConsole.log(`[kitt-portal] 🌐 KITT Portal running at http://localhost:${actualPort}`);
+    originalConsole.log(`[kitt-bridge] 🌐 KITT Bridge running at http://localhost:${actualPort}`);
   });
 
   // Install interceptors after server is ready

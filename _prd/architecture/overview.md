@@ -133,12 +133,13 @@ KITT V1/
 - **Types:** Explore (research), Bash (commands), Plan (design)
 - **Memory:** Access same `profile/memory/` as main agent
 
-### 5. KITT Portal (Future)
+### 5. KITT Portal
 - **Rol:** Web UI voor beheer en monitoring
-- **URL:** `http://localhost:3000`
-- **Features:** Feature browser, memory search, logs, schedulers
-- **Tech:** Next.js + Tailwind
-- **Data:** Reads profile/ + _prd/
+- **URL:** `http://localhost:3000` (dev) / `http://localhost:8000` (bridge)
+- **Features:** System health, database explorer, task engine, live logs
+- **Tech:** React + Vite + shadcn/ui
+- **Status:** ✅ Geïmplementeerd (F64)
+- **Docs:** `_prd/architecture/portal.md`
 
 ### 6. Memory Database
 - **Rol:** Hybrid search over memory

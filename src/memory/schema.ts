@@ -11,7 +11,7 @@ import { createClient, type Client } from '@libsql/client';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const SCHEMA_VERSION = 10; // Bumped for Daily Blog Post (F60)
+const SCHEMA_VERSION = 12; // Bumped for Task Model Selection (F63)
 
 // Core schema SQL
 const CORE_SCHEMA = `
@@ -530,6 +530,41 @@ export async function initializeDatabase(
       }
 
       console.log('[schema] Migration v9 -> v10 complete');
+    }
+
+    // Migration: v10 -> v12: Task Model Selection (F63)
+    // Skip v11 (was intermediate version)
+    if (currentVersion < 12) {
+      console.log('[schema] Running migration v10 -> v12 (Task Model Selection)...');
+
+      // Add model column to kitt_tasks
+      try {
+        await db.execute('ALTER TABLE kitt_tasks ADD COLUMN model TEXT');
+        console.log('[schema] Migration: Added model column to kitt_tasks');
+      } catch (alterErr) {
+        const alterMsg = alterErr instanceof Error ? alterErr.message : String(alterErr);
+        if (!alterMsg.includes('duplicate column')) {
+          console.warn('[schema] Migration warning (model):', alterMsg);
+        }
+      }
+
+      // Set Opus for KITT zelfreflectie (complex introspection)
+      try {
+        await db.execute(`UPDATE kitt_tasks SET model = 'opus' WHERE title = 'KITT zelfreflectie'`);
+        console.log('[schema] Set model=opus for KITT zelfreflectie');
+      } catch (err) {
+        console.warn('[schema] Migration warning (zelfreflectie model):', err);
+      }
+
+      // Set Opus for Blog Writer if exists
+      try {
+        await db.execute(`UPDATE kitt_tasks SET model = 'opus' WHERE title LIKE '%Blog Writer%'`);
+        console.log('[schema] Set model=opus for Blog Writer tasks');
+      } catch (err) {
+        console.warn('[schema] Migration warning (blog writer model):', err);
+      }
+
+      console.log('[schema] Migration v10 -> v12 complete');
     }
 
     // Update schema version

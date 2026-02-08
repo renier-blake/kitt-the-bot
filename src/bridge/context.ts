@@ -14,7 +14,10 @@ export interface KITTContext {
   userInfo: string;
   workingMemory: string;
   memorySearchResults?: string;
+  skills?: string; // All skill instructions
 }
+
+const SKILLS_DIR = process.env.KITT_SKILLS_DIR || './.claude/skills';
 
 /**
  * Read a file safely, returning empty string on error
@@ -23,6 +26,37 @@ async function readFileSafe(filePath: string): Promise<string> {
   try {
     return await fs.readFile(filePath, 'utf-8');
   } catch {
+    return '';
+  }
+}
+
+/**
+ * Load all skill instructions from .claude/skills/
+ */
+async function loadAllSkills(): Promise<string> {
+  try {
+    const entries = await fs.readdir(SKILLS_DIR, { withFileTypes: true });
+    const skillDirs = entries.filter(e => e.isDirectory());
+
+    const skills: string[] = [];
+
+    for (const dir of skillDirs) {
+      const skillPath = path.join(SKILLS_DIR, dir.name, 'SKILL.md');
+      try {
+        const content = await fs.readFile(skillPath, 'utf-8');
+        // Strip frontmatter and get skill content
+        const stripped = content.replace(/^---\n[\s\S]*?\n---\n*/, '').trim();
+        if (stripped) {
+          skills.push(`## ${dir.name}\n\n${stripped}`);
+        }
+      } catch {
+        // Skip skills without SKILL.md
+      }
+    }
+
+    return skills.join('\n\n---\n\n');
+  } catch (err) {
+    console.warn('[context] Could not load skills:', err);
     return '';
   }
 }
@@ -65,11 +99,12 @@ async function searchMemoryForContext(query: string): Promise<string | undefined
  * @param userQuery - Optional query to search memory for relevant context
  */
 export async function loadContext(userQuery?: string): Promise<KITTContext> {
-  const [identity, soul, userInfo, workingMemory] = await Promise.all([
+  const [identity, soul, userInfo, workingMemory, skills] = await Promise.all([
     readFileSafe(path.join(PROFILE_DIR, 'identity/IDENTITY.md')),
     readFileSafe(path.join(PROFILE_DIR, 'identity/SOUL.md')),
     readFileSafe(path.join(PROFILE_DIR, 'user/USER.md')),
     readFileSafe(path.join(PROFILE_DIR, 'memory/MEMORY.md')),
+    loadAllSkills(),
   ]);
 
   // Search memory if query provided
@@ -78,7 +113,7 @@ export async function loadContext(userQuery?: string): Promise<KITTContext> {
     memorySearchResults = await searchMemoryForContext(userQuery);
   }
 
-  return { identity, soul, userInfo, workingMemory, memorySearchResults };
+  return { identity, soul, userInfo, workingMemory, memorySearchResults, skills };
 }
 
 /**
@@ -116,13 +151,17 @@ export function buildSystemPrompt(context: KITTContext): string {
 - Als iemand zegt "onthoud dit" of "remember", bevestig dat je het hebt onthouden.
 - Geef code voorbeelden in markdown code blocks.`);
 
+  // Add skills
+  if (context.skills) {
+    sections.push(`# Skills
+
+Je hebt de volgende skills. Volg de instructies wanneer relevant.
+
+${context.skills}`);
+  }
+
   // Add internal capabilities
   sections.push(`# Internal Capabilities
-
-## Skills
-Je hebt skills in \`.claude/skills/\`. Check met \`ls .claude/skills/\` welke er zijn.
-Voor health data (hartslag, slaap, stappen): **garmin** skill.
-Lees altijd eerst de SKILL.md voor instructies.
 
 ## Memory Search (Semantic)
 Zoek in gesprekken en memory met semantic/vector search.
@@ -136,15 +175,30 @@ npm run search -- "zoekterm" [options]
 - \`--exact\` - Keyword search ipv semantic (voor exacte matches)
 - \`--json\` - Output als JSON
 
-**Voorbeelden:**
-- \`npm run search -- "tandarts afspraak"\` → vindt ook "dokter", "kies"
-- \`npm run search -- "herinnering training" -l 5\`
-- \`npm run search -- "KITT" --exact\` → alleen letterlijke matches
-
 **Wanneer gebruiken:**
 - User vraagt naar eerdere gesprekken
 - Je wilt checken of je iets al gedaan hebt
-- Je zoekt context uit het verleden`);
+- Je zoekt context uit het verleden
+
+## Sleep & DND Mode (F73)
+Beheer je slaap- en stiltemodaliteiten.
+
+\`\`\`bash
+npm run mode -- status              # Huidige status
+npm run mode -- sleep               # Slaap onbeperkt
+npm run mode -- sleep 6:55          # Slaap tot 6:55 + wake-up bericht
+npm run mode -- sleep 6:55 --no-wake  # Slaap zonder wake-up
+npm run mode -- dnd 2h              # Stil voor 2 uur
+npm run mode -- dnd 14:00           # Stil tot 14:00
+npm run mode -- wake                # Word wakker (clear alle modes)
+\`\`\`
+
+**Wanneer gebruiken:**
+- "Ik ga slapen" → \`npm run mode -- sleep\`
+- "Maak me wakker om 7:00" → \`npm run mode -- sleep 7:00\`
+- "Wees even stil" / "Do not disturb" → \`npm run mode -- dnd 2h\`
+- Sleep = KITT doet helemaal niks
+- DND = KITT werkt door maar stuurt geen berichten`);
 
   return sections.join('\n\n---\n\n');
 }

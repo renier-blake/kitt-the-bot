@@ -125,6 +125,7 @@ Wil je hier nog details van loggen? (exercises, gewichten, etc.)
 ## Dependencies
 
 - F56: Workout Log (voor workout_logs tabel)
+- F57: Workout Plans (voor geplande workout vergelijking)
 
 ---
 

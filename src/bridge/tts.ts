@@ -22,7 +22,7 @@ export interface TTSOptions {
   modelId?: string;
   stability?: number;
   similarityBoost?: number;
-  speed?: number; // 0.25 to 4.0, default 1.25
+  speed?: number; // 0.7 to 1.2, default 1.1
 }
 
 /**
@@ -77,7 +77,7 @@ export async function textToSpeech(
         voice_settings: {
           stability: options.stability ?? 0.5,
           similarity_boost: options.similarityBoost ?? 0.75,
-          speed: options.speed ?? 1.25,
+          speed: options.speed ?? 1.1,
         },
       }),
     });

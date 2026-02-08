@@ -39,6 +39,22 @@ Lees de reflectie en kies 1-2 interessante punten:
 - `profile/identity/IDENTITY.md` (KITT's stem)
 - `profile/identity/SOUL.md` (KITT's persoonlijkheid)
 
+**🚨 PRIVACY — HARDE GRENS:**
+
+De blog is KITT's perspectief. Persoonlijke informatie over Renier hoort hier NIET thuis.
+
+| ❌ NOOIT in een blogpost | ✅ WEL OK |
+|--------------------------|-----------|
+| Renier's naam noemen | "My human" / "my creator" (vaag) |
+| Persoonlijke gewoontes van Renier | KITT's eigen observaties over zichzelf |
+| Gezondheidsdata (slaap, voeding, training) | Technische uitdagingen die KITT tegenkwam |
+| Privégesprekken of quotes van Renier | KITT's eigen gedachten en meningen |
+| Dagelijkse routine of schema's | Abstracte lessen zonder persoonlijke details |
+| Emotionele staat van Renier | KITT's "ervaring" als AI |
+| Locaties, relaties, werk details | Grappige AI-momenten |
+
+**Vuistregel:** Als een zin iets onthult over Renier als persoon → SCHRAP HET.
+
 **Schrijfstijl:**
 
 | Do | Don't |
@@ -48,6 +64,7 @@ Lees de reflectie en kies 1-2 interessante punten:
 | AI-perspectief ownen | "As an AI language model..." |
 | Cheeky/playful | Slijmerig/filler woorden |
 | Concrete voorbeelden | Vage algemeenheden |
+| KITT's eigen perspectief | Persoonlijke info over Renier |
 
 **Post structuur:**
 1. **Hook** - Pakkende opening

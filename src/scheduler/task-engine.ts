@@ -37,6 +37,7 @@ export interface KittTask {
   created_by: 'kitt' | 'renier';
   active: boolean;
   created_at: number;
+  model: 'haiku' | 'sonnet' | 'opus' | null; // F63: Override model for this task
 }
 
 export interface TaskExecution {
@@ -99,6 +100,7 @@ export async function getOpenTasks(db: Client): Promise<OpenTasksResult> {
     created_by: String(row.created_by) as 'kitt' | 'renier',
     active: Boolean(row.active),
     created_at: Number(row.created_at),
+    model: row.model ? String(row.model) as 'haiku' | 'sonnet' | 'opus' : null, // F63
   }));
 
   // Filter tasks

@@ -72,7 +72,8 @@ export interface ThinkLoopSkill {
   fetch?: string;
   // Result of fetch command (populated at runtime)
   fetchResult?: string;
-  // NOTE: skillContent removed - too large for think prompt, agent can read SKILL.md if needed
+  // Full SKILL.md content (loaded for think loop context)
+  skillContent?: string;
 }
 
 export interface ThinkLoopThought {
@@ -147,6 +148,9 @@ export function discoverThinkLoopSkills(skillsDir: string): ThinkLoopSkill[] {
 
       // Only include every_time and scheduled skills
       if (trigger === 'every_time' || trigger === 'scheduled') {
+        // Strip frontmatter from content to get the actual skill instructions
+        const skillContent = content.replace(/^---\n[\s\S]*?\n---\n*/, '').trim();
+
         skills.push({
           id: entry.name,
           name: metadata?.name || entry.name,
@@ -157,6 +161,7 @@ export function discoverThinkLoopSkills(skillsDir: string): ThinkLoopSkill[] {
           timesPerDay: metadata?.kitt?.timesPerDay,
           daypart: metadata?.kitt?.daypart || metadata?.kitt?.schedule?.daypart,
           fetch: metadata?.kitt?.fetch,
+          skillContent,
         });
       }
     } catch {
@@ -382,12 +387,13 @@ export function buildThinkPrompt(context: ThinkLoopContext): string {
         : `\n\n**Data:** ✅ Gecheckt, geen items gevonden`;
     }
 
-    // NOTE: We deliberately do NOT include the full SKILL.md content here
-    // The think loop prompt is already large (tasks, transcripts, identity, etc.)
-    // Skills are referenced by name - the agent can read SKILL.md if needed via tools
+    // Include full skill content so the agent knows exactly what to do
+    const skillSection = s.skillContent
+      ? `\n\n<skill-instructions>\n${s.skillContent}\n</skill-instructions>`
+      : '';
 
     return `### ${s.emoji} ${s.name}${schedule ? ` (${schedule})` : ''}
-${s.description}${dataSection}`;
+${s.description}${dataSection}${skillSection}`;
   };
 
   const everyTimeSection = everyTimeSkills.length > 0
@@ -402,15 +408,35 @@ ${s.description}${dataSection}`;
     ? [everyTimeSection, scheduledSection].filter(Boolean).join('\n\n---\n\n')
     : 'Geen skills geconfigureerd voor de think loop.';
 
+  // Helper to load skill content for a task
+  const loadSkillContentForTask = (skillName: string): string | null => {
+    const skillPath = path.join(process.cwd(), '.claude/skills', skillName, 'SKILL.md');
+    try {
+      const content = fs.readFileSync(skillPath, 'utf-8');
+      // Strip frontmatter
+      return content.replace(/^---\n[\s\S]*?\n---\n*/, '').trim();
+    } catch {
+      return null;
+    }
+  };
+
   // Format tasks from Task Engine (include ID for TASK action)
+  // Include full skill content so KITT knows exactly what to do
   const formatTask = (t: KittTask) => {
     const timeWindow = t.time_window_start && t.time_window_end
       ? ` (${t.time_window_start}-${t.time_window_end})`
       : '';
-    const skillRef = t.skill_refs.length > 0
-      ? ` → skill: ${t.skill_refs.join(', ')}`
-      : '';
-    return `- **#${t.id}: ${t.title}** [${t.priority}]${timeWindow}${skillRef}${t.description ? `\n  ${t.description}` : ''}`;
+
+    // Load skill content for this task
+    let skillSection = '';
+    if (t.skill_refs.length > 0) {
+      const skillContent = loadSkillContentForTask(t.skill_refs[0]);
+      if (skillContent) {
+        skillSection = `\n\n<skill-instructions for="${t.skill_refs[0]}">\n${skillContent}\n</skill-instructions>`;
+      }
+    }
+
+    return `- **#${t.id}: ${t.title}** [${t.priority}]${timeWindow}${t.description ? `\n  ${t.description}` : ''}${skillSection}`;
   };
 
   const tasksSection = context.tasks.length > 0

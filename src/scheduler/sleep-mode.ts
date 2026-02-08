@@ -1,14 +1,27 @@
 /**
- * KITT Sleep Mode
+ * KITT Sleep & DND Modes (F73)
  *
- * Global sleep/snooze mode for KITT. When sleeping:
- * - Think Loop exits early (no processing, no token usage)
- * - No messages are sent
- * - User's rest is respected
+ * Two distinct modes:
+ *
+ * 1. SLEEP MODE - KITT is completely off
+ *    - Think Loop exits early (no processing, no token usage)
+ *    - No skills run
+ *    - No messages sent
+ *
+ * 2. DND MODE (Do Not Disturb) - KITT works silently
+ *    - Think Loop runs normally
+ *    - Skills execute (background tasks)
+ *    - NO messages sent to Telegram
+ *    - Everything logged to database
+ *
+ * 3. WAKE REMINDER - Optional wake-up message
+ *    - When sleep mode ends at a specific time, send a message
+ *    - "Maak me wakker om 6:55" → sleep + wake reminder
+ *    - "Ik ga slapen" → sleep without reminder
  *
  * Wake triggers:
  * - Timestamp expires (automatic)
- * - User sends a message (clears sleep)
+ * - User sends a message (clears ALL modes)
  */
 
 import type { Client } from '@libsql/client';
@@ -77,4 +90,128 @@ export function formatWakeTime(timestamp: number): string {
     minute: '2-digit',
     timeZone: 'Europe/Amsterdam',
   });
+}
+
+// ==========================================
+// DND Mode (Do Not Disturb) - F73
+// ==========================================
+
+/**
+ * Check if KITT is in DND mode
+ */
+export async function isKittDND(db: Client): Promise<boolean> {
+  const result = await db.execute(
+    "SELECT value FROM meta WHERE key = 'kitt_dnd_until'"
+  );
+  if (result.rows.length === 0) return false;
+  const dndUntil = Number(result.rows[0].value);
+  return dndUntil > Date.now();
+}
+
+/**
+ * Get DND until timestamp (or null if not in DND)
+ */
+export async function getDNDUntil(db: Client): Promise<number | null> {
+  const result = await db.execute(
+    "SELECT value FROM meta WHERE key = 'kitt_dnd_until'"
+  );
+  if (result.rows.length === 0) return null;
+  const dndUntil = Number(result.rows[0].value);
+  return dndUntil > Date.now() ? dndUntil : null;
+}
+
+/**
+ * Put KITT in DND mode (works silently, no messages)
+ */
+export async function setDND(db: Client, until: number): Promise<void> {
+  await db.execute({
+    sql: "INSERT OR REPLACE INTO meta (key, value) VALUES ('kitt_dnd_until', ?)",
+    args: [String(until)],
+  });
+}
+
+/**
+ * Clear DND mode
+ */
+export async function clearDND(db: Client): Promise<void> {
+  await db.execute("DELETE FROM meta WHERE key = 'kitt_dnd_until'");
+}
+
+// ==========================================
+// Wake Reminder - F73
+// ==========================================
+
+/**
+ * Set a wake-up reminder (sends message when sleep ends)
+ */
+export async function setWakeReminder(db: Client, timestamp: number): Promise<void> {
+  await db.execute({
+    sql: "INSERT OR REPLACE INTO meta (key, value) VALUES ('kitt_wake_reminder', ?)",
+    args: [String(timestamp)],
+  });
+}
+
+/**
+ * Get wake reminder timestamp (or null if none set)
+ */
+export async function getWakeReminder(db: Client): Promise<number | null> {
+  const result = await db.execute(
+    "SELECT value FROM meta WHERE key = 'kitt_wake_reminder'"
+  );
+  if (result.rows.length === 0) return null;
+  return Number(result.rows[0].value);
+}
+
+/**
+ * Clear wake reminder
+ */
+export async function clearWakeReminder(db: Client): Promise<void> {
+  await db.execute("DELETE FROM meta WHERE key = 'kitt_wake_reminder'");
+}
+
+// ==========================================
+// Helpers - F73
+// ==========================================
+
+/**
+ * Check if KITT can send messages (not sleeping, not DND)
+ */
+export async function canSendMessages(db: Client): Promise<boolean> {
+  const sleeping = await isKittSleeping(db);
+  const dnd = await isKittDND(db);
+  return !sleeping && !dnd;
+}
+
+/**
+ * Clear all modes (called when user sends a message)
+ */
+export async function clearAllModes(db: Client): Promise<void> {
+  await Promise.all([
+    clearSleep(db),
+    clearDND(db),
+    clearWakeReminder(db),
+  ]);
+}
+
+/**
+ * Get current mode status
+ */
+export async function getModeStatus(db: Client): Promise<{
+  mode: 'awake' | 'sleep' | 'dnd';
+  until: number | null;
+  wakeReminder: number | null;
+}> {
+  const [sleepUntil, dndUntil, wakeReminder] = await Promise.all([
+    getSleepUntil(db),
+    getDNDUntil(db),
+    getWakeReminder(db),
+  ]);
+
+  if (sleepUntil) {
+    return { mode: 'sleep', until: sleepUntil, wakeReminder };
+  }
+  if (dndUntil) {
+    return { mode: 'dnd', until: dndUntil, wakeReminder: null };
+  }
+  return { mode: 'awake', until: null, wakeReminder: null };
 }

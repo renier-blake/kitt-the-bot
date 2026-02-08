@@ -38,7 +38,22 @@
       "Bash(pm2 logs:*)",
       "Bash(git init:*)",
       "Bash(git remote add:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "WebFetch(domain:www.kitt-the.bot)",
+      "Bash(source:*)",
+      "Bash(curl:*)",
+      "Bash(tee:*)",
+      "Bash(grep:*)",
+      "Bash(pm2 status:*)",
+      "Bash(pm2 start:*)",
+      "Bash(git checkout:*)",
+      "Bash(for f in \"/Users/renierbleeker/Projects/KITT V1/.claude/skills/\"*/SKILL.md)",
+      "Bash(do echo \"=== $f ===\" head -20 \"$f\")",
+      "Bash(done)",
+      "Bash(npm run mode:*)",
+      "Bash(git rm:*)"
     ]
   }
 }

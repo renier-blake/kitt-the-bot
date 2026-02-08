@@ -62,14 +62,14 @@ function parseSkillTrigger(response: string): { skillName: string; prompt: strin
   return null;
 }
 
-import { getSessionId, updateSession } from './sessions.js';
+import { getSessionId, updateSession, clearSession } from './sessions.js';
 import { updateChatState, saveState } from './state.js';
 import { log } from './logger.js';
 import { getMemoryService } from '../memory/index.js';
 import { splitMessage, formatForTelegramSafe } from './format.js';
 import { transcribeAudio, downloadTelegramFile } from './transcribe.js';
 import { textToSpeech, shouldRespondWithVoice } from './tts.js';
-import { clearSleep } from '../scheduler/sleep-mode.js';
+import { clearAllModes } from '../scheduler/sleep-mode.js';
 
 let bot: Bot | null = null;
 
@@ -281,12 +281,12 @@ export async function startTelegramBot(): Promise<Bot> {
       return;
     }
 
-    // Wake KITT if sleeping (user message = wake up)
+    // F73: Wake KITT if sleeping/DND (user message = wake up, clear all modes)
     {
       const memoryForSleep = getMemoryService();
       const sleepDb = memoryForSleep.getDb();
       if (sleepDb) {
-        await clearSleep(sleepDb);
+        await clearAllModes(sleepDb);
       }
     }
 
@@ -335,8 +335,24 @@ export async function startTelegramBot(): Promise<Bot> {
       log.error('Failed to store user message in memory', { error: String(err) });
     });
 
-    // Run agent with Haiku (fast router/communicator)
+    // Run agent with Opus
     let response = await runAgent(content, { sessionId, model: TELEGRAM_DEFAULT_MODEL });
+
+    // Auto-recovery: if session seems corrupted, clear and retry with fresh session
+    if (response.sessionFailed && sessionId) {
+      log.warn('Session failure detected, clearing and retrying', { chatId, oldSessionId: sessionId });
+      console.log(`[telegram] 🔄 Session corrupted, starting fresh...`);
+      clearSession(chatId);
+
+      // Retry without session (fresh start)
+      response = await runAgent(content, { model: TELEGRAM_DEFAULT_MODEL });
+
+      if (response.sessionFailed) {
+        log.error('Agent failed even without session', { chatId });
+        await ctx.reply(`Sorry, er ging iets mis. De sessie is gereset, probeer het opnieuw.`);
+        return;
+      }
+    }
 
     if (response.error) {
       log.error('Agent failed', { chatId, error: response.error });
@@ -447,11 +463,11 @@ export async function startTelegramBot(): Promise<Bot> {
       return;
     }
 
-    // Wake KITT if sleeping (user message = wake up)
+    // F73: Wake KITT if sleeping/DND (user message = wake up, clear all modes)
     const memoryService = getMemoryService();
     const dbClient = memoryService.getDb();
     if (dbClient) {
-      await clearSleep(dbClient);
+      await clearAllModes(dbClient);
     }
 
     // In groups, only process if replied to bot (can't @mention in voice)
@@ -523,8 +539,16 @@ export async function startTelegramBot(): Promise<Bot> {
         log.error('Failed to store voice message in memory', { error: String(err) });
       });
 
-      // Run agent with transcribed text (Haiku for fast communication)
-      const response = await runAgent(transcribedText, { sessionId, model: TELEGRAM_DEFAULT_MODEL });
+      // Run agent with transcribed text
+      let response = await runAgent(transcribedText, { sessionId, model: TELEGRAM_DEFAULT_MODEL });
+
+      // Auto-recovery for voice messages too
+      if (response.sessionFailed && sessionId) {
+        log.warn('Session failure on voice, clearing and retrying', { chatId });
+        console.log(`[telegram] 🔄 Session corrupted (voice), starting fresh...`);
+        clearSession(chatId);
+        response = await runAgent(transcribedText, { model: TELEGRAM_DEFAULT_MODEL });
+      }
 
       if (response.error) {
         log.error('Agent failed on voice message', { chatId, error: response.error });

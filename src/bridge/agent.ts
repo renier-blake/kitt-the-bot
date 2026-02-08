@@ -12,6 +12,7 @@ export interface AgentResponse {
   result: string | null;
   sessionId: string;
   error?: string;
+  sessionFailed?: boolean; // True if session resume failed (should clear and retry)
 }
 
 export type AgentModel = 'haiku' | 'sonnet' | 'opus';
@@ -49,6 +50,10 @@ export async function runAgent(
     workspace: KITT_WORKSPACE,
   });
   console.log(`[agent] 🤖 Model: ${modelUsed}`);
+
+  // Track timing for session health detection
+  const startTime = Date.now();
+  const isResumingSession = !!opts.sessionId;
 
   try {
     // Load KITT personality and context
@@ -96,26 +101,50 @@ export async function runAgent(
       }
     }
 
+    const elapsed = Date.now() - startTime;
+
+    // Detect potential session corruption:
+    // If we were resuming a session and got no result in under 10 seconds,
+    // the session might be corrupted or conflicting
+    const sessionMightBeFailed = isResumingSession && !result && elapsed < 10000;
+
+    if (sessionMightBeFailed) {
+      log.warn('Possible session corruption detected', {
+        sessionId: opts.sessionId,
+        elapsed,
+        hasResult: false,
+      });
+      console.log(`[agent] ⚠️ Session might be corrupted (no result in ${elapsed}ms)`);
+    }
+
     log.info('Agent completed', {
       hasResult: !!result,
       resultLength: result?.length,
       sessionId: newSessionId || opts.sessionId,
       model: modelUsed,
+      elapsed,
     });
-    console.log(`[agent] ✅ Completed (${modelUsed}) - ${result?.length || 0} chars`);
+    console.log(`[agent] ✅ Completed (${modelUsed}) - ${result?.length || 0} chars in ${elapsed}ms`);
 
     return {
       result,
       sessionId: newSessionId || opts.sessionId || '',
+      sessionFailed: sessionMightBeFailed,
     };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
-    log.error('Agent error', { error: errorMessage });
+    const elapsed = Date.now() - startTime;
+
+    log.error('Agent error', { error: errorMessage, elapsed, isResumingSession });
+
+    // If error occurred quickly while resuming, session might be bad
+    const sessionMightBeFailed = isResumingSession && elapsed < 10000;
 
     return {
       result: null,
       sessionId: opts.sessionId || '',
       error: errorMessage,
+      sessionFailed: sessionMightBeFailed,
     };
   }
 }

@@ -165,6 +165,12 @@ ORDER BY date DESC;
 
 ---
 
+## Dependencies
+
+- F57: Workout Plans (voor exercise aliassen lookup)
+
+---
+
 ## Files
 
 | File | Actie | Beschrijving |

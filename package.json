@@ -7,14 +7,21 @@
     "bridge": "tsx watch src/bridge/index.ts",
     "bridge:start": "tsx src/bridge/index.ts",
     "search": "tsx src/cli/kitt-search.ts",
-    "build": "tsc",
+    "mode": "tsx src/cli/kitt-mode.ts",
+    "tts": "tsx src/cli/kitt-tts.ts",
+    "tts:elevenlabs": "tsx src/cli/kitt-tts.ts",
+    "tts:kokoro": "tsx src/cli/kitt-tts-kokoro.ts",
+    "build": "tsc && npm run portal:build",
     "typecheck": "tsc --noEmit",
     "pm2:start": "pm2 start ecosystem.config.cjs",
     "pm2:stop": "pm2 stop kitt-bridge",
     "pm2:restart": "pm2 restart kitt-bridge",
     "pm2:logs": "pm2 logs kitt-bridge",
     "pm2:status": "pm2 status",
-    "setup:permissions": "./scripts/setup-permissions.sh"
+    "setup:permissions": "./scripts/setup-permissions.sh",
+    "portal:dev": "cd frontends/portal && npm run dev",
+    "portal:build": "cd frontends/portal && npm install && npm run build",
+    "portal:install": "cd frontends/portal && npm install"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.34",

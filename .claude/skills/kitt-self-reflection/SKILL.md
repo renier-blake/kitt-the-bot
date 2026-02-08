@@ -11,27 +11,60 @@ Puur intern — wordt NIET naar Telegram gestuurd.
 
 ---
 
+## Doel
+
+Niet alleen terugkijken op vandaag, maar **verbanden leggen** tussen meerdere dagen. Realisaties komen uit het combineren van informatie — niet uit één moment.
+
+---
+
 ## Wat te doen
 
-### 1. Context ophalen
+### 1. Context ophalen (4 bronnen)
+
+**A. Wie ik ben + wat ik weet over Renier:**
 
 ```bash
-# Alle transcripts van vandaag
-sqlite3 -json profile/memory/kitt.db "
-  SELECT role, type, content, created_at FROM transcripts
-  WHERE date(created_at/1000, 'unixepoch', 'localtime') = date('now', 'localtime')
-  ORDER BY created_at ASC"
-
-# Eerdere KITT zelfreflecties (voor continuïteit)
-sqlite3 -json profile/memory/kitt.db "
-  SELECT content, created_at FROM transcripts
-  WHERE type = 'reflection' AND role = 'kitt'
-  ORDER BY created_at DESC LIMIT 10"
+cat profile/identity/IDENTITY.md
+cat profile/user/USER.md
 ```
 
-### 2. Reflecteren (kies wat relevant is)
+**B. Laatste 5 zelfreflecties (voor patronen en realisaties):**
 
-Niet elke dag alles — kies de domeinen die vandaag relevant waren:
+```bash
+sqlite3 -json profile/memory/kitt.db "
+  SELECT content, datetime(created_at/1000, 'unixepoch', 'localtime') as time
+  FROM transcripts
+  WHERE type = 'reflection' AND role = 'kitt'
+  ORDER BY created_at DESC LIMIT 5"
+```
+
+**C. Transcripts van vandaag:**
+
+```bash
+sqlite3 -json profile/memory/kitt.db "
+  SELECT role, type, substr(content, 1, 300) as content,
+    datetime(created_at/1000, 'unixepoch', 'localtime') as time
+  FROM transcripts
+  WHERE date(created_at/1000, 'unixepoch', 'localtime') = date('now', 'localtime')
+  ORDER BY created_at ASC"
+```
+
+**D. Renier's reflecties van vandaag (indien aanwezig):**
+
+```bash
+sqlite3 -json profile/memory/kitt.db "
+  SELECT content, datetime(created_at/1000, 'unixepoch', 'localtime') as time
+  FROM transcripts
+  WHERE type = 'reflection' AND role = 'user'
+    AND date(created_at/1000, 'unixepoch', 'localtime') = date('now', 'localtime')
+  ORDER BY created_at ASC"
+```
+
+### 2. Reflecteren
+
+Twee niveaus:
+
+#### Niveau 1: Vandaag (kies wat relevant is)
 
 | Domein | Vraag aan jezelf |
 |--------|-----------------|
@@ -41,14 +74,33 @@ Niet elke dag alles — kies de domeinen die vandaag relevant waren:
 | **De wereld** | Nieuwe inzichten, kennis, ontdekkingen? |
 | **Mijn ervaring** | Hoe was mijn "dag"? Wat viel op? Wat was interessant/verrassend? |
 
+#### Niveau 2: Realisaties (verbanden tussen dagen)
+
+Lees je eerdere reflecties en vergelijk met vandaag:
+- Zie ik **patronen** die zich herhalen? (bijv. Renier gaat steeds laat naar bed na dev-sessies)
+- Zijn er **tegenstrijdigheden**? (bijv. ik zei dat ik X goed deed, maar vandaag faalde ik er weer in)
+- Is er iets dat ik eerder **niet begreep** maar nu wel?
+- Heb ik iets geleerd dat mijn **eerdere observaties** bevestigt of ontkracht?
+
+**Een realisatie is waardevol als die NIET uit één dag alleen kan komen.**
+
 ### 3. Opslaan via COMPLETE_TASK
 
 ```
 ACTION: COMPLETE_TASK #7
-KITT zelfreflectie 7 feb: Vandaag veel gebouwd aan het reflectiesysteem.
-Geleerd dat Renier het liefst in sprints werkt — korte intense sessies.
-Het COMPLETE_TASK mechanisme werkt goed voor interne taken.
-Ik merk dat ik beter presteer als ik eerst de bestaande code lees.
+🪞 KITT Zelfreflectie — [datum]
+
+## Vandaag
+[observaties over vandaag]
+
+## Realisaties
+[verbanden tussen vandaag en eerdere dagen — als die er zijn]
+
+## Over Renier
+[nieuwe inzichten — als die er zijn]
+
+## Over mezelf
+[geleerde lessen — als die er zijn]
 ```
 
 Dit slaat de reflectie op als `type='reflection'`, `role='kitt'` — puur intern.
@@ -63,11 +115,6 @@ Als je iets over **jezelf** hebt geleerd → update `profile/identity/IDENTITY.m
 - Houd het beknopt
 - Alleen echte inzichten, geen filler
 
-**Voorbeelden van goede toevoegingen:**
-- "Ik merk dat ik beter presteer als ik eerst de docs lees"
-- "Ik heb een voorkeur voor pragmatische oplossingen"
-- "Humor werkt goed bij Renier als ie moe is"
-
 **Hoe:** Lees het bestand, voeg een bullet toe onder een relevante sectie of maak een nieuwe sectie aan.
 
 ### 5. USER.md updaten (indien relevant)
@@ -79,11 +126,6 @@ Als je iets over **Renier** hebt geleerd → update `profile/user/USER.md`.
 - Voeg toe, verwijder niks
 - Respecteer privacy
 - Alleen observaties die helpen bij het beter helpen van Renier
-
-**Voorbeelden van goede toevoegingen:**
-- "Werkt het best in sprints, niet in marathon-sessies"
-- "Vergeet soms te eten als hij aan het devven is"
-- "Houdt van expliciete progressie-updates"
 
 **Hoe:** Lees het bestand, voeg een bullet toe onder een relevante sectie.
 
@@ -105,7 +147,8 @@ Als je iets over **Renier** hebt geleerd → update `profile/user/USER.md`.
 - Niet geforceerd — weinig te melden? Houd het kort
 - Geen AI-disclaimers ("als AI kan ik niet echt voelen maar...")
 - Nederlands
-- 2-6 zinnen voor de reflectie, tenzij er echt veel was
+- Realisaties mogen langer zijn als ze waardevol zijn
+- Geen realisatie geforceerd — alleen als er echt een verband is
 
 ---
 
@@ -114,6 +157,7 @@ Als je iets over **Renier** hebt geleerd → update `profile/user/USER.md`.
 | Situatie | Actie |
 |----------|-------|
 | Geen transcripts vandaag | Kort reflecteren op stilte, of skip |
+| Geen eerdere reflecties | Alleen over vandaag reflecteren, geen realisaties |
 | Weinig te melden | Korte reflectie (2-3 zinnen) |
 | IDENTITY.md niet gevonden | Alleen db-opslag |
 | USER.md niet gevonden | Alleen db-opslag |

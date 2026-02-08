@@ -16,7 +16,15 @@ import {
   parseThinkResponse,
 } from './think-loop.js';
 import { logTaskExecution } from './task-engine.js';
-import { getSleepUntil, formatWakeTime } from './sleep-mode.js';
+import {
+  getSleepUntil,
+  formatWakeTime,
+  isKittDND,
+  canSendMessages,
+  getWakeReminder,
+  clearWakeReminder,
+  clearSleep,
+} from './sleep-mode.js';
 
 const REGISTRY_PATH = process.env.KITT_SCHEDULER_REGISTRY || './profile/schedules/registry.json';
 const DEFAULT_TIMEZONE = 'Europe/Amsterdam';
@@ -222,6 +230,21 @@ export class SchedulerService {
   }
 
   /**
+   * Load skill content from SKILL.md file (F63)
+   */
+  private async loadSkillContent(skillName: string): Promise<string | null> {
+    const skillPath = path.join(process.cwd(), '.claude/skills', skillName, 'SKILL.md');
+    try {
+      const content = await fs.readFile(skillPath, 'utf-8');
+      // Strip frontmatter
+      return content.replace(/^---\n[\s\S]*?\n---\n*/, '').trim();
+    } catch {
+      console.warn(`[scheduler] Could not load skill: ${skillName}`);
+      return null;
+    }
+  }
+
+  /**
    * Run the Think Loop
    * Called by interval timer in bridge/index.ts
    */
@@ -242,13 +265,53 @@ export class SchedulerService {
     }
 
     // ========================================
-    // SLEEP MODE CHECK - MUST BE FIRST
+    // F73: SLEEP/DND/WAKE MODE CHECK - MUST BE FIRST
     // ========================================
+
+    // Check wake reminder FIRST - if wake time passed, send message and clear sleep
+    const wakeReminder = await getWakeReminder(db);
+    if (wakeReminder && wakeReminder <= Date.now()) {
+      console.log('[think-loop] ⏰ Wake reminder triggered!');
+
+      // Send wake-up message
+      const chatId = this.registry?.telegramChatId;
+      if (chatId) {
+        const { sendTelegramMessage } = await import('../bridge/telegram.js');
+        const wakeMessage = 'Goedemorgen! ☀️ Je wilde om deze tijd gewekt worden.';
+        await sendTelegramMessage(String(chatId), wakeMessage);
+        console.log('[think-loop] 📤 Wake-up message sent');
+
+        // Log to transcripts
+        const { getMemoryService } = await import('../memory/index.js');
+        const memoryForWake = getMemoryService();
+        await memoryForWake.storeMessage({
+          sessionId: 'think-loop',
+          channel: 'telegram',
+          role: 'kitt',
+          type: 'message',
+          content: wakeMessage,
+        });
+      }
+
+      // Clear wake reminder and sleep mode
+      await clearWakeReminder(db);
+      await clearSleep(db);
+      console.log('[think-loop] ✅ Sleep mode cleared, KITT is awake');
+      // Continue with normal think loop
+    }
+
+    // Check if still sleeping (no wake reminder, or wake time not yet reached)
     const sleepUntil = await getSleepUntil(db);
     if (sleepUntil) {
       const wakeTime = formatWakeTime(sleepUntil);
       console.log(`[think-loop] 😴 Sleeping until ${wakeTime}`);
       return;
+    }
+
+    // Check DND mode - log but continue processing
+    const dndActive = await isKittDND(db);
+    if (dndActive) {
+      console.log('[think-loop] 🔕 DND mode active - will process but not send messages');
     }
 
     console.log('[think-loop] 🧠 Running think loop');
@@ -259,6 +322,70 @@ export class SchedulerService {
     // Log if no conversations today (but continue - scheduled skills may need to run)
     if (context.messageCount === 0) {
       console.log('[think-loop] 📭 No transcripts today, checking scheduled skills anyway');
+    }
+
+    // ========================================
+    // F63: PRE-PROCESS TASKS WITH DIFFERENT MODEL
+    // Tasks that require Opus/Sonnet are handled separately
+    // ========================================
+    const thinkLoopModel = this.registry?.thinkLoop?.model || 'haiku';
+    const tasksForSubAgent = context.tasks.filter(t => t.model && t.model !== thinkLoopModel);
+
+    if (tasksForSubAgent.length > 0) {
+      console.log(`[think-loop] 🚀 Found ${tasksForSubAgent.length} task(s) requiring different model`);
+
+      const { runAgent } = await import('../bridge/agent.js');
+
+      for (const task of tasksForSubAgent) {
+        console.log(`[think-loop] 🤖 Spawning ${task.model} sub-agent for: "${task.title}"`);
+
+        // Build task-specific prompt with skill content
+        const skillContent = task.skill_refs.length > 0
+          ? await this.loadSkillContent(task.skill_refs[0])
+          : null;
+
+        const taskPrompt = `Je bent KITT en je voert nu de volgende taak uit:
+
+**Taak:** ${task.title}
+**Beschrijving:** ${task.description || 'Geen beschrijving'}
+
+${skillContent ? `## Skill Instructies\n\n${skillContent}` : ''}
+
+## Context
+- Tijd: ${context.currentTime}
+- Dag: ${context.dayOfWeek}
+
+Voer de taak uit volgens de skill instructies.
+Als je klaar bent, geef een korte samenvatting van wat je hebt gedaan.`;
+
+        try {
+          const subResponse = await runAgent(taskPrompt, {
+            model: task.model as 'haiku' | 'sonnet' | 'opus',
+            skipMemorySearch: true,
+          });
+
+          if (subResponse.result) {
+            console.log(`[think-loop] ✅ Sub-agent completed task "${task.title}"`);
+            console.log(`[think-loop] 📝 Result preview: ${subResponse.result.slice(0, 100)}...`);
+
+            // Log task as completed
+            await logTaskExecution(db, {
+              task_id: task.id,
+              task_title: task.title,
+              status: 'completed',
+              notes: `Completed by ${task.model} sub-agent`,
+            });
+          } else {
+            console.warn(`[think-loop] ⚠️ Sub-agent returned no result for "${task.title}"`);
+          }
+        } catch (err) {
+          console.error(`[think-loop] ❌ Sub-agent failed for "${task.title}":`, err);
+        }
+      }
+
+      // Remove these tasks from context so Haiku doesn't see them
+      context.tasks = context.tasks.filter(t => !t.model || t.model === thinkLoopModel);
+      console.log(`[think-loop] 📋 Remaining tasks for ${thinkLoopModel}: ${context.tasks.length}`);
     }
 
     // Build think prompt
@@ -352,20 +479,25 @@ export class SchedulerService {
     }
     else if (thought.action === 'task' && thought.taskId !== undefined && thought.message) {
       // Task execution - send message AND log the task
-      if (!chatId) {
-        console.warn('[think-loop] ⚠️ No Telegram chat ID configured');
-        return;
-      }
-
       // Find the task title from context
       const task = context.tasks.find(t => t.id === thought.taskId);
       const taskTitle = task?.title || `Task #${thought.taskId}`;
 
-      // Send to Telegram
-      const { sendTelegramMessage } = await import('../bridge/telegram.js');
-      await sendTelegramMessage(String(chatId), thought.message);
+      // F73: Check if we can send messages (not in DND mode)
+      const canSend = await canSendMessages(db);
 
-      // Log task execution as 'reminder'
+      if (canSend && chatId) {
+        // Send to Telegram
+        const { sendTelegramMessage } = await import('../bridge/telegram.js');
+        await sendTelegramMessage(String(chatId), thought.message);
+        console.log(`[think-loop] ✅ Task #${thought.taskId} executed and sent`);
+      } else if (!canSend) {
+        console.log(`[think-loop] 🔕 Task #${thought.taskId} executed but message suppressed (DND mode)`);
+      } else {
+        console.warn('[think-loop] ⚠️ No Telegram chat ID configured');
+      }
+
+      // Log task execution as 'reminder' (always, even in DND)
       await logTaskExecution(db, {
         task_id: thought.taskId,
         task_title: taskTitle,
@@ -377,27 +509,30 @@ export class SchedulerService {
       const preview = thought.message.length > 80
         ? thought.message.slice(0, 80) + '...'
         : thought.message;
-      thoughtContent = `Task #${thought.taskId} uitgevoerd: "${preview}"`;
-
-      console.log(`[think-loop] ✅ Task #${thought.taskId} executed and logged`);
+      thoughtContent = `Task #${thought.taskId} uitgevoerd: "${preview}"${!canSend ? ' (DND - niet gestuurd)' : ''}`;
     }
     else if (thought.action === 'message' && thought.message) {
-      if (!chatId) {
+      // F73: Check if we can send messages (not in DND mode)
+      const canSend = await canSendMessages(db);
+
+      if (canSend && chatId) {
+        // Send to Telegram
+        const { sendTelegramMessage } = await import('../bridge/telegram.js');
+        await sendTelegramMessage(String(chatId), thought.message);
+        console.log('[think-loop] ✅ Message sent');
+      } else if (!canSend) {
+        console.log('[think-loop] 🔕 Message suppressed (DND mode):', thought.message.slice(0, 50));
+      } else {
         console.warn('[think-loop] ⚠️ No Telegram chat ID configured');
-        return;
       }
 
-      // Send to Telegram
-      const { sendTelegramMessage } = await import('../bridge/telegram.js');
-      await sendTelegramMessage(String(chatId), thought.message);
-
-      // Format thought for storage
+      // Format thought for storage (always, even in DND)
       const preview = thought.message.length > 80
         ? thought.message.slice(0, 80) + '...'
         : thought.message;
-      thoughtContent = `Bericht gestuurd: "${preview}"`;
-
-      console.log('[think-loop] ✅ Message sent');
+      thoughtContent = canSend
+        ? `Bericht gestuurd: "${preview}"`
+        : `Bericht (DND - niet gestuurd): "${preview}"`;
     }
     else if (thought.action === 'remember' && thought.memoryNote) {
       // Store in MEMORY.md
