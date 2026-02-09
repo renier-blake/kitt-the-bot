@@ -70,6 +70,7 @@ import { splitMessage, formatForTelegramSafe } from './format.js';
 import { transcribeAudio, downloadTelegramFile } from './transcribe.js';
 import { textToSpeech, shouldRespondWithVoice } from './tts.js';
 import { clearAllModes } from '../scheduler/sleep-mode.js';
+import { acquireProcessingLock, releaseProcessingLock } from '../scheduler/processing-lock.js';
 
 let bot: Bot | null = null;
 
@@ -335,6 +336,12 @@ export async function startTelegramBot(): Promise<Bot> {
       log.error('Failed to store user message in memory', { error: String(err) });
     });
 
+    // Acquire processing lock so Think Loop knows we're handling this
+    const lockDb = memory.getDb();
+    if (lockDb) {
+      await acquireProcessingLock(lockDb);
+    }
+
     // Run agent with Opus
     let response = await runAgent(content, { sessionId, model: TELEGRAM_DEFAULT_MODEL });
 
@@ -400,21 +407,31 @@ export async function startTelegramBot(): Promise<Bot> {
     // Store KITT response in memory (non-blocking)
     // F53: role 'kitt' ipv 'assistant'
     if (response.result) {
-      memory.storeMessage({
-        sessionId: chatId,
-        channel: 'telegram',
-        role: 'kitt',
-        content: response.result,
-        metadata: {
-          agentSessionId: response.sessionId,
-        },
-      }).catch((err) => {
+      // Store message FIRST (blocking) so Think Loop sees it before lock releases
+      try {
+        await memory.storeMessage({
+          sessionId: chatId,
+          channel: 'telegram',
+          role: 'kitt',
+          content: response.result,
+          metadata: {
+            agentSessionId: response.sessionId,
+          },
+        });
+      } catch (err) {
         log.error('Failed to store KITT message in memory', { error: String(err) });
-      });
+      }
 
       // Check for memory triggers (non-blocking)
       checkMemoryTriggers(content, response.result).catch((err) => {
         log.error('Memory trigger check failed', { error: String(err) });
+      });
+    }
+
+    // Release processing lock — response is stored, Think Loop can safely check
+    if (lockDb) {
+      await releaseProcessingLock(lockDb).catch((err) => {
+        log.error('Failed to release processing lock', { error: String(err) });
       });
     }
 
@@ -539,6 +556,12 @@ export async function startTelegramBot(): Promise<Bot> {
         log.error('Failed to store voice message in memory', { error: String(err) });
       });
 
+      // Acquire processing lock so Think Loop knows we're handling this
+      const voiceLockDb = memory.getDb();
+      if (voiceLockDb) {
+        await acquireProcessingLock(voiceLockDb);
+      }
+
       // Run agent with transcribed text
       let response = await runAgent(transcribedText, { sessionId, model: TELEGRAM_DEFAULT_MODEL });
 
@@ -568,22 +591,31 @@ export async function startTelegramBot(): Promise<Bot> {
       // Store KITT response in memory
       // F53: role 'kitt' ipv 'assistant'
       if (response.result) {
-        memory.storeMessage({
-          sessionId: chatId,
-          channel: 'telegram',
-          role: 'kitt',
-          content: response.result,
-          metadata: {
-            agentSessionId: response.sessionId,
-            inResponseToVoice: true,
-          },
-        }).catch((err) => {
+        try {
+          await memory.storeMessage({
+            sessionId: chatId,
+            channel: 'telegram',
+            role: 'kitt',
+            content: response.result,
+            metadata: {
+              agentSessionId: response.sessionId,
+              inResponseToVoice: true,
+            },
+          });
+        } catch (err) {
           log.error('Failed to store KITT message in memory', { error: String(err) });
-        });
+        }
 
         // Check for memory triggers
         checkMemoryTriggers(transcribedText, response.result).catch((err) => {
           log.error('Memory trigger check failed', { error: String(err) });
+        });
+      }
+
+      // Release processing lock
+      if (voiceLockDb) {
+        await releaseProcessingLock(voiceLockDb).catch((err) => {
+          log.error('Failed to release processing lock', { error: String(err) });
         });
       }
 

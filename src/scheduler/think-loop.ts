@@ -44,10 +44,6 @@ export interface ConversationExchange {
 export interface ConversationState {
   // Recent exchanges (last 10 messages)
   recentExchanges: ConversationExchange[];
-  // Is the last user message answered by KITT?
-  lastUserMessageAnswered: boolean;
-  // Is there an active conversation (recent back-and-forth)?
-  activeConversation: boolean;
   // Minutes since last interaction
   conversationGap: number;
   // Unanswered user messages (if any)
@@ -353,16 +349,8 @@ export async function buildThinkLoopContext(
       };
     });
 
-  // Check if last user message was answered
-  const lastUserIdx = recentExchanges.map((e, i) => ({ e, i }))
-    .filter(({ e }) => e.role === 'user')
-    .pop()?.i ?? -1;
-  const lastUserMessageAnswered = lastUserIdx >= 0 &&
-    recentExchanges.slice(lastUserIdx + 1).some(e => e.role === 'kitt' && e.type === 'message');
-
-  // Check if conversation is active (recent interaction < 5 min)
+  // Minutes since last interaction
   const lastInteraction = recentExchanges[recentExchanges.length - 1];
-  const activeConversation = lastInteraction ? lastInteraction.minutesAgo < 5 : false;
   const conversationGap = lastInteraction ? lastInteraction.minutesAgo : 999;
 
   // Find unanswered user messages (user messages without a kitt|message after them)
@@ -386,8 +374,6 @@ export async function buildThinkLoopContext(
 
   const conversationState: ConversationState = {
     recentExchanges,
-    lastUserMessageAnswered,
-    activeConversation,
     conversationGap,
     unansweredUserMessages,
   };
@@ -558,42 +544,13 @@ ${s.description}${dataSection}${skillSection}`;
       return `[${e.time}] ${roleLabel}: "${preview}"`;
     }).join('\n');
 
-    // Status indicators
-    const answeredStatus = cs.lastUserMessageAnswered
-      ? '✅ Laatste user bericht is beantwoord'
-      : '⚠️ Laatste user bericht is NIET beantwoord';
-
-    const activeStatus = cs.activeConversation
-      ? `✅ Actieve conversatie — laatste interactie ${cs.conversationGap} min geleden`
-      : cs.conversationGap < 60
-        ? `⏸️ Conversatie idle — laatste interactie ${cs.conversationGap} min geleden`
-        : `💤 Geen recente conversatie — laatste interactie ${cs.conversationGap} min geleden`;
-
-    const unansweredStatus = cs.unansweredUserMessages.length > 0
-      ? `⚠️ ${cs.unansweredUserMessages.length} onbeantwoord bericht(en):\n${cs.unansweredUserMessages.map(m => `   - "${m.content}" (${m.minutesAgo} min geleden)`).join('\n')}`
-      : '✅ Geen onbeantwoorde berichten';
-
-    // Guidance based on status
-    let guidance = '';
-    if (cs.activeConversation && cs.lastUserMessageAnswered) {
-      guidance = '→ Conversatie loopt goed, focus op taken tenzij er iets urgents is.';
-    } else if (!cs.lastUserMessageAnswered && cs.conversationGap < 10) {
-      guidance = '→ Er is een recent bericht dat mogelijk aandacht nodig heeft.';
-    } else if (cs.unansweredUserMessages.length > 0) {
-      guidance = '→ Er zijn berichten blijven liggen — check of ze nog relevant zijn.';
-    }
-
     conversationStatusSection = `## Conversatie Status
 
 **Recente uitwisselingen (laatste ${cs.recentExchanges.length}):**
 ${exchangesFormatted || 'Geen recente berichten.'}
 
-**Analyse:**
-- ${answeredStatus}
-- ${activeStatus}
-- ${unansweredStatus}
-
-${guidance}
+**Laatste interactie:** ${cs.conversationGap} min geleden
+${cs.unansweredUserMessages.length > 0 ? `**Onbeantwoord:** ${cs.unansweredUserMessages.map(m => `"${m.content}" (${m.minutesAgo} min geleden)`).join(', ')}` : ''}
 
 ---
 

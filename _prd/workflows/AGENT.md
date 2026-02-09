@@ -1,12 +1,12 @@
 # Agent Workflow
 
-> Workflow voor agents die features bouwen.
+> Workflow voor agents die issues bouwen.
 
 ---
 
 ## Jouw Rol
 
-Als **Agent** bouw je features:
+Als **Agent** bouw je issues:
 - Code schrijven
 - Skills/tasks implementeren
 - Testen
@@ -14,22 +14,25 @@ Als **Agent** bouw je features:
 - Committen (na goedkeuring)
 
 **Wat je NIET doet:**
-- Feature specs maken (dat doet de PO)
+- Issues maken (dat doet de PO via Portal)
 - Priorities bepalen
 - Zonder toestemming committen
 
 ---
 
-## Feature Starten
+## Issue Starten
 
 ```
-/start F##
+/issue PAS-01
+/issue KITT-05
+/issue POR-3
 ```
 
-Of handmatig:
-1. Lees de feature spec: `_prd/features/F##_[naam].md`
-2. Lees ALLE docs in de "Lees Eerst" sectie
-3. Bouw de feature
+Dit doet automatisch:
+1. Haalt issue op uit database (`portal_issues`)
+2. Leest relevante docs op basis van project
+3. Gaat in Plan Mode
+4. Bouwt na goedkeuring
 
 ---
 
@@ -37,10 +40,16 @@ Of handmatig:
 
 ### 1. LEZEN
 
-Lees alle documenten uit de "Lees Eerst" sectie van de feature spec:
-- Workflow docs
-- Architecture docs
-- Bestaande code references
+De `/issue` skill leest automatisch relevante docs op basis van project:
+
+| Project | Docs |
+|---------|------|
+| PAS | `_prd/brainstorm/pas.md`, `src/integrations/` |
+| KITT | `_prd/architecture/`, `CLAUDE.md` |
+| POR | `frontends/kitt-portal/`, `src/bridge/log-server.ts` |
+| SKL | `.claude/skills/`, bestaande skills als reference |
+| INF | `src/bridge/`, `src/scheduler/`, `src/memory/` |
+| DAT | `profile/`, Garmin/nutrition skills |
 
 **Doel:** Begrijp de context voordat je bouwt.
 
@@ -55,39 +64,39 @@ Implementeer volgens het plan:
 - Schema → `src/memory/schema.ts`
 - Task Engine → `src/scheduler/task-engine.ts`
 - Skill → `.claude/skills/[naam]/SKILL.md`
-- Task data → SQL INSERT in schema.ts of handmatig
+- Integrations → `src/integrations/`
 
 ### 3. TESTEN
 
-Test alle acceptance criteria uit de feature spec:
+Test alle acceptance criteria:
 - Happy path
 - Edge cases
 - Error cases
 
 **Als tests falen:** Fix en test opnieuw.
 
-### 4. DOCUMENTEREN
+### 4. UPDATE STATE
 
-Update de feature spec:
-- Vul "Implementation" sectie in
-- Lijst gewijzigde/gemaakte files
-- Noteer belangrijke beslissingen
+Na completion, update de issue state:
+
+```bash
+sqlite3 profile/memory/kitt.db "
+  UPDATE portal_issues
+  SET state = 'done', updated_at = unixepoch() * 1000
+  WHERE identifier = 'PAS-01'
+"
+```
 
 ### 5. COMMITTEN
 
 **Vraag toestemming** aan Renier:
-> "Feature F## is klaar. Mag ik committen?"
+> "Issue PAS-01 is klaar. Mag ik committen?"
 
 Na goedkeuring:
 ```bash
 git add [specific files]
-git commit -m "F##: [beschrijving]"
+git commit -m "PAS-01: [beschrijving]"
 ```
-
-### 6. HANDOVER
-
-Meld aan PO:
-> "Feature F## is gecommit. Klaar voor handover."
 
 ---
 
@@ -161,7 +170,18 @@ INSERT INTO kitt_tasks (
 
 | Probleem | Oplossing |
 |----------|-----------|
-| Feature spec onduidelijk | Vraag PO om verduidelijking |
+| Issue niet gevonden | Check identifier, vraag PO |
+| Issue description onduidelijk | Vraag PO om verduidelijking |
 | Blocked door dependency | Check of dependency klaar is, anders wacht |
 | Tests falen | Fix code, niet de test (tenzij test fout is) |
 | Merge conflicts | Los op, commit niet met `--no-verify` |
+
+## Issue States
+
+| State | Betekenis |
+|-------|-----------|
+| `backlog` | Nog niet gestart |
+| `todo` | Gepland voor huidige cycle |
+| `in_progress` | Actief aan gewerkt |
+| `review` | Klaar voor review |
+| `done` | Afgerond |

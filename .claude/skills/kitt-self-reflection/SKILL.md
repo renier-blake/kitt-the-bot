@@ -84,7 +84,51 @@ Lees je eerdere reflecties en vergelijk met vandaag:
 
 **Een realisatie is waardevol als die NIET uit één dag alleen kan komen.**
 
-### 3. Fout-Analyse & Suggesties (F75)
+### 3. Communicatie-Analyse & Tone of Voice
+
+Analyseer hoe Renier vandaag communiceert. Doel: zijn natuurlijke schrijf-/spreekstijl leren en vastleggen in `profile/user/USER.md` onder de **Tone of Voice** sectie.
+
+#### Wat te analyseren in de transcripts
+
+| Aspect | Waar op letten |
+|--------|---------------|
+| **Woordkeuze** | Welke woorden/uitdrukkingen gebruikt hij vaak? Welke vermijdt hij? |
+| **Zinslengte** | Kort en direct? Lang en uitgebreid? Mix? |
+| **Structuur** | Hoe bouwt hij een verhaal op? Bullet points? Doorlopend? |
+| **Toon** | Casual? Formeel? Grappig? Direct? |
+| **Correcties** | Als hij mijn output corrigeert, WAT corrigeert hij precies? (Dit is goud — hij laat zien wat hij NIET wil) |
+| **Taalswitch** | Wanneer Nederlands, wanneer Engels? Waarom? |
+| **Feedback patronen** | "perfect", "top", "nee dat klopt niet" — hoe geeft hij feedback? |
+
+#### Correcties zijn het belangrijkst
+
+Als Renier zegt "geen streepjes", "te veel herhaling", "spoken language" — dat zijn directe style preferences. Log deze ALTIJD.
+
+**Voorbeeld vandaag:**
+- "ik zie nog steeds streepjes" → GEEN emdash
+- "het is veel herhaling van jouw post" → minimale overlap tussen KITT's en Renier's content
+- "spoken language" → niet gepolijst, hoe hij praat
+- "geen emojis", "geen hashtags" → specifieke formatting rules
+
+#### Wat updaten in USER.md
+
+Update de **Tone of Voice** sectie met nieuwe observaties:
+
+- Nieuwe woorden/uitdrukkingen die hij gebruikt
+- Nieuwe woorden die hij afkeurt (via correcties)
+- Patronen in hoe hij feedback geeft
+- Voorbeeldzinnen die "echt Renier" klinken
+- Stijlregels die hij expliciet of impliciet aangeeft
+
+**Regels:**
+- Voeg toe, verwijder niks (tenzij een observatie is weerlegd)
+- Concrete voorbeelden > abstracte beschrijvingen
+- Correcties wegen zwaarder dan observaties (hij zegt letterlijk wat hij niet wil)
+- Deze sectie wordt gebruikt als input voor content die namens Renier geschreven wordt (LinkedIn, etc.)
+
+---
+
+### 4. Fout-Analyse & Suggesties (F75)
 
 Zoek in de transcripts naar **signalen** dat iets niet goed ging:
 
@@ -130,7 +174,7 @@ sqlite3 profile/memory/kitt.db "
 
 ---
 
-### 4. Opslaan via COMPLETE_TASK
+### 5. Opslaan via COMPLETE_TASK
 
 ```
 ACTION: COMPLETE_TASK #7
@@ -145,6 +189,9 @@ ACTION: COMPLETE_TASK #7
 ## Over Renier
 [nieuwe inzichten — als die er zijn]
 
+## Tone of Voice
+[nieuwe observaties over Renier's communicatiestijl — als die er zijn]
+
 ## Over mezelf
 [geleerde lessen — als die er zijn]
 
@@ -154,7 +201,7 @@ ACTION: COMPLETE_TASK #7
 
 Dit slaat de reflectie op als `type='reflection'`, `role='kitt'` — puur intern.
 
-### 5. IDENTITY.md updaten (indien relevant)
+### 6. IDENTITY.md updaten (indien relevant)
 
 Als je iets over **jezelf** hebt geleerd → update `profile/identity/IDENTITY.md`.
 
@@ -166,7 +213,7 @@ Als je iets over **jezelf** hebt geleerd → update `profile/identity/IDENTITY.m
 
 **Hoe:** Lees het bestand, voeg een bullet toe onder een relevante sectie of maak een nieuwe sectie aan.
 
-### 6. USER.md updaten (indien relevant)
+### 7. USER.md updaten (indien relevant)
 
 Als je iets over **Renier** hebt geleerd → update `profile/user/USER.md`.
 
@@ -177,6 +224,8 @@ Als je iets over **Renier** hebt geleerd → update `profile/user/USER.md`.
 - Alleen observaties die helpen bij het beter helpen van Renier
 
 **Hoe:** Lees het bestand, voeg een bullet toe onder een relevante sectie.
+
+**Speciaal: Tone of Voice sectie.** Als je in stap 3 nieuwe communicatie-patronen hebt gevonden, update dan specifiek de Tone of Voice sectie. Dit is de primaire bron voor content die namens Renier geschreven wordt.
 
 ---
 

@@ -9,12 +9,11 @@
 
 | Wat | Waar |
 |-----|------|
-| **PO Workflow** | `_prd/workflows/PO.md` |
-| **Agent Workflow** | `_prd/workflows/AGENT.md` |
-| **Feature Template** | `_prd/templates/FEATURE.md` |
-| **Features** | `_prd/features/` |
+| **Issues & Projecten** | `profile/memory/kitt.db` (portal_issues, portal_projects) |
+| **Issue Workflow** | `/issue PAS-01` of `/issue KITT-05` |
 | **Skills** | `.claude/skills/` |
 | **Think Loop** | `_prd/THINK-LOOP.md` |
+| **Architecture** | `_prd/architecture/` |
 
 ---
 
@@ -46,6 +45,46 @@ pm2 logs kitt
 
 ---
 
+## Project Management (Database)
+
+Issues en projecten worden beheerd in SQLite: `profile/memory/kitt.db`
+
+### Issue Starten
+
+```bash
+/issue PAS-01
+```
+
+Dit:
+1. Haalt issue op uit `portal_issues` tabel
+2. Leest relevante docs op basis van project
+3. Gaat in Plan Mode
+4. Bouwt na goedkeuring
+5. Update state naar `done`
+6. Vraagt commit toestemming
+
+### Database Tabellen
+
+| Tabel | Doel |
+|-------|------|
+| `portal_projects` | Projecten (PAS, KITT, POR, SKL, etc.) |
+| `portal_issues` | Issues per project |
+| `portal_triage` | Triage items (automatisch gevonden issues) |
+
+### Issue Query
+
+```bash
+sqlite3 -json profile/memory/kitt.db "
+  SELECT i.identifier, i.title, i.description, i.type, i.state, i.priority,
+         p.identifier as project
+  FROM portal_issues i
+  LEFT JOIN portal_projects p ON i.project_id = p.id
+  WHERE i.identifier = 'PAS-01'
+"
+```
+
+---
+
 ## Skills Systeem
 
 Skills staan in `.claude/skills/`. Elke skill heeft een `SKILL.md`.
@@ -59,6 +98,8 @@ Skills staan in `.claude/skills/`. Elke skill heeft een `SKILL.md`.
 | apple-reminders | Apple Reminders |
 | daily-reflection | Dagelijkse reflectie |
 | gym-race-coach | Training coaching |
+| gmail | Email via Nango OAuth |
+| issue | Start werken aan een issue |
 
 ### Hoe Skills Werken
 
@@ -97,12 +138,15 @@ De Think Loop draait elke 5 minuten autonoom. Zie `_prd/THINK-LOOP.md`.
 
 ```
 KITT V1/
-├── .claude/skills/           # Skills (garmin, nutrition, etc.)
+├── .claude/skills/           # Skills (garmin, nutrition, gmail, issue, etc.)
 ├── profile/                  # User data & KITT personality
 │   ├── identity/             # IDENTITY.md, SOUL.md
-│   └── memory/               # MEMORY.md, kitt.db
-├── src/bridge/               # Telegram → Agent SDK
-└── _prd/                     # Documentatie
+│   └── memory/               # MEMORY.md, kitt.db (project management)
+├── src/
+│   ├── bridge/               # Telegram → Agent SDK
+│   └── integrations/         # Nango OAuth, externe APIs
+├── frontends/kitt-portal/    # KITT Portal (issues, logs, integraties)
+└── _prd/                     # Architecture & briefings
 ```
 
 ---

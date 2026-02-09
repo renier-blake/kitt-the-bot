@@ -25,6 +25,7 @@ import {
   clearWakeReminder,
   clearSleep,
 } from './sleep-mode.js';
+import { isAgentProcessing } from './processing-lock.js';
 
 const REGISTRY_PATH = process.env.KITT_SCHEDULER_REGISTRY || './profile/schedules/registry.json';
 const DEFAULT_TIMEZONE = 'Europe/Amsterdam';
@@ -312,6 +313,12 @@ export class SchedulerService {
     const dndActive = await isKittDND(db);
     if (dndActive) {
       console.log('[think-loop] 🔕 DND mode active - will process but not send messages');
+    }
+
+    // Check processing lock — if chat agent is handling a message, skip this tick
+    if (await isAgentProcessing(db)) {
+      console.log('[think-loop] 🔒 Chat agent is processing, skipping tick');
+      return;
     }
 
     console.log('[think-loop] 🧠 Running think loop');

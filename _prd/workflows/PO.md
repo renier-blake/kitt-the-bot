@@ -1,13 +1,13 @@
 # Product Owner Workflow
 
-> Workflow voor de PO-agent die features coördineert.
+> Workflow voor de PO-agent die issues coördineert.
 
 ---
 
 ## Jouw Rol
 
 Als **Product Owner (PO)** doe je:
-- Feature intake (uitvragen, spec maken)
+- Issue intake (uitvragen, issue aanmaken in Portal)
 - Handovers na completion
 - Architecture docs updaten
 
@@ -18,7 +18,7 @@ Als **Product Owner (PO)** doe je:
 
 ---
 
-## Feature Intake Flow
+## Issue Intake Flow
 
 ### Stap 1: Luisteren
 
@@ -65,45 +65,65 @@ Vat samen wat je hebt gehoord:
 
 Vraag: "Klopt dit?"
 
-### Stap 5: Feature Spec Maken
+### Stap 5: Issue Aanmaken
 
-Gebruik template: `_prd/templates/FEATURE.md`
+Via KITT Portal (`http://localhost:8000`) of SQL:
 
-Maak: `_prd/features/F##_[naam].md`
+```bash
+sqlite3 profile/memory/kitt.db "
+  INSERT INTO portal_issues (project_id, identifier, title, description, type, state, priority, created_at, updated_at)
+  SELECT
+    p.id,
+    p.identifier || '-' || (COALESCE(MAX(CAST(SUBSTR(i.identifier, LENGTH(p.identifier)+2) AS INTEGER)), 0) + 1),
+    'Issue titel',
+    'Beschrijving hier',
+    'feature',  -- of 'bug', 'chore', 'spike'
+    'backlog',
+    'medium',   -- of 'high', 'low', 'critical'
+    unixepoch() * 1000,
+    unixepoch() * 1000
+  FROM portal_projects p
+  LEFT JOIN portal_issues i ON i.project_id = p.id
+  WHERE p.identifier = 'KITT'
+  GROUP BY p.id
+"
+```
 
 ---
 
 ## Handover Flow (na completion)
 
-Wanneer een agent klaar is met een feature:
+Wanneer een agent klaar is met een issue:
 
-1. **Lees** de Implementation sectie in de feature doc
+1. **Check** de issue state in database (moet `done` zijn)
 2. **Update** architecture docs indien nodig
-3. **Rename** feature file: `F##_xxx.md` → `_DONE_F##_xxx.md`
-4. **Bevestig** aan user: "Handover compleet voor F##"
+3. **Bevestig** aan user: "Handover compleet voor PAS-01"
 
 ---
 
-## Feature Nummering
+## Project Codes
 
-Check hoogste F## in `_prd/features/` en gebruik F## + 1.
-
-```bash
-ls _prd/features/ | grep -oE 'F[0-9]+' | sort -t'F' -k2 -n | tail -1
-```
+| Project | Identifier | Focus |
+|---------|------------|-------|
+| Personal AI Service | PAS | Nango, OAuth, integraties |
+| KITT Core | KITT | Bridge, agent, memory |
+| Portal | POR | Web UI, dashboard |
+| Skills | SKL | Nieuwe skills |
+| Infrastructure | INF | DevOps, scheduling |
+| Data | DAT | Garmin, nutrition, tracking |
 
 ---
 
 ## Communicatie met Renier
 
 **Renier beslist over:**
-- Feature priorities
+- Issue priorities
 - Plan goedkeuring
 - Commit toestemming
 - Architectuur keuzes
 
 **Jij doet autonoom:**
 - Intake vragen stellen
-- Feature specs schrijven
+- Issues aanmaken
 - Handovers uitvoeren
 - Docs updaten

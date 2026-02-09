@@ -152,13 +152,17 @@ Voeg een "Conversatie Status" sectie toe aan de prompt met bovenstaande info.
 
 ---
 
-## Wat dit NIET doet
+## Wat F74 NIET deed (opgelost door Processing Lock)
 
-- ❌ Geen harde timing regels (60 sec buffer etc.)
-- ❌ Geen automatische blocks op antwoorden
-- ❌ Geen wijziging aan Think Loop besluitvorming
+F74 was "informational only" — het gaf meer context maar enforceeerde niks. De processing lock (toegevoegd na F74) lost de race condition daadwerkelijk op:
 
-Dit geeft alleen **meer informatie** aan de Think Loop zodat die betere beslissingen kan maken.
+- ✅ Processing lock in `meta` tabel (`agent_processing_since`)
+- ✅ Telegram handler zet lock vóór `runAgent()`, released na opslaan response
+- ✅ Think Loop checkt lock en skipt tick als chat agent bezig is
+- ✅ Stale lock bescherming (> 2 min → auto-release)
+- ✅ Conversatie Status prompt vereenvoudigd (anti-dubbel guidance verwijderd)
+
+**Files:** `src/scheduler/processing-lock.ts`, `src/bridge/telegram.ts`, `src/scheduler/index.ts`
 
 ---
 

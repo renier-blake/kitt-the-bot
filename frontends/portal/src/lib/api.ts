@@ -171,6 +171,95 @@ export const api = {
     if (!res.ok) throw new Error('Failed to fetch task stats')
     return res.json()
   },
+
+  // Integrations
+  async getIntegrations(): Promise<{ integrations: Array<{
+    id: string
+    name: string
+    description: string
+    icon: string
+    category: string
+    connected: boolean
+    connection: { id: string; createdAt: string } | null
+  }> }> {
+    const res = await fetch(`${API_BASE}/integrations`)
+    if (!res.ok) throw new Error('Failed to fetch integrations')
+    return res.json()
+  },
+
+  async createConnectSession(integrationId: string): Promise<{ token: string; expiresAt: string }> {
+    const res = await fetch(`${API_BASE}/integrations/${integrationId}/connect`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    })
+    if (!res.ok) throw new Error('Failed to create connect session')
+    return res.json()
+  },
+
+  async disconnectIntegration(integrationId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/integrations/${integrationId}/disconnect`, {
+      method: 'DELETE',
+    })
+    if (!res.ok) throw new Error('Failed to disconnect integration')
+  },
+
+  // Multi-account connections
+  async getConnections(integrationId: string): Promise<{ connections: Array<{
+    id: number
+    integrationId: string
+    connectionId: string
+    label: string
+    accountEmail: string | null
+    isDefault: boolean
+    createdAt: number
+  }> }> {
+    const res = await fetch(`${API_BASE}/integrations/${integrationId}/connections`)
+    if (!res.ok) throw new Error('Failed to fetch connections')
+    return res.json()
+  },
+
+  async registerConnection(
+    integrationId: string,
+    connectionId: string,
+    label: string,
+    accountEmail?: string,
+    isDefault?: boolean
+  ): Promise<void> {
+    const res = await fetch(`${API_BASE}/integrations/${integrationId}/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ connectionId, label, accountEmail, isDefault }),
+    })
+    if (!res.ok) throw new Error('Failed to register connection')
+  },
+
+  async setDefaultConnection(integrationId: string, connectionId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/integrations/${integrationId}/connections/${connectionId}/default`, {
+      method: 'POST',
+    })
+    if (!res.ok) throw new Error('Failed to set default connection')
+  },
+
+  // Config
+  async getConfig(): Promise<{ config: {
+    userId: string
+    userEmail: string
+    userName: string
+    timezone: string
+  } }> {
+    const res = await fetch(`${API_BASE}/config`)
+    if (!res.ok) throw new Error('Failed to fetch config')
+    return res.json()
+  },
+
+  async updateConfig(key: string, value: string, description?: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/config`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key, value, description }),
+    })
+    if (!res.ok) throw new Error('Failed to update config')
+  },
 }
 
 // WebSocket connection for live logs

@@ -54,7 +54,8 @@
       "Bash(done)",
       "Bash(npm run mode:*)",
       "Bash(git rm:*)",
-      "Bash(claude:*)"
+      "Bash(claude:*)",
+      "Bash(npx ts-node:*)"
     ]
   }
 }

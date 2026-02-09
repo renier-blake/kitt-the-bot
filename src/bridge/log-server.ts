@@ -8,6 +8,22 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { createServer, type Server } from 'http';
 import path from 'path';
 import { createClient, type Client } from '@libsql/client';
+import {
+  listIntegrations,
+  listConnections,
+  createConnectSession,
+  deleteConnection,
+  getConnection,
+  registerConnection,
+  getDefaultConnection,
+  type KittConnection,
+} from '../integrations/nango.js';
+import {
+  getAllConfig,
+  setConfigValue,
+  getConnections as getLocalConnections,
+  setDefaultConnection,
+} from '../integrations/config.js';
 
 const DB_PATH = process.env.KITT_DB_PATH || './profile/memory/kitt.db';
 let db: Client | null = null;
@@ -1192,6 +1208,196 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // ==========================================
+  // Integrations API (Nango)
+  // ==========================================
+
+  // Available integrations configuration
+  // These map to the integration IDs configured in Nango dashboard
+  const AVAILABLE_INTEGRATIONS = [
+    { id: 'google-mail', name: 'Gmail', description: 'Read emails, send drafts', icon: '📧', category: 'Email' },
+    { id: 'google-calendar', name: 'Google Calendar', description: 'Manage your schedule', icon: '📅', category: 'Calendar' },
+    { id: 'slack', name: 'Slack', description: 'Send and receive messages', icon: '💬', category: 'Communication' },
+    { id: 'notion', name: 'Notion', description: 'Sync pages and databases', icon: '📝', category: 'Productivity' },
+    { id: 'hubspot', name: 'HubSpot', description: 'CRM sync and management', icon: '🎯', category: 'CRM' },
+    { id: 'google-drive', name: 'Google Drive', description: 'Access and manage files', icon: '📁', category: 'Storage' },
+    { id: 'github', name: 'GitHub', description: 'Repository and issue tracking', icon: '⚙️', category: 'Development' },
+    { id: 'linear', name: 'Linear', description: 'Issue tracking and projects', icon: '🎯', category: 'Development' },
+  ];
+
+  // List all integrations with connection status
+  app.get('/api/integrations', async (_req, res) => {
+    try {
+      // Get active connections from Nango
+      const connections = await listConnections();
+      const connectedIds = new Set(connections.map(c => c.integrationId));
+
+      // Build response with status
+      const integrations = AVAILABLE_INTEGRATIONS.map(integration => {
+        const connection = connections.find(c => c.integrationId === integration.id);
+        return {
+          ...integration,
+          connected: connectedIds.has(integration.id),
+          connection: connection ? {
+            id: connection.id,
+            createdAt: connection.createdAt,
+          } : null,
+        };
+      });
+
+      res.json({ integrations });
+    } catch (err) {
+      console.error('[integrations] Failed to list:', err);
+      // Return integrations without status if Nango fails
+      res.json({ 
+        integrations: AVAILABLE_INTEGRATIONS.map(i => ({ ...i, connected: false, connection: null })),
+        error: 'Failed to fetch connection status'
+      });
+    }
+  });
+
+  // Create connect session for an integration
+  app.post('/api/integrations/:id/connect', async (req, res) => {
+    try {
+      const integrationId = req.params.id;
+      
+      // Validate integration exists
+      const integration = AVAILABLE_INTEGRATIONS.find(i => i.id === integrationId);
+      if (!integration) {
+        res.status(404).json({ error: 'Integration not found' });
+        return;
+      }
+
+      // Create Nango connect session
+      const session = await createConnectSession(integrationId);
+
+      res.json({ 
+        token: session.token,
+        expiresAt: session.expiresAt,
+      });
+    } catch (err) {
+      console.error('[integrations] Failed to create session:', err);
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to create connect session' });
+    }
+  });
+
+  // Disconnect an integration
+  app.delete('/api/integrations/:id/disconnect', async (req, res) => {
+    try {
+      const integrationId = req.params.id;
+      
+      // Check if connected
+      const connection = await getConnection(integrationId);
+      if (!connection) {
+        res.status(404).json({ error: 'Not connected' });
+        return;
+      }
+
+      // Delete connection
+      await deleteConnection(integrationId);
+
+      res.json({ success: true });
+    } catch (err) {
+      console.error('[integrations] Failed to disconnect:', err);
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to disconnect' });
+    }
+  });
+
+  // Get connection details
+  app.get('/api/integrations/:id/status', async (req, res) => {
+    try {
+      const integrationId = req.params.id;
+      const connection = await getConnection(integrationId);
+
+      if (!connection) {
+        res.json({ connected: false });
+        return;
+      }
+
+      res.json({
+        connected: true,
+        provider: connection.provider,
+      });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to get status' });
+    }
+  });
+
+  // ============================================================
+  // Multi-Account Connection Endpoints
+  // ============================================================
+
+  // Get all local connections for an integration (with labels)
+  app.get('/api/integrations/:id/connections', async (req, res) => {
+    try {
+      const integrationId = req.params.id;
+      const connections = await getLocalConnections(integrationId);
+      res.json({ connections });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to get connections' });
+    }
+  });
+
+  // Register a connection after OAuth (with label)
+  app.post('/api/integrations/:id/register', async (req, res) => {
+    try {
+      const integrationId = req.params.id;
+      const { connectionId, label, accountEmail, isDefault } = req.body;
+
+      if (!connectionId || !label) {
+        res.status(400).json({ error: 'connectionId and label are required' });
+        return;
+      }
+
+      await registerConnection(integrationId, connectionId, label, accountEmail, isDefault);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to register connection' });
+    }
+  });
+
+  // Set a connection as default
+  app.post('/api/integrations/:id/connections/:connectionId/default', async (req, res) => {
+    try {
+      const { id: integrationId, connectionId } = req.params;
+      await setDefaultConnection(integrationId, connectionId);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to set default' });
+    }
+  });
+
+  // ============================================================
+  // Config Endpoints
+  // ============================================================
+
+  // Get all config values
+  app.get('/api/config', async (_req, res) => {
+    try {
+      const config = await getAllConfig();
+      res.json({ config });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to get config' });
+    }
+  });
+
+  // Update a config value
+  app.post('/api/config', async (req, res) => {
+    try {
+      const { key, value, description } = req.body;
+
+      if (!key || value === undefined) {
+        res.status(400).json({ error: 'key and value are required' });
+        return;
+      }
+
+      await setConfigValue(key, value, description);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to update config' });
     }
   });
 

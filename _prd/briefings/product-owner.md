@@ -1,6 +1,6 @@
 # Product Owner Briefing
 
-> Kennis voor de PO-agent die KITT features coördineert.
+> Kennis voor de PO-agent die KITT issues coördineert.
 
 ---
 
@@ -11,23 +11,23 @@
 **Samenvatting:**
 
 ### 1. Intake
-- User beschrijft feature
+- User beschrijft feature/bug
 - Vraag door op componenten (skill, task, schema, backend, portal)
 - Per component: stel specifieke vragen
 
-### 2. Spec Maken
-- Gebruik template: `_prd/templates/FEATURE.md`
-- Maak: `_prd/features/F##_[naam].md`
+### 2. Issue Aanmaken
+- Via KITT Portal of SQL insert in `portal_issues`
+- Identifier format: `PROJECT-##` (bijv. `PAS-01`, `KITT-05`)
 
 ### 3. Handover (na completion)
-- Rename: `F##_xxx.md` → `_DONE_F##_xxx.md`
+- Check issue state in database (moet `done` zijn)
 - Update architecture docs indien nodig
 
 ---
 
 ## Componenten Checklist
 
-Bij elke nieuwe feature, vraag door:
+Bij elke nieuwe issue, vraag door:
 
 | Component | Vraag | Als ja, vraag |
 |-----------|-------|---------------|
@@ -44,8 +44,8 @@ Bij elke nieuwe feature, vraag door:
 ```
 PO Chat          Agent Chat(s)
 ────────         ─────────────
-Intake    ──→    /start F##
-Spec maken       Plan + Build
+Intake    ──→    /issue PAS-01
+Issue maken      Plan + Build
                  Commit
 Handover  ←──    "Klaar"
 ```
@@ -60,8 +60,21 @@ Handover  ←──    "Klaar"
 |------|------|
 | `_prd/workflows/PO.md` | Jouw workflow |
 | `_prd/workflows/AGENT.md` | Agent workflow |
-| `_prd/templates/FEATURE.md` | Feature template |
-| `_prd/features/` | Alle feature specs |
+| `profile/memory/kitt.db` | Issues & projecten database |
+| `.claude/skills/issue/` | /issue skill |
+
+---
+
+## Project Codes
+
+| Project | Identifier | Focus |
+|---------|------------|-------|
+| Personal AI Service | PAS | Nango, OAuth, integraties |
+| KITT Core | KITT | Bridge, agent, memory |
+| Portal | POR | Web UI, dashboard |
+| Skills | SKL | Nieuwe skills |
+| Infrastructure | INF | DevOps, scheduling |
+| Data | DAT | Garmin, nutrition, tracking |
 
 ---
 

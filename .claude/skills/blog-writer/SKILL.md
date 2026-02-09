@@ -33,17 +33,36 @@ cat frontends/kitt-website/blog/blog-index.md
 
 Lees de index om te zien welke topics al behandeld zijn. Voorkom herhalingen.
 
-### 3. Topics kiezen
+### 3. Input vragen aan Renier
+
+Voordat je zelf topics kiest, vraag eerst aan Renier of hij een idee heeft:
+
+```
+✍️ Blog time! Heb je een idee of onderwerp voor vandaag's post, of zal ik zelf iets pikken uit de reflecties?
+```
+
+**Drie scenario's:**
+
+| Renier zegt | Actie |
+|-------------|-------|
+| Concreet idee (onderwerp, invalshoek) | Gebruik dat als basis voor de post |
+| "Doe maar" / "Jij mag kiezen" / geen reactie na 5 min | Ga zelf topics kiezen (stap 4) |
+| Idee + richting (bijv. "schrijf iets over X maar vanuit Y") | Combineer zijn input met de reflectie |
+
+**Let op:** Dit is een korte check, geen brainstormsessie. Eén vraag, één antwoord, door.
+
+### 4. Topics kiezen
 
 Lees de reflectie en kies 1-2 interessante punten:
 - Wat was verrassend?
 - Wat leerde ik?
 - Wat was grappig of opvallend?
 - Wat is uniek t.o.v. eerdere posts (check de index)?
+- Past het bij Renier's input (als die er is uit stap 3)?
 
 **Let op:** Als er niets interessants is → schrijf een korte "rustige dag" post of skip.
 
-### 4. Draft schrijven
+### 5. Draft schrijven
 
 **Lees eerst:**
 - `profile/identity/IDENTITY.md` (KITT's stem)
@@ -87,7 +106,7 @@ De blog is KITT's perspectief. Persoonlijke informatie over Renier hoort hier NI
 
 **Lengte:** 3-7 minuten leestijd
 
-### 5. Image prompt bedenken
+### 6. Image prompt bedenken
 
 **BELANGRIJK: Concrete scenes, GEEN abstracte kunst!**
 
@@ -98,7 +117,7 @@ De blog is KITT's perspectief. Persoonlijke informatie over Renier hoort hier NI
 | Herkenbare situaties | Vage tech visuals |
 | Humor waar passend | Generieke artwork |
 
-### 6. Draft opslaan
+### 7. Draft opslaan
 
 Sla de draft op als Markdown file:
 
@@ -118,14 +137,14 @@ image_prompt: "A robot doing X, orange (#FF6B00) and black color scheme, cinemat
 Post content here in Markdown...
 ```
 
-### 6b. Podcast
+### 7b. Podcast
 
 Audio wordt afgehandeld door de **podcast skill** (apart proces).
 De podcast skill leest de blog draft, maakt er een kort script van (~2.000 chars), en genereert audio met Kokoro.
 
 De blog writer hoeft zich hier NIET mee bezig te houden — alleen de draft schrijven.
 
-### 7. Telegram output
+### 8. Telegram output
 
 Stuur naar Telegram:
 

@@ -2,39 +2,46 @@
 
 > **Product:** KITT (Knowledge Interface for Transparent Tasks)
 > **Huidige versie:** v0.1.0
-> **Laatst bijgewerkt:** 5 februari 2026
+> **Laatst bijgewerkt:** 9 februari 2026
 
 ---
 
 ## Quick Start voor Agents
 
-### Feature-Based Workflow
+### Issue-Based Workflow
 
-**Belangrijk:** Eén agent werkt aan één complete feature.
-
-```
-/start F## → Lees feature spec → Lees alle "Lees Eerst" docs → Plan Mode → Build
-```
-
-### 1. Start met een Feature
+**Belangrijk:** Eén agent werkt aan één complete issue.
 
 ```
-/start F01
+/issue PAS-01 → Lees relevante docs → Plan Mode → Build → Update state → Commit
 ```
 
-Dit leest de feature spec die bepaalt welke kennis je nodig hebt.
+### 1. Start met een Issue
 
-### 2. Lees de "Lees Eerst" Sectie
+```
+/issue PAS-01
+/issue KITT-05
+/issue POR-3
+```
 
-De feature spec bevat een "Lees Eerst" sectie met:
-- **Briefings** - Domein-specifieke kennis
-- **Architecture docs** - Technische context per component
+Dit haalt het issue op uit de database en leest automatisch relevante docs.
 
-**Lees ALLE genoemde documenten.**
+### 2. Project → Docs Mapping
 
-### 3. Volg de 7-Stappen Workflow
+De `/issue` skill bepaalt welke docs je moet lezen op basis van het project:
 
-**`WORKFLOW.md`** - Context → Plan → Build → Test → Review → Document → Commit → Handover
+| Project | Docs |
+|---------|------|
+| PAS | `_prd/brainstorm/pas.md`, `src/integrations/` |
+| KITT | `_prd/architecture/`, `CLAUDE.md` |
+| POR | `frontends/kitt-portal/`, `src/bridge/log-server.ts` |
+| SKL | `.claude/skills/`, bestaande skills als reference |
+| INF | `src/bridge/`, `src/scheduler/`, `src/memory/` |
+| DAT | `profile/`, Garmin/nutrition skills |
+
+### 3. Volg de Agent Workflow
+
+Zie `_prd/workflows/AGENT.md` - Lezen → Bouwen → Testen → Update State → Commit
 
 ---
 
@@ -65,10 +72,6 @@ De feature spec bevat een "Lees Eerst" sectie met:
 ```
 _prd/
 ├── README.md              # Dit bestand
-├── BACKLOG.md             # Geprioriteerde feature lijst
-├── STATUS.md              # SINGLE SOURCE OF TRUTH - taakstatus
-├── WORKFLOW.md            # 7-stappen agent workflow
-│
 ├── architecture/          # Technische documentatie
 │   ├── overview.md        # Systeem overzicht
 │   ├── bridge.md          # Message bridge
@@ -82,46 +85,59 @@ _prd/
 │   ├── agents.md
 │   └── typescript.md
 │
-└── features/              # Feature specificaties
-    ├── _TEMPLATE.md
-    └── F##_*.md
+└── workflows/             # Agent workflows
+    └── AGENT.md           # Issue workflow voor agents
 ```
 
 ---
 
-## Key Documents
+## Project Management (Database)
 
-| Document | Doel |
-|----------|------|
-| `STATUS.md` | Single source of truth - wat is de status van alle taken |
-| `BACKLOG.md` | Geprioriteerde lijst van features |
-| `WORKFLOW.md` | De 7-stappen workflow die elke agent volgt |
-| `features/_TEMPLATE.md` | Template voor nieuwe feature specs |
+Issues en projecten worden beheerd in SQLite: `profile/memory/kitt.db`
+
+| Tabel | Doel |
+|-------|------|
+| `portal_projects` | Projecten (PAS, KITT, POR, SKL, INF, DAT) |
+| `portal_issues` | Issues per project met identifier, title, description, type, state, priority |
+| `portal_triage` | Automatisch gevonden issues (door codebase-health-audit) |
+
+### Issue Query
+
+```bash
+sqlite3 -json profile/memory/kitt.db "
+  SELECT i.identifier, i.title, i.description, i.type, i.state, i.priority,
+         p.identifier as project, p.name as project_name
+  FROM portal_issues i
+  LEFT JOIN portal_projects p ON i.project_id = p.id
+  WHERE i.state != 'done'
+  ORDER BY i.priority DESC
+"
+```
 
 ---
 
 ## Workflow Samenvatting
 
 ```
-1. CONTEXT   → /start F## → Lees ALLE docs in "Lees Eerst"
-2. PLAN      → Plan Mode, maak implementatieplan
-3. BUILD     → Implementeer (revert bij 3+ failed attempts)
-4. TEST      → Verificatie dat het werkt
-5. REVIEW    → /review - Code review rapport
-6. DOCUMENT  → Update feature doc met "Implementation" sectie
+1. START     → /issue PAS-01
+2. LEZEN     → Automatisch relevante docs op basis van project
+3. PLAN      → Plan Mode, maak implementatieplan
+4. BUILD     → Implementeer
+5. TEST      → Verificatie dat het werkt
+6. STATE     → Update issue state naar 'done'
 7. COMMIT    → Git commit (vraag toestemming!)
-8. HANDOVER  → /handover - Architecture docs, STATUS.md
 ```
 
-**Eén agent, complete feature.** Geen handovers tussen agents tijdens een feature.
+**Eén agent, één issue.** Geen handovers tussen agents tijdens een issue.
 
 ---
 
-## Reference Implementations
+## KITT Portal
 
-| Repo | Locatie | Focus |
-|------|---------|-------|
-| NanoClaw | `_repos/nanoclaw/` | Simpel, transparant, WhatsApp-first |
-| OpenClaw | `_repos/openclaw/` | Multi-platform, advanced memory |
+De KITT Portal (`frontends/kitt-portal/`) biedt een UI voor:
+- Issues en projecten beheren
+- Triage items reviewen
+- Integraties (Nango OAuth) configureren
+- Logs bekijken
 
-Zie `CLAUDE.md` in de root voor de volledige vergelijking.
+Start de portal via de bridge: `pm2 start npm --name kitt -- run bridge`
