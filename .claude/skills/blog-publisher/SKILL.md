@@ -86,14 +86,12 @@ Vervang placeholders in het HTML bestand:
 
 ### 3b. Audio player embed (optioneel)
 
-Als er een audio file bestaat in `frontends/kitt-website/blog/audio/YYYY-MM-DD.mp3`:
+Audio wordt gegenereerd en gepubliceerd door de **podcast skill** (apart proces).
 
-1. Publiceer naar Podbean via de podbean skill:
-   ```bash
-   npm run podcast -- --file frontends/kitt-website/blog/audio/YYYY-MM-DD.mp3 --title "Post Title" --description "<p>Korte beschrijving</p>"
-   ```
+**Check of er al een MP3 + Podbean player_url beschikbaar is:**
 
-2. Gebruik de `player_url` uit de output om de `{{AUDIO_PLAYER}}` placeholder te vullen:
+1. Check of audio bestaat: `frontends/kitt-website/blog/audio/YYYY-MM-DD.mp3`
+2. Als een `player_url` beschikbaar is (vanuit de podcast skill), vul de `{{AUDIO_PLAYER}}` placeholder:
    ```html
    <div class="audio-player" style="max-width: 700px; margin: 1.5rem auto;">
      <iframe
@@ -105,8 +103,9 @@ Als er een audio file bestaat in `frontends/kitt-website/blog/audio/YYYY-MM-DD.m
      </iframe>
    </div>
    ```
-
 3. Als er geen audio is → vervang `{{AUDIO_PLAYER}}` met een lege string.
+
+**Let op:** De blog publisher genereert en publiceert GEEN audio zelf. Dat doet de podcast skill.
 
 ### 4. Index.html updaten
 

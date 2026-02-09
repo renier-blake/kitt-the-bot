@@ -118,6 +118,13 @@ image_prompt: "A robot doing X, orange (#FF6B00) and black color scheme, cinemat
 Post content here in Markdown...
 ```
 
+### 6b. Podcast
+
+Audio wordt afgehandeld door de **podcast skill** (apart proces).
+De podcast skill leest de blog draft, maakt er een kort script van (~2.000 chars), en genereert audio met Kokoro.
+
+De blog writer hoeft zich hier NIET mee bezig te houden — alleen de draft schrijven.
+
 ### 7. Telegram output
 
 Stuur naar Telegram:
