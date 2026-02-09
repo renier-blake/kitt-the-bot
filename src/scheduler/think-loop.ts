@@ -32,6 +32,32 @@ const execAsync = promisify(exec);
 // Types
 // ==========================================
 
+// F74: Conversation state for Think Loop awareness
+export interface ConversationExchange {
+  role: 'user' | 'kitt';
+  type: 'message' | 'thought' | 'task';
+  content: string;
+  time: string;
+  minutesAgo: number;
+}
+
+export interface ConversationState {
+  // Recent exchanges (last 10 messages)
+  recentExchanges: ConversationExchange[];
+  // Is the last user message answered by KITT?
+  lastUserMessageAnswered: boolean;
+  // Is there an active conversation (recent back-and-forth)?
+  activeConversation: boolean;
+  // Minutes since last interaction
+  conversationGap: number;
+  // Unanswered user messages (if any)
+  unansweredUserMessages: Array<{
+    content: string;
+    time: string;
+    minutesAgo: number;
+  }>;
+}
+
 export interface ThinkLoopContext {
   currentTime: string;
   currentHour: number;
@@ -45,6 +71,8 @@ export interface ThinkLoopContext {
     time: string;
     minutesAgo: number;
   };
+  // F74: Conversation awareness
+  conversationState?: ConversationState;
   skills: ThinkLoopSkill[];
   // Task Engine: open tasks
   tasks: KittTask[];
@@ -305,6 +333,65 @@ export async function buildThinkLoopContext(
     }
   }
 
+  // F74: Build conversation state for Think Loop awareness
+  const recentExchanges: ConversationExchange[] = todayResult.rows
+    .slice(-10)
+    .map((row) => {
+      const msgTime = new Date(Number(row.created_at));
+      const minutesAgo = Math.round((now.getTime() - msgTime.getTime()) / 60000);
+      const type = (row.type || 'message') as 'message' | 'thought' | 'task';
+      return {
+        role: row.role as 'user' | 'kitt',
+        type,
+        content: String(row.content).slice(0, 100),
+        time: msgTime.toLocaleTimeString('nl-NL', {
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: 'Europe/Amsterdam',
+        }),
+        minutesAgo,
+      };
+    });
+
+  // Check if last user message was answered
+  const lastUserIdx = recentExchanges.map((e, i) => ({ e, i }))
+    .filter(({ e }) => e.role === 'user')
+    .pop()?.i ?? -1;
+  const lastUserMessageAnswered = lastUserIdx >= 0 &&
+    recentExchanges.slice(lastUserIdx + 1).some(e => e.role === 'kitt' && e.type === 'message');
+
+  // Check if conversation is active (recent interaction < 5 min)
+  const lastInteraction = recentExchanges[recentExchanges.length - 1];
+  const activeConversation = lastInteraction ? lastInteraction.minutesAgo < 5 : false;
+  const conversationGap = lastInteraction ? lastInteraction.minutesAgo : 999;
+
+  // Find unanswered user messages (user messages without a kitt|message after them)
+  const unansweredUserMessages: ConversationState['unansweredUserMessages'] = [];
+  for (let i = 0; i < recentExchanges.length; i++) {
+    const exchange = recentExchanges[i];
+    if (exchange.role === 'user') {
+      // Check if there's a kitt|message after this user message
+      const hasKittResponse = recentExchanges
+        .slice(i + 1)
+        .some(e => e.role === 'kitt' && e.type === 'message');
+      if (!hasKittResponse) {
+        unansweredUserMessages.push({
+          content: exchange.content,
+          time: exchange.time,
+          minutesAgo: exchange.minutesAgo,
+        });
+      }
+    }
+  }
+
+  const conversationState: ConversationState = {
+    recentExchanges,
+    lastUserMessageAnswered,
+    activeConversation,
+    conversationGap,
+    unansweredUserMessages,
+  };
+
   // Get skills for think loop (every_time + scheduled only)
   const skills = discoverThinkLoopSkills(skillsDir);
 
@@ -341,6 +428,8 @@ export async function buildThinkLoopContext(
     transcripts: transcripts || 'Geen gesprekken vandaag.',
     messageCount: todayResult.rows.length,
     lastUserMessage,
+    // F74: Conversation awareness
+    conversationState,
     skills,
     // Task Engine
     tasks: openTasksResult.tasks,
@@ -454,6 +543,63 @@ ${s.description}${dataSection}${skillSection}`;
     ? `Laatste bericht van Renier: "${context.lastUserMessage.content.slice(0, 100)}${context.lastUserMessage.content.length > 100 ? '...' : ''}" (${context.lastUserMessage.minutesAgo} min geleden)`
     : 'Geen berichten van Renier vandaag.';
 
+  // F74: Build conversation status section
+  let conversationStatusSection = '';
+  if (context.conversationState) {
+    const cs = context.conversationState;
+
+    // Format recent exchanges
+    const exchangesFormatted = cs.recentExchanges.map(e => {
+      const roleLabel = e.role === 'user' ? 'Renier'
+        : e.type === 'thought' ? '🧠 KITT (gedachte)'
+        : e.type === 'task' ? '📋 KITT (task)'
+        : 'KITT';
+      const preview = e.content.length > 80 ? e.content.slice(0, 80) + '...' : e.content;
+      return `[${e.time}] ${roleLabel}: "${preview}"`;
+    }).join('\n');
+
+    // Status indicators
+    const answeredStatus = cs.lastUserMessageAnswered
+      ? '✅ Laatste user bericht is beantwoord'
+      : '⚠️ Laatste user bericht is NIET beantwoord';
+
+    const activeStatus = cs.activeConversation
+      ? `✅ Actieve conversatie — laatste interactie ${cs.conversationGap} min geleden`
+      : cs.conversationGap < 60
+        ? `⏸️ Conversatie idle — laatste interactie ${cs.conversationGap} min geleden`
+        : `💤 Geen recente conversatie — laatste interactie ${cs.conversationGap} min geleden`;
+
+    const unansweredStatus = cs.unansweredUserMessages.length > 0
+      ? `⚠️ ${cs.unansweredUserMessages.length} onbeantwoord bericht(en):\n${cs.unansweredUserMessages.map(m => `   - "${m.content}" (${m.minutesAgo} min geleden)`).join('\n')}`
+      : '✅ Geen onbeantwoorde berichten';
+
+    // Guidance based on status
+    let guidance = '';
+    if (cs.activeConversation && cs.lastUserMessageAnswered) {
+      guidance = '→ Conversatie loopt goed, focus op taken tenzij er iets urgents is.';
+    } else if (!cs.lastUserMessageAnswered && cs.conversationGap < 10) {
+      guidance = '→ Er is een recent bericht dat mogelijk aandacht nodig heeft.';
+    } else if (cs.unansweredUserMessages.length > 0) {
+      guidance = '→ Er zijn berichten blijven liggen — check of ze nog relevant zijn.';
+    }
+
+    conversationStatusSection = `## Conversatie Status
+
+**Recente uitwisselingen (laatste ${cs.recentExchanges.length}):**
+${exchangesFormatted || 'Geen recente berichten.'}
+
+**Analyse:**
+- ${answeredStatus}
+- ${activeStatus}
+- ${unansweredStatus}
+
+${guidance}
+
+---
+
+`;
+  }
+
   // Build identity section
   const identitySections: string[] = [];
   if (context.identity) {
@@ -482,7 +628,7 @@ ${identitySection}## Context
 
 ---
 
-## Gesprekken van vandaag
+${conversationStatusSection}## Gesprekken van vandaag
 
 ${context.transcripts}
 

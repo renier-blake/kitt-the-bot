@@ -491,6 +491,15 @@ Als je klaar bent, geef een korte samenvatting van wat je hebt gedaan.`;
         const { sendTelegramMessage } = await import('../bridge/telegram.js');
         await sendTelegramMessage(String(chatId), thought.message);
         console.log(`[think-loop] ✅ Task #${thought.taskId} executed and sent`);
+
+        // F74b: Store the actual message as type='message' so Telegram handler can see it
+        await memory.storeMessage({
+          sessionId: 'think-loop',
+          channel: 'telegram',
+          role: 'kitt',
+          type: 'message',
+          content: thought.message,
+        });
       } else if (!canSend) {
         console.log(`[think-loop] 🔕 Task #${thought.taskId} executed but message suppressed (DND mode)`);
       } else {
@@ -520,6 +529,15 @@ Als je klaar bent, geef een korte samenvatting van wat je hebt gedaan.`;
         const { sendTelegramMessage } = await import('../bridge/telegram.js');
         await sendTelegramMessage(String(chatId), thought.message);
         console.log('[think-loop] ✅ Message sent');
+
+        // F74b: Store the actual message as type='message' so Telegram handler can see it
+        await memory.storeMessage({
+          sessionId: 'think-loop',
+          channel: 'telegram',
+          role: 'kitt',
+          type: 'message',
+          content: thought.message,
+        });
       } else if (!canSend) {
         console.log('[think-loop] 🔕 Message suppressed (DND mode):', thought.message.slice(0, 50));
       } else {

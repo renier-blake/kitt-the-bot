@@ -1,8 +1,9 @@
 # F71: Portal Triage Inbox
 
 > **Priority:** 🟡 P2
-> **Status:** 📝 Spec
-> **Owner:** -
+> **Status:** ✅ Done
+> **Owner:** Agent
+> **Completed:** 2026-02-08
 
 ---
 
@@ -115,15 +116,15 @@ Each triage item has three quick action buttons:
 
 ## Acceptance Criteria
 
-- [ ] Inbox shows unprocessed triage items
-- [ ] Items sorted by creation date (newest first)
-- [ ] Each item shows title, description preview, source
-- [ ] "New" button opens quick-add form
-- [ ] Convert opens issue creation form with pre-filled data
-- [ ] Snooze shows duration options
-- [ ] Archive moves item out of inbox
-- [ ] Empty state shows friendly message + CTA
-- [ ] Processed items view shows archived/snoozed items
+- [x] Inbox shows unprocessed triage items
+- [x] Items sorted by creation date (newest first)
+- [x] Each item shows title, description preview, source
+- [x] "New" button opens quick-add form
+- [x] Convert opens issue creation form with pre-filled data
+- [x] Snooze shows duration options (1 day, 1 week, 1 month)
+- [x] Archive moves item out of inbox
+- [x] Empty state shows friendly message + CTA
+- [x] Processed items view shows archived/snoozed items
 
 ---
 
@@ -167,4 +168,33 @@ Each triage item has three quick action buttons:
 
 ### Wat is gebouwd
 
+**Backend API (src/bridge/log-server.ts):**
+- `GET /api/triage?processed=false` - List unprocessed triage items (snoozed items excluded until snooze expires)
+- `POST /api/triage` - Create new triage item from idea/conversation/observation
+- `POST /api/triage/:id/convert` - Convert triage item to issue with project/priority/type selection
+- `PATCH /api/triage/:id` - Update item (archive by setting processed=true, snooze by setting snoozedUntil)
+
+**Database Schema (v15):**
+- Added `snoozed_until` column to `portal_triage` table for snooze functionality
+
+**Frontend (frontends/portal/src/pages/system/Triage.tsx):**
+- Triage inbox page with two views: Inbox (unprocessed) and Processed (archived/snoozed)
+- Triage item cards showing title, description preview, source badge, creation date
+- Quick action buttons: Convert (✓), Snooze (⏸), Archive (✕)
+- Create dialog for quickly adding new ideas
+- Convert dialog with project, type, priority, and cycle selection
+- Snooze dropdown with 1 day / 1 week / 1 month options
+- Empty state with friendly message and CTA button
+
+**Navigation:**
+- Added Triage link to Sidebar with Inbox icon
+
 ### Beslissingen
+
+1. **Snooze mechanism**: Items can be snoozed for 1 day, 1 week, or 1 month. Snoozed items are hidden from inbox until the snooze period expires, at which point they reappear automatically.
+
+2. **Source tracking**: Triage items track their source (conversation, observation, idea, manual) with appropriate icons for quick visual identification.
+
+3. **Two-view system**: Instead of a single list, we use two tabs - "Inbox" for items needing attention and "Processed" for archived/converted/snoozed items.
+
+4. **Convert pre-fill**: When converting a triage item to an issue, the title and description are pre-filled from the triage item, making the workflow seamless.

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { Activity, Database, ListTodo, LayoutDashboard, Terminal } from 'lucide-react'
+import { Activity, Database, ListTodo, LayoutDashboard, Terminal, FolderKanban, Inbox } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface NavItem {
@@ -10,6 +10,8 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { to: '/', icon: <LayoutDashboard className="h-5 w-5" />, label: 'Dashboard' },
+  { to: '/projects', icon: <FolderKanban className="h-5 w-5" />, label: 'Projects' },
+  { to: '/triage', icon: <Inbox className="h-5 w-5" />, label: 'Triage' },
   { to: '/health', icon: <Activity className="h-5 w-5" />, label: 'System Health' },
   { to: '/database', icon: <Database className="h-5 w-5" />, label: 'Database' },
   { to: '/tasks', icon: <ListTodo className="h-5 w-5" />, label: 'Task Engine' },

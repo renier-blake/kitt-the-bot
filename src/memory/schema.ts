@@ -11,7 +11,7 @@ import { createClient, type Client } from '@libsql/client';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const SCHEMA_VERSION = 12; // Bumped for Task Model Selection (F63)
+const SCHEMA_VERSION = 16; // Bumped for triage labels + audit labels
 
 // Core schema SQL
 const CORE_SCHEMA = `
@@ -565,6 +565,238 @@ export async function initializeDatabase(
       }
 
       console.log('[schema] Migration v10 -> v12 complete');
+    }
+
+    // Migration: v12 -> v13: Portal Project Management (F69)
+    if (currentVersion < 13) {
+      console.log('[schema] Running migration v12 -> v13 (Portal Project Management)...');
+
+      // Create portal_projects table
+      await db.execute(`
+        CREATE TABLE IF NOT EXISTS portal_projects (
+          id INTEGER PRIMARY KEY,
+          identifier TEXT UNIQUE NOT NULL,
+          name TEXT NOT NULL,
+          description TEXT,
+          color TEXT DEFAULT '#FF9900',
+          created_at INTEGER DEFAULT (unixepoch() * 1000)
+        )
+      `);
+      console.log('[schema] Created portal_projects table');
+
+      // Create portal_cycles table
+      await db.execute(`
+        CREATE TABLE IF NOT EXISTS portal_cycles (
+          id INTEGER PRIMARY KEY,
+          name TEXT NOT NULL,
+          start_date INTEGER NOT NULL,
+          end_date INTEGER NOT NULL,
+          status TEXT DEFAULT 'active',
+          created_at INTEGER DEFAULT (unixepoch() * 1000)
+        )
+      `);
+      console.log('[schema] Created portal_cycles table');
+
+      // Create portal_issues table
+      await db.execute(`
+        CREATE TABLE IF NOT EXISTS portal_issues (
+          id INTEGER PRIMARY KEY,
+          identifier TEXT UNIQUE NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT,
+          type TEXT DEFAULT 'feature',
+          project_id INTEGER REFERENCES portal_projects(id),
+          state TEXT DEFAULT 'backlog',
+          priority TEXT DEFAULT 'medium',
+          cycle_id INTEGER REFERENCES portal_cycles(id),
+          estimate INTEGER,
+          due_date INTEGER,
+          parent_id INTEGER REFERENCES portal_issues(id),
+          created_by TEXT DEFAULT 'renier',
+          created_at INTEGER DEFAULT (unixepoch() * 1000),
+          updated_at INTEGER DEFAULT (unixepoch() * 1000)
+        )
+      `);
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_issues_project ON portal_issues(project_id)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_issues_state ON portal_issues(state)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_issues_cycle ON portal_issues(cycle_id)');
+      console.log('[schema] Created portal_issues table');
+
+      // Create portal_issue_history table
+      await db.execute(`
+        CREATE TABLE IF NOT EXISTS portal_issue_history (
+          id INTEGER PRIMARY KEY,
+          issue_id INTEGER REFERENCES portal_issues(id),
+          type TEXT NOT NULL,
+          old_value TEXT,
+          new_value TEXT,
+          comment TEXT,
+          created_by TEXT DEFAULT 'renier',
+          created_at INTEGER DEFAULT (unixepoch() * 1000)
+        )
+      `);
+      console.log('[schema] Created portal_issue_history table');
+
+      // Create portal_labels table
+      await db.execute(`
+        CREATE TABLE IF NOT EXISTS portal_labels (
+          id INTEGER PRIMARY KEY,
+          name TEXT UNIQUE NOT NULL,
+          color TEXT DEFAULT '#6b7280',
+          created_at INTEGER DEFAULT (unixepoch() * 1000)
+        )
+      `);
+      console.log('[schema] Created portal_labels table');
+
+      // Create portal_issue_labels table
+      await db.execute(`
+        CREATE TABLE IF NOT EXISTS portal_issue_labels (
+          issue_id INTEGER REFERENCES portal_issues(id),
+          label_id INTEGER REFERENCES portal_labels(id),
+          PRIMARY KEY (issue_id, label_id)
+        )
+      `);
+      console.log('[schema] Created portal_issue_labels table');
+
+      // Create portal_triage table
+      await db.execute(`
+        CREATE TABLE IF NOT EXISTS portal_triage (
+          id INTEGER PRIMARY KEY,
+          title TEXT NOT NULL,
+          description TEXT,
+          source TEXT,
+          processed INTEGER DEFAULT 0,
+          issue_id INTEGER REFERENCES portal_issues(id),
+          created_at INTEGER DEFAULT (unixepoch() * 1000)
+        )
+      `);
+      console.log('[schema] Created portal_triage table');
+
+      // Seed initial projects
+      const existingProjects = await db.execute('SELECT COUNT(*) as count FROM portal_projects');
+      if (Number(existingProjects.rows[0].count) === 0) {
+        await db.execute(`
+          INSERT INTO portal_projects (identifier, name, description, color) VALUES
+          ('POR', 'Portal', 'KITT Management Portal', '#FF9900'),
+          ('SKL', 'Skills', 'KITT Skills System', '#3B82F6'),
+          ('INF', 'Infrastructure', 'Core KITT Infrastructure', '#10B981'),
+          ('DAT', 'Data', 'Personal Data & Insights', '#8B5CF6')
+        `);
+        console.log('[schema] Seeded initial projects (POR, SKL, INF, DAT)');
+      }
+
+      // Seed initial cycle
+      const existingCycles = await db.execute('SELECT COUNT(*) as count FROM portal_cycles');
+      if (Number(existingCycles.rows[0].count) === 0) {
+        const now = Date.now();
+        const oneMonthLater = now + 30 * 24 * 60 * 60 * 1000;
+        await db.execute({
+          sql: `INSERT INTO portal_cycles (name, start_date, end_date, status) VALUES (?, ?, ?, ?)`,
+          args: ['Cycle 1', now, oneMonthLater, 'active']
+        });
+        console.log('[schema] Seeded initial cycle');
+      }
+
+      // Seed initial labels
+      const existingLabels = await db.execute('SELECT COUNT(*) as count FROM portal_labels');
+      if (Number(existingLabels.rows[0].count) === 0) {
+        await db.execute(`
+          INSERT INTO portal_labels (name, color) VALUES
+          ('needs-refinement', '#F59E0B'),
+          ('blocked', '#EF4444'),
+          ('quick-win', '#10B981'),
+          ('bug', '#EF4444'),
+          ('enhancement', '#3B82F6'),
+          ('documentation', '#8B5CF6'),
+          ('research', '#EC4899')
+        `);
+        console.log('[schema] Seeded initial labels');
+      }
+
+      console.log('[schema] Migration v12 -> v13 complete');
+    }
+
+    // Migration v13 -> v14: Add position column to portal_issues
+    if (currentVersion < 14) {
+      console.log('[schema] Running migration v13 -> v14...');
+      
+      // Add position column
+      await db.execute(`
+        ALTER TABLE portal_issues ADD COLUMN position INTEGER DEFAULT 0
+      `);
+      
+      // Create index for position
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_issues_position ON portal_issues(state, position)');
+      
+      // Initialize positions based on created_at within each state
+      const states = ['backlog', 'todo', 'in_progress', 'done', 'canceled'];
+      for (const state of states) {
+        const issues = await db.execute({
+          sql: 'SELECT id FROM portal_issues WHERE state = ? ORDER BY created_at ASC',
+          args: [state],
+        });
+        
+        for (let i = 0; i < issues.rows.length; i++) {
+          await db.execute({
+            sql: 'UPDATE portal_issues SET position = ? WHERE id = ?',
+            args: [i * 1000, issues.rows[i].id],
+          });
+        }
+      }
+      
+      console.log('[schema] Migration v13 -> v14 complete');
+    }
+
+    // Migration v14 -> v15: Add snoozed_until to portal_triage
+    if (currentVersion < 15) {
+      console.log('[schema] Running migration v14 -> v15...');
+      
+      // Add snoozed_until column
+      await db.execute(`
+        ALTER TABLE portal_triage ADD COLUMN snoozed_until INTEGER
+      `);
+      
+      console.log('[schema] Migration v14 -> v15 complete');
+    }
+
+    // Migration v15 -> v16: Add labels to portal_triage + audit labels
+    if (currentVersion < 16) {
+      console.log('[schema] Running migration v15 -> v16...');
+
+      // Add labels column to triage
+      try {
+        await db.execute(`ALTER TABLE portal_triage ADD COLUMN labels TEXT DEFAULT '[]'`);
+        console.log('[schema] Migration: Added labels column to portal_triage');
+      } catch (err) {
+        const alterMsg = err instanceof Error ? err.message : String(err);
+        if (!alterMsg.includes('duplicate column')) {
+          console.warn('[schema] Migration warning (labels):', alterMsg);
+        }
+      }
+
+      // Add audit-specific labels
+      const auditLabels = [
+        { name: 'audit', color: '#F97316' },
+        { name: 'suggestion', color: '#A855F7' },
+        { name: 'security', color: '#DC2626' },
+        { name: 'performance', color: '#2563EB' },
+        { name: 'outdated', color: '#6B7280' },
+        { name: 'consistency', color: '#0891B2' },
+        { name: 'best-practices', color: '#059669' },
+        { name: 'logs', color: '#7C3AED' },
+      ];
+      for (const label of auditLabels) {
+        try {
+          await db.execute({
+            sql: 'INSERT OR IGNORE INTO portal_labels (name, color) VALUES (?, ?)',
+            args: [label.name, label.color],
+          });
+        } catch {
+          // Label may already exist
+        }
+      }
+
+      console.log('[schema] Migration v15 -> v16 complete');
     }
 
     // Update schema version

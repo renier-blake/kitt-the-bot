@@ -27,6 +27,7 @@ import {
   getModeStatus,
   formatWakeTime,
 } from '../scheduler/sleep-mode.js';
+import { createTask } from '../scheduler/task-engine.js';
 
 const FAR_FUTURE = 9999999999999;
 
@@ -127,10 +128,39 @@ async function main(): Promise<void> {
           await setSleep(db, until);
 
           if (!noWake) {
-            // Set wake reminder
+            // Set wake reminder (legacy, kept for compatibility)
             await setWakeReminder(db, until);
+
+            // Create a one-time wake-up task (more robust than just meta)
+            // Task Engine ensures the Think Loop sees this as an explicit task
+            const wakeDate = new Date(until);
+            const wakeTime = wakeDate.toLocaleTimeString('nl-NL', {
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: false,
+              timeZone: 'Europe/Amsterdam',
+            });
+            // End window is wake time + 15 minutes
+            const endDate = new Date(until + 15 * 60 * 1000);
+            const endTime = endDate.toLocaleTimeString('nl-NL', {
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: false,
+              timeZone: 'Europe/Amsterdam',
+            });
+
+            await createTask(db, {
+              title: 'Renier wakker maken',
+              description: `Renier heeft gevraagd om gewekt te worden om ${wakeTime}. Stuur een vriendelijk goedemorgen bericht.`,
+              frequency: 'once',
+              priority: 'high',
+              time_window_start: wakeTime,
+              time_window_end: endTime,
+              created_by: 'renier',
+            });
+
             console.log(`😴 KITT is sleeping until ${formatTime(until)}`);
-            console.log('   Wake-up message will be sent');
+            console.log('   Wake-up task created for Think Loop');
           } else {
             console.log(`😴 KITT is sleeping until ${formatTime(until)}`);
             console.log('   No wake-up message');

@@ -84,7 +84,53 @@ Lees je eerdere reflecties en vergelijk met vandaag:
 
 **Een realisatie is waardevol als die NIET uit één dag alleen kan komen.**
 
-### 3. Opslaan via COMPLETE_TASK
+### 3. Fout-Analyse & Suggesties (F75)
+
+Zoek in de transcripts naar **signalen** dat iets niet goed ging:
+
+| Signaal | Voorbeeld |
+|---------|-----------|
+| Herhaalde uitleg | User moest 2-3x hetzelfde uitleggen |
+| Correctie | User corrigeerde mijn antwoord |
+| Verkeerd begrepen | Ik beantwoordde de verkeerde vraag |
+| Conversatie vastgelopen | Lange pauze, geen duidelijke oplossing |
+| Frustratie | User reageerde kort of geïrriteerd |
+
+**NIET:** Zoeken op specifieke keywords ("nee", "fout")
+**WEL:** Patronen herkennen in de conversatie flow
+
+#### Bij een gevonden probleem: Suggestie naar triage loggen
+
+1. **Check bestaande suggesties in triage:**
+```bash
+sqlite3 -json profile/memory/kitt.db "
+  SELECT title FROM portal_triage
+  WHERE source = 'suggestion' AND processed = 0"
+```
+
+2. **Log naar triage (met label):**
+```bash
+sqlite3 profile/memory/kitt.db "
+  INSERT INTO portal_triage (title, description, source, labels, created_at)
+  VALUES (
+    'KORTE TITEL',
+    'Probleem: [wat ging er mis]. Voorstel: [opties A/B/C]. Voorbeeld: [concrete situatie]. (type: behavior|architecture|feature)',
+    'suggestion',
+    '[\"suggestion\"]',
+    unixepoch() * 1000
+  );"
+```
+
+**Regels voor suggesties:**
+- Alleen bij echte problemen, niet geforceerd
+- Concreet en actionable
+- Eén probleem per suggestie
+- Type in description: behavior (mijn gedrag), architecture (systeem), feature (nieuw)
+- Dedupliceer: check eerst of vergelijkbare suggestie al in triage staat
+
+---
+
+### 4. Opslaan via COMPLETE_TASK
 
 ```
 ACTION: COMPLETE_TASK #7
@@ -101,11 +147,14 @@ ACTION: COMPLETE_TASK #7
 
 ## Over mezelf
 [geleerde lessen — als die er zijn]
+
+## Suggesties
+[als je een SUG### hebt aangemaakt, noem het hier]
 ```
 
 Dit slaat de reflectie op als `type='reflection'`, `role='kitt'` — puur intern.
 
-### 4. IDENTITY.md updaten (indien relevant)
+### 5. IDENTITY.md updaten (indien relevant)
 
 Als je iets over **jezelf** hebt geleerd → update `profile/identity/IDENTITY.md`.
 
@@ -117,7 +166,7 @@ Als je iets over **jezelf** hebt geleerd → update `profile/identity/IDENTITY.m
 
 **Hoe:** Lees het bestand, voeg een bullet toe onder een relevante sectie of maak een nieuwe sectie aan.
 
-### 5. USER.md updaten (indien relevant)
+### 6. USER.md updaten (indien relevant)
 
 Als je iets over **Renier** hebt geleerd → update `profile/user/USER.md`.
 
@@ -137,6 +186,7 @@ Als je iets over **Renier** hebt geleerd → update `profile/user/USER.md`.
 |------|-------------|
 | **IDENTITY.md** | ✅ Zelfstandig |
 | **USER.md** | ✅ Zelfstandig |
+| **portal_triage** (source='suggestion') | ✅ Zelfstandig (via SQLite) |
 | **SOUL.md** | ❌ NIET aanpassen |
 
 ---

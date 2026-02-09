@@ -68,19 +68,24 @@ export function Tasks() {
   const [loading, setLoading] = useState(false)
   const [executionPeriod, setExecutionPeriod] = useState('today')
 
+  const [error, setError] = useState<string | null>(null)
+
   const fetchData = useCallback(async () => {
     setLoading(true)
+    setError(null)
     try {
       const [tasksData, executionsData, statsData] = await Promise.all([
         api.getTasks(),
         api.getTaskExecutions(executionPeriod),
         api.getTaskStats(),
       ])
+      console.log('[Tasks] Loaded', tasksData.tasks.length, 'tasks')
       setTasks(tasksData.tasks)
       setExecutions(executionsData.executions)
       setStats(statsData)
     } catch (err) {
       console.error('Failed to fetch task data:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load tasks')
     } finally {
       setLoading(false)
     }
@@ -153,6 +158,12 @@ export function Tasks() {
         <div className="text-sm text-muted-foreground">Loading...</div>
       )}
 
+      {error && (
+        <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400">
+          Error: {error}
+        </div>
+      )}
+
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -211,7 +222,7 @@ export function Tasks() {
         <TabsList>
           <TabsTrigger value="tasks">
             <ListTodo className="mr-2 h-4 w-4" />
-            Tasks
+            Tasks ({tasks.length})
           </TabsTrigger>
           <TabsTrigger value="executions">
             <CheckCircle2 className="mr-2 h-4 w-4" />
@@ -227,7 +238,7 @@ export function Tasks() {
         <TabsContent value="tasks">
           <Card>
             <CardHeader>
-              <CardTitle>Configured Tasks</CardTitle>
+              <CardTitle>Configured Tasks ({tasks.length})</CardTitle>
               <CardDescription>Manage KITT's scheduled tasks</CardDescription>
             </CardHeader>
             <CardContent>

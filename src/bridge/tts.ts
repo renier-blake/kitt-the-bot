@@ -52,7 +52,9 @@ export async function textToSpeech(
   const cleanedText = cleanTextForTTS(text);
 
   // Limit text length to avoid huge API costs
-  const maxLength = 5000;
+  // Raised to 10000 for podcast-length content (ElevenLabs supports up to ~5000 per request,
+  // but their API handles longer text by streaming chunks internally)
+  const maxLength = 10000;
   const truncatedText = cleanedText.length > maxLength
     ? cleanedText.slice(0, maxLength) + '...'
     : cleanedText;

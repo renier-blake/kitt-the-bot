@@ -1,6 +1,6 @@
 # F74: Think Loop Conversation Awareness
 
-**Status:** 🔧 In Progress
+**Status:** ✅ Done
 **Prioriteit:** High
 **Datum:** 8 feb 2026
 
@@ -143,12 +143,12 @@ Voeg een "Conversatie Status" sectie toe aan de prompt met bovenstaande info.
 
 ## Acceptance Criteria
 
-- [ ] Think Loop krijgt `recentExchanges` (laatste 10 berichten)
-- [ ] Think Loop krijgt `lastUserMessageAnswered` indicator
-- [ ] Think Loop krijgt `activeConversation` indicator
-- [ ] Think Loop krijgt lijst van `unansweredUserMessages` (indien van toepassing)
-- [ ] Prompt toont deze info op een leesbare manier
-- [ ] Think Loop maakt zelf de beslissing (geen hard-coded blocks)
+- [x] Think Loop krijgt `recentExchanges` (laatste 10 berichten)
+- [x] Think Loop krijgt `lastUserMessageAnswered` indicator
+- [x] Think Loop krijgt `activeConversation` indicator
+- [x] Think Loop krijgt lijst van `unansweredUserMessages` (indien van toepassing)
+- [x] Prompt toont deze info op een leesbare manier
+- [x] Think Loop maakt zelf de beslissing (geen hard-coded blocks)
 
 ---
 

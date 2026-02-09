@@ -1,7 +1,7 @@
 # F69: Portal Project Management Database
 
 > **Priority:** 🟠 P1
-> **Status:** 📝 Spec
+> **Status:** ✅ Done
 > **Owner:** -
 
 ---
@@ -189,14 +189,14 @@ INSERT INTO portal_labels (name, color) VALUES
 
 ## Acceptance Criteria
 
-- [ ] Migration v004 creates all portal_* tables
-- [ ] Foreign key constraints are properly defined
-- [ ] Seed data creates initial projects (POR, SKL, INF, DAT)
-- [ ] Seed data creates first cycle
-- [ ] Seed data creates useful labels
-- [ ] Auto-increment for issue identifiers works (POR-1, POR-2, etc.)
-- [ ] Database migration runs without errors
-- [ ] Existing data is preserved
+- [x] Migration v13 creates all portal_* tables
+- [x] Foreign key constraints are properly defined
+- [x] Seed data creates initial projects (POR, SKL, INF, DAT)
+- [x] Seed data creates first cycle (Cycle 1)
+- [x] Seed data creates 7 useful labels (needs-refinement, blocked, quick-win, bug, enhancement, documentation, research)
+- [x] Database migration runs without errors
+- [x] Existing data is preserved
+- [x] Indexes created for performance (project_id, state, cycle_id)
 
 ---
 
@@ -243,4 +243,39 @@ INSERT INTO portal_labels (name, color) VALUES
 
 ### Wat is gebouwd
 
+**Migration v12 -> v13 in `src/memory/schema.ts`:**
+
+Created 7 new tables for Linear-style project management:
+
+1. **`portal_projects`** — Projects with identifiers (POR, SKL, INF, DAT) and colors
+2. **`portal_cycles`** — Sprints/cycles with start/end dates and status
+3. **`portal_issues`** — Issues/features/bugs with full workflow tracking
+   - Foreign keys to projects and cycles
+   - States: backlog, todo, in_progress, done, canceled
+   - Auto-generated identifiers (POR-42 format handled in application layer)
+4. **`portal_issue_history`** — Audit trail of all changes
+5. **`portal_labels`** — Categorization labels with colors
+6. **`portal_issue_labels`** — Many-to-many linking issues to labels
+7. **`portal_triage`** — Inbox for unprocessed ideas
+
+**Seed Data:**
+- 4 projects: Portal (orange), Skills (blue), Infrastructure (green), Data (purple)
+- 1 cycle: "Cycle 1" (1 month duration, active)
+- 7 labels: needs-refinement, blocked, quick-win, bug, enhancement, documentation, research
+
+**Indexes:**
+- `idx_issues_project` — Fast lookup by project
+- `idx_issues_state` — Fast filtering by state (backlog, done, etc.)
+- `idx_issues_cycle` — Fast lookup by cycle
+
 ### Beslissingen
+
+1. **Identifier format (POR-42):** Not using auto-increment in DB. Application layer generates identifiers based on project prefix + sequence number. This allows human-readable IDs like Linear.
+
+2. **Separate labels table:** Many-to-many relationship so issues can have multiple labels (e.g., "bug" + "quick-win").
+
+3. **Triage queue:** Separate table for raw ideas before they become formal issues. Allows capturing thoughts without polluting the main issue list.
+
+4. **History table:** Separate audit log rather than JSON column. Allows querying history ("what changed last week").
+
+5. **Color per project/label:** Stored as hex strings. Frontend renders these for visual distinction.

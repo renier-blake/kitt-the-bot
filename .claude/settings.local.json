@@ -53,7 +53,8 @@
       "Bash(do echo \"=== $f ===\" head -20 \"$f\")",
       "Bash(done)",
       "Bash(npm run mode:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(claude:*)"
     ]
   }
 }

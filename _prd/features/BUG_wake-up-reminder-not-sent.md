@@ -1,8 +1,9 @@
 # BUG: Wake-up reminder wordt niet gestuurd
 
-**Status:** 🐛 Open
+**Status:** ✅ Fixed
 **Prioriteit:** Medium
 **Ontdekt:** 8 feb 2026
+**Opgelost:** 8 feb 2026
 
 ## Probleem
 
@@ -31,8 +32,23 @@ Als Renier zegt "maak me wakker om X":
 
 Alternatief: de bridge kan bij het verlopen van `kitt_sleep_until` automatisch een bericht sturen als er een specifiek tijdstip was ingesteld (niet bij onbeperkte sleep).
 
+## Fix
+
+**Wijziging:** `src/cli/kitt-mode.ts`
+
+Wanneer `npm run mode -- sleep 6:55` wordt uitgevoerd:
+1. Sleep mode wordt gezet tot 6:55 (zoals voorheen)
+2. Wake reminder wordt gezet in meta tabel (backup)
+3. **NIEUW:** Een one-time task wordt aangemaakt:
+   - title: "Renier wakker maken"
+   - priority: high
+   - time_window_start: 6:55
+   - time_window_end: 7:10
+
+De Think Loop ziet nu expliciet een taak "Renier wakker maken" en handelt deze af.
+
 ## Gerelateerde files
 
-- `src/scheduler/think-loop.ts` — Think Loop beslissingslogica
-- `src/scheduler/task-engine.ts` — task aanmaken
-- Sleep mode logica (momenteel in bridge/chat context)
+- `src/cli/kitt-mode.ts` — **GEWIJZIGD** — maakt nu task aan
+- `src/scheduler/task-engine.ts` — createTask functie
+- `src/scheduler/sleep-mode.ts` — wake reminder (backup)

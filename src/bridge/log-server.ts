@@ -129,6 +129,9 @@ export function installLogInterceptor(): void {
 export function startLogServer(port = 8000): { server: Server; wss: WebSocketServer } {
   const app = express();
 
+  // Parse JSON body
+  app.use(express.json());
+
   // Serve portal static files
   const portalPath = path.join(process.cwd(), 'frontends', 'portal');
   app.use(express.static(portalPath));
@@ -652,6 +655,541 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
         executionsToday: Number(executionsToday.rows[0].count),
         statusBreakdown,
       });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // ==========================================
+  // Portal Project Management API
+  // ==========================================
+
+  // Get all projects
+  app.get('/api/projects', async (_req, res) => {
+    try {
+      const database = getDb();
+      const result = await database.execute('SELECT * FROM portal_projects ORDER BY identifier ASC');
+      const projects = result.rows.map((row) => ({
+        id: Number(row.id),
+        identifier: String(row.identifier),
+        name: String(row.name),
+        description: row.description ? String(row.description) : null,
+        color: String(row.color),
+        createdAt: Number(row.created_at),
+        updatedAt: Number(row.updated_at),
+      }));
+      res.json({ projects });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // Get all cycles
+  app.get('/api/cycles', async (_req, res) => {
+    try {
+      const database = getDb();
+      const result = await database.execute('SELECT * FROM portal_cycles ORDER BY start_date DESC');
+      const cycles = result.rows.map((row) => ({
+        id: Number(row.id),
+        name: String(row.name),
+        status: String(row.status),
+        startDate: Number(row.start_date),
+        endDate: Number(row.end_date),
+        createdAt: Number(row.created_at),
+      }));
+      res.json({ cycles });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // Get all labels
+  app.get('/api/labels', async (_req, res) => {
+    try {
+      const database = getDb();
+      const result = await database.execute('SELECT * FROM portal_labels ORDER BY name ASC');
+      const labels = result.rows.map((row) => ({
+        id: Number(row.id),
+        name: String(row.name),
+        color: String(row.color),
+        createdAt: Number(row.created_at),
+      }));
+      res.json({ labels });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // Get issues with filters
+  app.get('/api/issues', async (req, res) => {
+    try {
+      const database = getDb();
+      const { project, cycle, state, priority, search } = req.query;
+
+      let sql = `
+        SELECT 
+          i.id,
+          i.identifier,
+          i.title,
+          i.description,
+          i.state,
+          i.priority,
+          i.type,
+          i.project_id,
+          i.cycle_id,
+          i.position,
+          i.created_by,
+          i.created_at,
+          i.updated_at,
+          p.identifier as project_identifier,
+          p.color as project_color,
+          c.name as cycle_name
+        FROM portal_issues i
+        LEFT JOIN portal_projects p ON i.project_id = p.id
+        LEFT JOIN portal_cycles c ON i.cycle_id = c.id
+        WHERE 1=1
+      `;
+      const args: (string | number)[] = [];
+
+      if (project) {
+        sql += ' AND i.project_id = ?';
+        args.push(Number(project));
+      }
+      if (cycle) {
+        sql += ' AND i.cycle_id = ?';
+        args.push(Number(cycle));
+      }
+      if (state) {
+        sql += ' AND i.state = ?';
+        args.push(String(state));
+      }
+      if (priority) {
+        sql += ' AND i.priority = ?';
+        args.push(String(priority));
+      }
+      if (search) {
+        sql += ' AND (i.title LIKE ? OR i.description LIKE ?)';
+        const searchTerm = `%${search}%`;
+        args.push(searchTerm, searchTerm);
+      }
+
+      sql += ' ORDER BY i.state, i.position ASC, i.created_at ASC';
+
+      const result = await database.execute({ sql, args });
+
+      // Get labels for all issues
+      const issueIds = result.rows.map((row) => Number(row.id));
+      const labelsMap: Record<number, { id: number; name: string; color: string }[]> = {};
+
+      if (issueIds.length > 0) {
+        const placeholders = issueIds.map(() => '?').join(',');
+        const labelsResult = await database.execute({
+          sql: `
+            SELECT il.issue_id, l.id, l.name, l.color
+            FROM portal_issue_labels il
+            JOIN portal_labels l ON il.label_id = l.id
+            WHERE il.issue_id IN (${placeholders})
+          `,
+          args: issueIds,
+        });
+
+        for (const row of labelsResult.rows) {
+          const issueId = Number(row.issue_id);
+          if (!labelsMap[issueId]) labelsMap[issueId] = [];
+          labelsMap[issueId].push({
+            id: Number(row.id),
+            name: String(row.name),
+            color: String(row.color),
+          });
+        }
+      }
+
+      const issues = result.rows.map((row) => ({
+        id: Number(row.id),
+        identifier: String(row.identifier),
+        title: String(row.title),
+        description: row.description ? String(row.description) : null,
+        state: String(row.state),
+        priority: String(row.priority),
+        type: String(row.type),
+        projectId: Number(row.project_id),
+        cycleId: row.cycle_id ? Number(row.cycle_id) : null,
+        position: row.position ? Number(row.position) : 0,
+        createdBy: String(row.created_by),
+        createdAt: Number(row.created_at),
+        updatedAt: Number(row.updated_at),
+        project: row.project_identifier
+          ? { identifier: String(row.project_identifier), color: String(row.project_color) }
+          : null,
+        cycle: row.cycle_name ? { name: String(row.cycle_name) } : null,
+        labels: labelsMap[Number(row.id)] || [],
+      }));
+
+      res.json({ issues });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // Create new issue
+  app.post('/api/issues', async (req, res) => {
+    try {
+      const database = getDb();
+      const { title, description, projectId, priority = 'medium', type = 'feature', cycleId } = req.body;
+
+      if (!title || !projectId) {
+        res.status(400).json({ error: 'Title and projectId are required' });
+        return;
+      }
+
+      // Get project identifier for generating issue number
+      const projectResult = await database.execute({
+        sql: 'SELECT identifier FROM portal_projects WHERE id = ?',
+        args: [projectId],
+      });
+
+      if (projectResult.rows.length === 0) {
+        res.status(404).json({ error: 'Project not found' });
+        return;
+      }
+
+      const projectIdentifier = String(projectResult.rows[0].identifier);
+
+      // Get next issue number for this project
+      const countResult = await database.execute({
+        sql: 'SELECT COUNT(*) as count FROM portal_issues WHERE project_id = ?',
+        args: [projectId],
+      });
+
+      const issueNumber = Number(countResult.rows[0].count) + 1;
+      const identifier = `${projectIdentifier}-${issueNumber}`;
+
+      // Get max position in backlog to append at the end
+      const positionResult = await database.execute({
+        sql: 'SELECT COALESCE(MAX(position), -1) as max_pos FROM portal_issues WHERE state = ?',
+        args: ['backlog'],
+      });
+      const newPosition = Number(positionResult.rows[0].max_pos) + 1000;
+
+      const now = Date.now();
+      const result = await database.execute({
+        sql: `
+          INSERT INTO portal_issues (
+            identifier, title, description, state, priority, type,
+            project_id, cycle_id, position, created_by, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        args: [
+          identifier,
+          title,
+          description || null,
+          'backlog',
+          priority,
+          type,
+          projectId,
+          cycleId || null,
+          newPosition,
+          'KITT',
+          now,
+          now,
+        ],
+      });
+
+      const newIssue = {
+        id: Number(result.lastInsertRowid),
+        identifier,
+        title,
+        description: description || null,
+        state: 'backlog',
+        priority,
+        type,
+        projectId,
+        cycleId: cycleId || null,
+        createdBy: 'KITT',
+        createdAt: now,
+        updatedAt: now,
+        labels: [],
+      };
+
+      res.status(201).json({ issue: newIssue });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // Update issue
+  app.patch('/api/issues/:id', async (req, res) => {
+    try {
+      const database = getDb();
+      const issueId = Number(req.params.id);
+      const { state, priority, title, description, cycleId, position } = req.body;
+
+      const updates: string[] = [];
+      const args: (string | number | null)[] = [];
+
+      if (state !== undefined) {
+        updates.push('state = ?');
+        args.push(state);
+      }
+      if (priority !== undefined) {
+        updates.push('priority = ?');
+        args.push(priority);
+      }
+      if (title !== undefined) {
+        updates.push('title = ?');
+        args.push(title);
+      }
+      if (description !== undefined) {
+        updates.push('description = ?');
+        args.push(description);
+      }
+      if (cycleId !== undefined) {
+        updates.push('cycle_id = ?');
+        args.push(cycleId);
+      }
+      if (position !== undefined) {
+        updates.push('position = ?');
+        args.push(position);
+      }
+
+      if (updates.length === 0) {
+        res.status(400).json({ error: 'No fields to update' });
+        return;
+      }
+
+      updates.push('updated_at = ?');
+      args.push(Date.now());
+      args.push(issueId);
+
+      await database.execute({
+        sql: `UPDATE portal_issues SET ${updates.join(', ')} WHERE id = ?`,
+        args,
+      });
+
+      // Add history entry for state changes
+      if (state) {
+        await database.execute({
+          sql: `
+            INSERT INTO portal_issue_history (issue_id, type, old_value, new_value, created_by, created_at)
+            SELECT ?, 'state_change', state, ?, 'KITT', ? FROM portal_issues WHERE id = ?
+          `,
+          args: [issueId, state, Date.now(), issueId],
+        });
+      }
+
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // ==========================================
+  // Portal Triage API
+  // ==========================================
+
+  // Get triage items
+  app.get('/api/triage', async (req, res) => {
+    try {
+      const database = getDb();
+      const { processed = 'false' } = req.query;
+
+      let sql = 'SELECT * FROM portal_triage WHERE 1=1';
+      const args: (string | number)[] = [];
+
+      if (processed === 'false') {
+        sql += ' AND processed = 0 AND (snoozed_until IS NULL OR snoozed_until <= ?)';
+        args.push(Date.now());
+      } else if (processed === 'true') {
+        sql += ' AND (processed = 1 OR snoozed_until > ?)';
+        args.push(Date.now());
+      }
+
+      sql += ' ORDER BY created_at DESC';
+
+      const result = await database.execute({ sql, args });
+
+      const items = result.rows.map((row) => ({
+        id: Number(row.id),
+        title: String(row.title),
+        description: row.description ? String(row.description) : null,
+        source: row.source ? String(row.source) : null,
+        processed: Boolean(row.processed),
+        issueId: row.issue_id ? Number(row.issue_id) : null,
+        snoozedUntil: row.snoozed_until ? Number(row.snoozed_until) : null,
+        labels: row.labels ? JSON.parse(String(row.labels)) : [],
+        createdAt: Number(row.created_at),
+      }));
+
+      res.json({ items });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // Create triage item
+  app.post('/api/triage', async (req, res) => {
+    try {
+      const database = getDb();
+      const { title, description, source = 'manual', labels = [] } = req.body;
+
+      if (!title) {
+        res.status(400).json({ error: 'Title is required' });
+        return;
+      }
+
+      const now = Date.now();
+      const labelsJson = JSON.stringify(labels);
+      const result = await database.execute({
+        sql: `
+          INSERT INTO portal_triage (title, description, source, labels, processed, created_at)
+          VALUES (?, ?, ?, ?, 0, ?)
+        `,
+        args: [title, description || null, source, labelsJson, now],
+      });
+
+      const newItem = {
+        id: Number(result.lastInsertRowid),
+        title,
+        description: description || null,
+        source,
+        processed: false,
+        issueId: null,
+        snoozedUntil: null,
+        labels,
+        createdAt: now,
+      };
+
+      res.status(201).json({ item: newItem });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // Convert triage item to issue
+  app.post('/api/triage/:id/convert', async (req, res) => {
+    try {
+      const database = getDb();
+      const triageId = Number(req.params.id);
+      const { projectId, priority = 'medium', type = 'feature', cycleId } = req.body;
+
+      if (!projectId) {
+        res.status(400).json({ error: 'projectId is required' });
+        return;
+      }
+
+      // Get triage item
+      const triageResult = await database.execute({
+        sql: 'SELECT * FROM portal_triage WHERE id = ?',
+        args: [triageId],
+      });
+
+      if (triageResult.rows.length === 0) {
+        res.status(404).json({ error: 'Triage item not found' });
+        return;
+      }
+
+      const triageItem = triageResult.rows[0];
+
+      // Get project identifier for generating issue number
+      const projectResult = await database.execute({
+        sql: 'SELECT identifier FROM portal_projects WHERE id = ?',
+        args: [projectId],
+      });
+
+      if (projectResult.rows.length === 0) {
+        res.status(404).json({ error: 'Project not found' });
+        return;
+      }
+
+      const projectIdentifier = String(projectResult.rows[0].identifier);
+
+      // Get next issue number for this project
+      const countResult = await database.execute({
+        sql: 'SELECT COUNT(*) as count FROM portal_issues WHERE project_id = ?',
+        args: [projectId],
+      });
+
+      const issueNumber = Number(countResult.rows[0].count) + 1;
+      const identifier = `${projectIdentifier}-${issueNumber}`;
+
+      // Get max position in backlog
+      const positionResult = await database.execute({
+        sql: 'SELECT COALESCE(MAX(position), -1) as max_pos FROM portal_issues WHERE state = ?',
+        args: ['backlog'],
+      });
+      const newPosition = Number(positionResult.rows[0].max_pos) + 1000;
+
+      // Create the issue
+      const now = Date.now();
+      const issueResult = await database.execute({
+        sql: `
+          INSERT INTO portal_issues (
+            identifier, title, description, state, priority, type,
+            project_id, cycle_id, position, created_by, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        args: [
+          identifier,
+          triageItem.title,
+          triageItem.description || null,
+          'backlog',
+          priority,
+          type,
+          projectId,
+          cycleId || null,
+          newPosition,
+          'KITT',
+          now,
+          now,
+        ],
+      });
+
+      const issueId = Number(issueResult.lastInsertRowid);
+
+      // Mark triage item as processed and link to issue
+      await database.execute({
+        sql: 'UPDATE portal_triage SET processed = 1, issue_id = ? WHERE id = ?',
+        args: [issueId, triageId],
+      });
+
+      res.json({ issueId, identifier });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // Update triage item (snooze, archive)
+  app.patch('/api/triage/:id', async (req, res) => {
+    try {
+      const database = getDb();
+      const triageId = Number(req.params.id);
+      const { processed, snoozedUntil } = req.body;
+
+      const updates: string[] = [];
+      const args: (string | number | null)[] = [];
+
+      if (processed !== undefined) {
+        updates.push('processed = ?');
+        args.push(processed ? 1 : 0);
+      }
+      if (snoozedUntil !== undefined) {
+        updates.push('snoozed_until = ?');
+        args.push(snoozedUntil);
+      }
+
+      if (updates.length === 0) {
+        res.status(400).json({ error: 'No fields to update' });
+        return;
+      }
+
+      args.push(triageId);
+
+      await database.execute({
+        sql: `UPDATE portal_triage SET ${updates.join(', ')} WHERE id = ?`,
+        args,
+      });
+
+      res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
