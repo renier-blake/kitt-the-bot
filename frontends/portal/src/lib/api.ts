@@ -260,6 +260,34 @@ export const api = {
     })
     if (!res.ok) throw new Error('Failed to update config')
   },
+
+  // WhatsApp Channel
+  async getWhatsAppStatus(): Promise<WhatsAppStatus> {
+    const res = await fetch(`${API_BASE}/channels/whatsapp/status`)
+    if (!res.ok) throw new Error('Failed to fetch WhatsApp status')
+    return res.json()
+  },
+
+  async disconnectWhatsApp(): Promise<void> {
+    const res = await fetch(`${API_BASE}/channels/whatsapp/disconnect`, {
+      method: 'POST',
+    })
+    if (!res.ok) throw new Error('Failed to disconnect WhatsApp')
+  },
+}
+
+// WhatsApp status type
+export interface WhatsAppStatus {
+  enabled: boolean
+  connected: boolean
+  status: 'disabled' | 'disconnected' | 'awaiting_scan' | 'connected'
+  user: {
+    id: string
+    name: string
+  } | null
+  qrCode: string | null
+  qrCodeGeneratedAt: string | null
+  lastError: string | null
 }
 
 // WebSocket connection for live logs

@@ -1,119 +1,210 @@
 # Message Bridge Architecture
 
 > Hoe de message bridge werkt tussen channels en Claude Agent SDK.
-> **Status:** ✅ Geïmplementeerd (F02 + F04)
+> **Status:** v2.0 - Channel Adapter Pattern (PAS-06)
 
 ---
 
 ## Overview
 
 De Message Bridge is een Node.js process dat:
-1. Messages ontvangt van Telegram (later WhatsApp, Email)
-2. Direct de **Claude Agent SDK** aanroept voor verwerking
-3. Responses terugstuurt naar de juiste channel
-4. **Sessions** beheert voor context persistence
+1. Messages ontvangt via **Channel Adapters** (Telegram, WhatsApp, etc.)
+2. Berichten routeert via de **MessageRouter** (shared logic)
+3. De **Claude Agent SDK** aanroept voor verwerking
+4. Responses terugstuurt via de juiste adapter
+5. **Sessions** beheert per chat voor context persistence
 
 ---
 
-## Architecture
+## Architecture (v2.0)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    KITT Message Bridge                       │
-│                                                              │
-│  ┌──────────────┐                                           │
-│  │ Telegram     │                                           │
-│  │ Adapter      │──┐                                        │
-│  │ (grammy)     │  │                                        │
-│  └──────────────┘  │                                        │
-│                    │    ┌──────────────────────────────┐    │
-│  ┌──────────────┐  │    │                              │    │
-│  │ WhatsApp     │  ├───▶│    Claude Agent SDK          │    │
-│  │ (Future)     │  │    │    (query function)          │    │
-│  └──────────────┘  │    │                              │    │
-│                    │    │  - Full tool access           │    │
-│  ┌──────────────┐  │    │  - Session persistence        │    │
-│  │ Email        │──┘    │  - KITT workspace context     │    │
-│  │ (Future)     │       │                              │    │
-│  └──────────────┘       └──────────────────────────────┘    │
-│                                   │                          │
-│                                   ▼                          │
-│                         ┌─────────────────┐                  │
-│                         │ KITT Workspace   │                  │
-│                         │ - CLAUDE.md      │                  │
-│                         │ - MEMORY.md      │                  │
-│                         │ - SOUL.md        │                  │
-│                         │ - sessions.json  │                  │
-│                         └─────────────────┘                  │
+│                        KITT Bridge                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│   ┌──────────────┐    ┌──────────────┐    ┌─────────────┐  │
+│   │   Telegram   │    │   WhatsApp   │    │    Slack    │  │
+│   │   Adapter    │    │   Adapter    │    │   (later)   │  │
+│   │   (grammy)   │    │  (baileys)   │    │             │  │
+│   └──────┬───────┘    └──────┬───────┘    └──────┬──────┘  │
+│          │                   │                   │          │
+│          └───────────────────┼───────────────────┘          │
+│                              ▼                              │
+│                    ┌─────────────────┐                      │
+│                    │  MessageRouter  │                      │
+│                    │  (shared logic) │                      │
+│                    └────────┬────────┘                      │
+│                             │                               │
+│          ┌──────────────────┼──────────────────┐            │
+│          ▼                  ▼                  ▼            │
+│   ┌────────────┐    ┌─────────────┐    ┌─────────────┐     │
+│   │   Agent    │    │   Memory    │    │  Sessions   │     │
+│   │  (Claude)  │    │(transcripts)│    │ (per chat)  │     │
+│   └────────────┘    └─────────────┘    └─────────────┘     │
+│                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Agent SDK Integration
+## Channel Adapter Pattern
 
-### Core Pattern (van NanoClaw)
+### Interface
+
+Elke adapter implementeert de `ChannelAdapter` interface:
 
 ```typescript
-import { query } from '@anthropic-ai/claude-agent-sdk';
+// src/bridge/adapters/types.ts
+interface ChannelAdapter {
+  readonly channel: 'telegram' | 'whatsapp' | 'slack';
+  readonly displayName: string;
 
-for await (const message of query({
-  prompt: userMessage,
-  options: {
-    cwd: '/path/to/KITT V1',
-    resume: sessionId,  // Session persistence
-    allowedTools: ['Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep', 'WebSearch', 'WebFetch'],
-    permissionMode: 'bypassPermissions',
-  }
-})) {
-  // Handle streaming response
-  if (message.type === 'system' && message.subtype === 'init') {
-    newSessionId = message.session_id;
-  }
-  if ('result' in message) {
-    result = message.result;
-  }
+  start(): Promise<void>;
+  stop(): Promise<void>;
+  sendMessage(chatId: string, content: string, options?: SendOptions): Promise<void>;
+  sendVoice?(chatId: string, audioBuffer: Buffer): Promise<void>;
+  isConnected(): boolean;
+  getStatus(): AdapterStatus;
 }
 ```
 
-### Session Management
+### Chat ID Format
 
-Elke chat (chatId) krijgt een eigen session voor context persistence:
+Alle chat IDs gebruiken een **channel prefix**:
 
-```typescript
-// sessions.json
-{
-  "sessions": {
-    "1306998969": {
-      "chatId": "1306998969",
-      "sessionId": "abc123-def456",
-      "lastActivity": "2026-02-05T12:00:00Z",
-      "messageCount": 5,
-      "displayName": "Renier"
-    }
-  }
-}
+```
+telegram:123456789              # Telegram user/group
+whatsapp:31612345678@s.whatsapp.net  # WhatsApp user
+whatsapp:120363...@g.us         # WhatsApp group
+slack:C1234567890               # Slack channel
+```
+
+### Verantwoordelijkheden
+
+**Adapters handelen:**
+- Platform-specifieke API calls
+- Message parsing & formatting
+- Voice transcriptie (indien supported)
+- Auth (bot token, QR code, OAuth)
+- Reconnect logic
+
+**Router handelt:**
+- Agent SDK aanroepen
+- Memory/transcripts opslaan
+- Session management
+- Sleep/DND modes
+- Skill routing
+- Message splitting
+
+---
+
+## Project Structure
+
+```
+src/bridge/
+├── index.ts              # Entry point, start router + adapters
+├── router.ts             # MessageRouter (shared logic)
+├── adapters/
+│   ├── types.ts          # ChannelAdapter interface
+│   ├── telegram.ts       # TelegramAdapter (grammy)
+│   └── whatsapp.ts       # WhatsAppAdapter (baileys)
+├── agent.ts              # Agent SDK wrapper
+├── context.ts            # KITT personality loading
+├── sessions.ts           # Per-chat session management
+├── format.ts             # Response formatting
+├── transcribe.ts         # Voice → text (Whisper)
+├── tts.ts                # Text → voice (ElevenLabs)
+├── logger.ts             # Structured logging
+└── types.ts              # Shared types
 ```
 
 ---
 
 ## Channel Adapters
 
-### Telegram (✅ Implemented)
-- **Library:** `grammy`
-- **Auth:** Bot token via @BotFather
-- **Security:** User whitelist via `TELEGRAM_ALLOWED_USERS`
-- **Files:** `src/bridge/telegram.ts`
+### Telegram (Active)
 
-### WhatsApp (🔜 Planned)
-- **Library:** `@whiskeysockets/baileys`
-- **Auth:** QR code
-- **Reference:** `_repos/nanoclaw/src/index.ts`
+| Aspect | Detail |
+|--------|--------|
+| Library | `grammy` |
+| Auth | Bot token via @BotFather |
+| File | `src/bridge/adapters/telegram.ts` |
+| Env | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USERS` |
 
-### Email (🔜 Planned)
-- **Library:** Gmail API
-- **Auth:** OAuth2
-- **Reference:** `_repos/nanoclaw/.claude/skills/add-gmail/`
+### WhatsApp (Active)
+
+| Aspect | Detail |
+|--------|--------|
+| Library | `@whiskeysockets/baileys` |
+| Auth | QR code scan |
+| File | `src/bridge/adapters/whatsapp.ts` |
+| Env | `WHATSAPP_ENABLED=true`, `WHATSAPP_ALLOWED_NUMBERS` |
+| Auth storage | `data/whatsapp-auth/` |
+
+### Slack (Planned)
+
+| Aspect | Detail |
+|--------|--------|
+| Library | `@slack/bolt` |
+| Auth | OAuth via Nango |
+| Status | PAS-17 |
+
+---
+
+## MessageRouter
+
+De router bevat alle channel-agnostische logica:
+
+```typescript
+// src/bridge/router.ts
+class MessageRouter {
+  // Adapter registry
+  registerAdapter(adapter: ChannelAdapter): void;
+  getAdapter(channel: ChannelType): ChannelAdapter;
+
+  // Message handling
+  async handleIncoming(message: IncomingMessage): Promise<void> {
+    // 1. Wake KITT if sleeping
+    // 2. Store user message in memory
+    // 3. Acquire processing lock
+    // 4. Run Claude Agent
+    // 5. Handle skill routing
+    // 6. Update session
+    // 7. Store KITT response
+    // 8. Release lock
+    // 9. Send response via adapter
+  }
+
+  // Outgoing messages
+  async sendMessage(chatId: string, content: string): Promise<void> {
+    const channel = extractChannel(chatId);  // 'telegram' from 'telegram:123'
+    const adapter = this.adapters.get(channel);
+    await adapter.sendMessage(chatId, content);
+  }
+}
+```
+
+---
+
+## Session Management
+
+Elke chat krijgt een eigen session voor context persistence:
+
+```typescript
+// profile/state/sessions.json
+{
+  "sessions": {
+    "telegram:1306998969": {
+      "chatId": "telegram:1306998969",
+      "sessionId": "abc123-def456",
+      "lastActivity": "2026-02-09T18:00:00Z",
+      "messageCount": 42,
+      "displayName": "Renier"
+    }
+  }
+}
+```
 
 ---
 
@@ -125,28 +216,7 @@ Elke chat (chatId) krijgt een eigen session voor context persistence:
 | Telegram Group | Group | `@botname` mention | Only mentioned |
 | Telegram Group | Group | Reply to bot | Process replies |
 | WhatsApp Private | Private | Any message | Always process |
-| WhatsApp Group | Group | `@kitt` prefix | Only triggered |
-
----
-
-## Project Structure
-
-```
-src/
-├── bridge/
-│   ├── index.ts         # Entry point + Think Loop scheduler
-│   ├── telegram.ts      # Telegram adapter (grammy) + memory triggers
-│   ├── agent.ts         # Agent SDK wrapper + KITT personality injection
-│   ├── context.ts       # Context loading (IDENTITY, SOUL, USER, MEMORY)
-│   ├── skills.ts        # Skill loader (.claude/skills/)
-│   ├── transcribe.ts    # Voice transcription (OpenAI Whisper)
-│   ├── tts.ts           # Text-to-speech (ElevenLabs) - F44
-│   ├── format.ts        # Response formatting (Telegram MarkdownV2)
-│   ├── sessions.ts      # Session management
-│   ├── state.ts         # Bridge state
-│   ├── logger.ts        # Structured logging
-│   └── types.ts         # TypeScript types
-```
+| WhatsApp Group | Group | Any message | Process all (configurable) |
 
 ---
 
@@ -154,92 +224,58 @@ src/
 
 ```bash
 # .env
+
+# Telegram
 TELEGRAM_BOT_TOKEN=xxx
 TELEGRAM_ALLOWED_USERS=1306998969
+
+# WhatsApp (optional)
+WHATSAPP_ENABLED=true
+WHATSAPP_ALLOWED_NUMBERS=31612345678,31698765432
+
+# General
 KITT_WORKSPACE=/path/to/KITT V1
 ```
 
 ---
 
-## Security
+## Adding a New Channel
 
-| Maatregel | Implementatie |
-|-----------|---------------|
-| User whitelist | `TELEGRAM_ALLOWED_USERS` env var |
-| Token security | `.env` file, in `.gitignore` |
-| Permission bypass | Alleen voor KITT agent |
-| Workspace isolation | Alleen KITT V1/ toegang |
+1. Create adapter in `src/bridge/adapters/newchannel.ts`
+2. Implement `ChannelAdapter` interface
+3. Add channel to `ChannelType` in `adapters/types.ts`
+4. Add channel to `Channel` in `memory/types.ts`
+5. Register in `index.ts`:
 
----
-
-## Vergelijking: Oude vs Nieuwe Aanpak
-
-| Aspect | File-based IPC (oud) | Agent SDK (nieuw) |
-|--------|---------------------|-------------------|
-| Processing | Handmatig via inbox/outbox | Direct SDK call |
-| Tool access | Geen | Volledig (Read, Write, Bash, etc.) |
-| Sessions | Geen | Per-chat persistence |
-| Latency | Polling delay | Direct |
-| Complexity | Meer files/watchers | Simpeler flow |
+```typescript
+if (process.env.NEWCHANNEL_ENABLED === 'true') {
+  const adapter = createNewChannelAdapter();
+  router.registerAdapter(adapter);
+}
+```
 
 ---
 
 ## Running the Bridge
 
 ```bash
-# Development (with watch)
+# Via pm2 (recommended)
+pm2 start npm --name kitt -- run bridge
+
+# Development
 npm run bridge
 
-# Production
-npm run bridge:start
+# Logs
+pm2 logs kitt
 ```
 
 ---
 
-## KITT Response Flow (F04)
+## Migration Notes
 
-### Context Loading
-Bij elke message wordt KITT personality geladen:
+### v1 → v2 (PAS-06)
 
-```typescript
-// context.ts
-const context = await loadContext();
-// Laadt: IDENTITY.md, SOUL.md, USER.md, MEMORY.md
-
-const systemPrompt = buildSystemPrompt(context);
-// Bouwt KITT personality prompt
-```
-
-### Memory Triggers
-"Onthoud dit/dat" en "Remember" triggers worden gedetecteerd:
-
-```typescript
-// telegram.ts
-const MEMORY_TRIGGERS = ['onthoud dit', 'onthoud dat', 'remember this', ...];
-
-// Extracted fact wordt opgeslagen in profile/memory/MEMORY.md
-await memory.addFact(fact, 'Notes');
-```
-
-### Response Formatting
-Responses worden geformateerd voor Telegram:
-
-```typescript
-// format.ts
-const chunks = splitMessage(response, 4000);  // Telegram limit
-const { text, parseMode } = formatForTelegramSafe(chunk);
-// MarkdownV2 met plain text fallback
-```
-
----
-
-## Key Decisions
-
-| Beslissing | Rationale |
-|------------|-----------|
-| Agent SDK over file IPC | Volledige agent capabilities (tools, sessions) |
-| grammy voor Telegram | Bewezen library, goede types |
-| Per-chat sessions | Context persistence tussen berichten |
-| User whitelist | Security - alleen geautoriseerde users |
-| systemPrompt injection | KITT personality via Agent SDK option |
-| Non-blocking memory ops | Fire-and-forget met error logging |
+- Chat IDs nu prefixed: `123456` → `telegram:123456`
+- Migratie script: `npx tsx scripts/migrate-chat-ids.ts --apply`
+- `sendTelegramMessage()` verwijderd, gebruik `getRouter().sendMessage()`
+- `startTelegramBot()` verwijderd, adapters starten via router

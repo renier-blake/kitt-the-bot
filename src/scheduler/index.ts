@@ -274,20 +274,28 @@ export class SchedulerService {
     if (wakeReminder && wakeReminder <= Date.now()) {
       console.log('[think-loop] ⏰ Wake reminder triggered!');
 
-      // Send wake-up message
-      const chatId = this.registry?.telegramChatId;
-      if (chatId) {
-        const { sendTelegramMessage } = await import('../bridge/telegram.js');
+      // Send wake-up message to all configured channels
+      const wakeTelegramId = this.registry?.telegramChatId;
+      const wakeWhatsappId = this.registry?.whatsappChatId;
+      if (wakeTelegramId || wakeWhatsappId) {
+        const { getRouter } = await import('../bridge/router.js');
         const wakeMessage = 'Goedemorgen! ☀️ Je wilde om deze tijd gewekt worden.';
-        await sendTelegramMessage(String(chatId), wakeMessage);
-        console.log('[think-loop] 📤 Wake-up message sent');
+
+        if (wakeTelegramId) {
+          await getRouter().sendMessage(`telegram:${wakeTelegramId}`, wakeMessage);
+          console.log('[think-loop] 📤 Wake-up message sent to Telegram');
+        }
+        if (wakeWhatsappId) {
+          await getRouter().sendMessage(`whatsapp:${wakeWhatsappId}`, wakeMessage);
+          console.log('[think-loop] 📤 Wake-up message sent to WhatsApp');
+        }
 
         // Log to transcripts
         const { getMemoryService } = await import('../memory/index.js');
         const memoryForWake = getMemoryService();
         await memoryForWake.storeMessage({
           sessionId: 'think-loop',
-          channel: 'telegram',
+          channel: wakeTelegramId ? 'telegram' : 'whatsapp',
           role: 'kitt',
           type: 'message',
           content: wakeMessage,
@@ -450,7 +458,8 @@ Als je klaar bent, geef een korte samenvatting van wat je hebt gedaan.`;
       memoryNote: thought.memoryNote?.slice(0, 50),
     });
 
-    const chatId = this.registry?.telegramChatId;
+    const telegramChatId = this.registry?.telegramChatId;
+    const whatsappChatId = this.registry?.whatsappChatId;
     let thoughtContent: string | null = null;
 
     // Handle different action types
@@ -493,16 +502,25 @@ Als je klaar bent, geef een korte samenvatting van wat je hebt gedaan.`;
       // F73: Check if we can send messages (not in DND mode)
       const canSend = await canSendMessages(db);
 
-      if (canSend && chatId) {
-        // Send to Telegram
-        const { sendTelegramMessage } = await import('../bridge/telegram.js');
-        await sendTelegramMessage(String(chatId), thought.message);
-        console.log(`[think-loop] ✅ Task #${thought.taskId} executed and sent`);
+      if (canSend && (telegramChatId || whatsappChatId)) {
+        const { getRouter } = await import('../bridge/router.js');
 
-        // F74b: Store the actual message as type='message' so Telegram handler can see it
+        // Send to Telegram
+        if (telegramChatId) {
+          await getRouter().sendMessage(`telegram:${telegramChatId}`, thought.message);
+          console.log(`[think-loop] ✅ Task #${thought.taskId} sent to Telegram`);
+        }
+
+        // Send to WhatsApp
+        if (whatsappChatId) {
+          await getRouter().sendMessage(`whatsapp:${whatsappChatId}`, thought.message);
+          console.log(`[think-loop] ✅ Task #${thought.taskId} sent to WhatsApp`);
+        }
+
+        // F74b: Store the actual message as type='message'
         await memory.storeMessage({
           sessionId: 'think-loop',
-          channel: 'telegram',
+          channel: telegramChatId ? 'telegram' : 'whatsapp',
           role: 'kitt',
           type: 'message',
           content: thought.message,
@@ -510,7 +528,7 @@ Als je klaar bent, geef een korte samenvatting van wat je hebt gedaan.`;
       } else if (!canSend) {
         console.log(`[think-loop] 🔕 Task #${thought.taskId} executed but message suppressed (DND mode)`);
       } else {
-        console.warn('[think-loop] ⚠️ No Telegram chat ID configured');
+        console.warn('[think-loop] ⚠️ No chat IDs configured');
       }
 
       // Log task execution as 'reminder' (always, even in DND)
@@ -531,16 +549,25 @@ Als je klaar bent, geef een korte samenvatting van wat je hebt gedaan.`;
       // F73: Check if we can send messages (not in DND mode)
       const canSend = await canSendMessages(db);
 
-      if (canSend && chatId) {
-        // Send to Telegram
-        const { sendTelegramMessage } = await import('../bridge/telegram.js');
-        await sendTelegramMessage(String(chatId), thought.message);
-        console.log('[think-loop] ✅ Message sent');
+      if (canSend && (telegramChatId || whatsappChatId)) {
+        const { getRouter } = await import('../bridge/router.js');
 
-        // F74b: Store the actual message as type='message' so Telegram handler can see it
+        // Send to Telegram
+        if (telegramChatId) {
+          await getRouter().sendMessage(`telegram:${telegramChatId}`, thought.message);
+          console.log('[think-loop] ✅ Message sent to Telegram');
+        }
+
+        // Send to WhatsApp
+        if (whatsappChatId) {
+          await getRouter().sendMessage(`whatsapp:${whatsappChatId}`, thought.message);
+          console.log('[think-loop] ✅ Message sent to WhatsApp');
+        }
+
+        // F74b: Store the actual message as type='message'
         await memory.storeMessage({
           sessionId: 'think-loop',
-          channel: 'telegram',
+          channel: telegramChatId ? 'telegram' : 'whatsapp',
           role: 'kitt',
           type: 'message',
           content: thought.message,
@@ -548,7 +575,7 @@ Als je klaar bent, geef een korte samenvatting van wat je hebt gedaan.`;
       } else if (!canSend) {
         console.log('[think-loop] 🔕 Message suppressed (DND mode):', thought.message.slice(0, 50));
       } else {
-        console.warn('[think-loop] ⚠️ No Telegram chat ID configured');
+        console.warn('[think-loop] ⚠️ No chat IDs configured');
       }
 
       // Format thought for storage (always, even in DND)

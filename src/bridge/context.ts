@@ -273,7 +273,19 @@ npm run mode -- wake                # Word wakker (clear alle modes)
 - "Maak me wakker om 7:00" → \`npm run mode -- sleep 7:00\`
 - "Wees even stil" / "Do not disturb" → \`npm run mode -- dnd 2h\`
 - Sleep = KITT doet helemaal niks
-- DND = KITT werkt door maar stuurt geen berichten`);
+- DND = KITT werkt door maar stuurt geen berichten
+
+## WhatsApp Read-Only Inbox
+WhatsApp berichten van onbekende nummers (niet op whitelist) worden opgeslagen maar niet beantwoord.
+
+**Query voor ongelezen berichten:**
+\`\`\`sql
+SELECT content, metadata, created_at FROM transcripts
+WHERE channel = 'whatsapp' AND metadata LIKE '%"readOnly":true%'
+ORDER BY created_at DESC LIMIT 10
+\`\`\`
+
+**Metadata bevat:** fromNumber, displayName, readOnly, messageId`);
 
   return sections.join('\n\n---\n\n');
 }

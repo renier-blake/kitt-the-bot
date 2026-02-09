@@ -3,17 +3,19 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { api } from '@/lib/api'
-import { 
-  Loader2, 
-  CheckCircle2, 
-  XCircle, 
-  AlertCircle, 
+import {
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
   RefreshCw,
   Plug,
   Unplug,
-  Shield
+  Shield,
+  MessageSquare
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { WhatsAppCard } from '@/components/WhatsAppCard'
 
 // Nango will be loaded dynamically
 let Nango: any = null
@@ -160,7 +162,18 @@ export function Integrations() {
         </div>
       )}
 
-      {/* Categories */}
+      {/* Channels Section */}
+      <div>
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <MessageSquare className="h-5 w-5" />
+          Channels
+        </h2>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <WhatsAppCard />
+        </div>
+      </div>
+
+      {/* OAuth Integrations */}
       <div className="space-y-8">
         {Object.entries(grouped).map(([category, items]) => (
           <div key={category}>

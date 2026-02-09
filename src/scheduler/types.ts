@@ -39,6 +39,8 @@ export interface ScheduleRegistry {
   thinkLoop: ThinkLoopConfig;
   /** Telegram chat ID for outgoing messages */
   telegramChatId?: number;
+  /** WhatsApp JID for outgoing messages (e.g., "31612345678@s.whatsapp.net") */
+  whatsappChatId?: string;
 }
 
 export interface ParsedCron {

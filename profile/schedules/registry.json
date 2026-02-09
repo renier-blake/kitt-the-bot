@@ -4,7 +4,8 @@
   "tasks": [],
   "thinkLoop": {
     "model": "opus",
-    "lastRun": "2026-02-09T10:09:38.046Z"
+    "lastRun": "2026-02-09T21:12:11.779Z"
   },
-  "telegramChatId": 1306998969
+  "telegramChatId": 1306998969,
+  "whatsappChatId": "31622344908@s.whatsapp.net"
 }

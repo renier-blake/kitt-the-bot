@@ -8,12 +8,15 @@
  */
 
 import 'dotenv/config';
-import { startTelegramBot, stopTelegramBot } from './telegram.js';
 import { loadSessions } from './sessions.js';
 import { loadState, saveState } from './state.js';
 import { log } from './logger.js';
 import { getScheduler } from '../scheduler/index.js';
 import { startLogServer, stopLogServer } from './log-server.js';
+import { getRouter } from './router.js';
+import { createTelegramAdapter } from './adapters/telegram.js';
+import { createWhatsAppAdapter } from './adapters/whatsapp.js';
+import { getMemoryService } from '../memory/index.js';
 
 const BANNER = `
 ╔═══════════════════════════════════════════════════════╗
@@ -51,18 +54,43 @@ async function main(): Promise<void> {
   await loadState();
   await loadSessions();
 
+  // Initialize memory service (enables embedding pipeline for all adapters)
+  log.info('Initializing memory service...');
+  const memory = getMemoryService();
+  const memStatus = await memory.initialize();
+  log.info('Memory initialized', {
+    fts: memStatus.ftsAvailable,
+    vector: memStatus.vectorAvailable,
+    version: memStatus.schemaVersion,
+  });
+
   // Initialize scheduler
   log.info('Starting scheduler...');
   const scheduler = getScheduler();
   await scheduler.initialize();
 
-  // Start Telegram bot
-  log.info('Starting Telegram bot...');
-  await startTelegramBot();
+  // Initialize router with adapters
+  log.info('Starting message router...');
+  const router = getRouter();
+
+  // Register Telegram adapter
+  const telegramAdapter = createTelegramAdapter();
+  router.registerAdapter(telegramAdapter);
+
+  // Register WhatsApp adapter if enabled
+  if (process.env.WHATSAPP_ENABLED === 'true') {
+    log.info('WhatsApp adapter enabled');
+    const whatsappAdapter = createWhatsAppAdapter();
+    router.registerAdapter(whatsappAdapter);
+  }
+
+  // Start all adapters
+  await router.start();
 
   log.info('KITT Bridge is running with Agent SDK', {
     workspace,
     mode: 'agent-sdk',
+    adapters: router.getAdapters().map(a => a.channel),
   });
 
   // Start Think Loop - autonomous reflection every 5 minutes
@@ -95,7 +123,7 @@ async function main(): Promise<void> {
 
     clearInterval(thinkLoopTimer);
     await scheduler.shutdown();
-    await stopTelegramBot();
+    await router.stop();
     await saveState();
     await stopLogServer();
 

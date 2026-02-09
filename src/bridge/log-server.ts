@@ -24,6 +24,9 @@ import {
   getConnections as getLocalConnections,
   setDefaultConnection,
 } from '../integrations/config.js';
+import { getRouter } from './router.js';
+import type { WhatsAppAdapter } from './adapters/whatsapp.js';
+import * as fs from 'fs';
 
 const DB_PATH = process.env.KITT_DB_PATH || './profile/memory/kitt.db';
 let db: Client | null = null;
@@ -1398,6 +1401,71 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to update config' });
+    }
+  });
+
+  // ============================================================
+  // Channel Endpoints (WhatsApp)
+  // ============================================================
+
+  // Get WhatsApp status (including QR code for Portal UI)
+  app.get('/api/channels/whatsapp/status', (_req, res) => {
+    try {
+      const router = getRouter();
+      const adapter = router.getAdapter('whatsapp') as WhatsAppAdapter | undefined;
+
+      if (!adapter) {
+        return res.json({
+          enabled: process.env.WHATSAPP_ENABLED === 'true',
+          connected: false,
+          status: 'disabled',
+        });
+      }
+
+      const status = adapter.getStatus();
+      const qrData = adapter.getQrCode();
+
+      // Determine status string
+      let statusString = 'disconnected';
+      if (status.connected) {
+        statusString = 'connected';
+      } else if (qrData) {
+        statusString = 'awaiting_scan';
+      }
+
+      res.json({
+        enabled: true,
+        connected: status.connected,
+        status: statusString,
+        user: status.details || null,
+        qrCode: qrData?.qr || null,
+        qrCodeGeneratedAt: qrData?.generatedAt || null,
+        lastError: status.lastError || null,
+      });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to get WhatsApp status' });
+    }
+  });
+
+  // Disconnect WhatsApp and clear auth
+  app.post('/api/channels/whatsapp/disconnect', async (req, res) => {
+    try {
+      const router = getRouter();
+      const adapter = router.getAdapter('whatsapp');
+
+      if (adapter) {
+        await adapter.stop();
+      }
+
+      // Clear auth state directory
+      const authDir = process.env.WHATSAPP_AUTH_DIR || './data/whatsapp-auth';
+      if (fs.existsSync(authDir)) {
+        fs.rmSync(authDir, { recursive: true, force: true });
+      }
+
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to disconnect WhatsApp' });
     }
   });
 
