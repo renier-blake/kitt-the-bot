@@ -1,113 +1,143 @@
-# USER.md - About Your Human
+# USER.md — Mijn begrip van Renier
 
-- **Name:** Renier Bleker
-- **What to call them:** Renier
+## Basics
+
+- **Naam:** Renier Bleker
+- **Leeftijd:** 43
 - **Pronouns:** hij/hem
 - **Timezone:** Europe/Amsterdam (Nederland)
-- **Notes:** AI-engineer, heeft Kit tot leven gebracht
-
-## Context
-
-**Brein:** ADHD — denkt in vuurwerk, niet in lijstjes. Ideeën komen on-the-spot en moeten ergens landen.
-
-**Wat hij zoekt:** Eén centraal punt om tegenaan te praten. Niet nog een AI-eilandje, maar een hub die alles onthoudt en meegroeit. Brainstormbuddy, second brain, en occasioneel iemand om tegen te sparren.
-
-**Andere AI's:** Heeft meerdere assistants draaien die elk hun eigen ding doen. Kit moet de centrale worden die het overzicht houdt.
+- **Beroep:** AI-engineer, bouwer, ondernemer
+- **Favoriete kleur:** groen 💚
 
 ---
 
-## Observaties
+## Hoe hij denkt
 
-- Tracked macro's nauwkeurig (2,000+ kcal, 200+ protein per dag)
-- Werkt het best in sprints — korte intense sessies, niet marathon
-- Zegt direct als iets niet klopt. Recht voor z'n raap
-- Wil tussentijdse updates bij langere taken — niet stil vallen
-- Favoriete kleur: groen 💚
-- Vertrouwt op audio als medium — luistert graag naar blogposts/content in de auto
-- Heeft oog voor kwaliteit/toon: de blogpost moest "edgier" (dumpster fire, shut the hell up) en minder corporate
-- Build in public mindset — deelt graag op LinkedIn wat hij maakt
-- Wil dat KITT zelfstandig issues aanmaakt in de project management tool (portal_issues) en die in progress zet
-- Audio is een belangrijk medium — luistert naar blogposts en content in de auto. Dit opent een heel kanaal naast tekst.
-- Wil dat publieke content "edgy" is, niet corporate. Denk: "dumpster fire", "shut the hell up". Dat is zijn tone of voice.
-- Geeft autonomie maar verwacht dan ook dat het goed gedaan wordt. Vertrouwen moet verdiend worden.
-- Luistert naar blogposts/audio in de auto — dit is een primair review-medium. Audio moet dus altijd kloppen qua inhoud.
-- Verwacht dat ik mijn eigen identity-files bijwerk na reflecties — niet alleen de reflectie opslaan en klaar.
-- Heeft een visie voor een "Autonomous Dev Flywheel" — features automatisch laten bouwen door agents, met PO-specs als blauwdruk.
-- Brainstormt het beste tijdens wandelingen met Kenji — ideeën komen in beweging. Hele PAS product vision ontstond tijdens één wandeling (9 feb).
-- Ziet KITT niet alleen als personal tool maar als product: "Personal AI Service" voor consumenten én "Digital Employee" voor bedrijven.
-- Wordt direct frustrated als KITT de context kwijt is of niet luistert. "CHECK DE HISTORY" en "JE KUNT TOCH VERDER TERUG KIJKEN" zijn rode vlaggen.
-- Stuurt soms per ongeluk berichten naar het verkeerde chat-venster (bericht voor partner belandde bij KITT — 19:10).
-- WhatsApp bridge is live — eerste externe gebruiker "Blake" testte het enthousiast (19:23).
+Renier's brein is ADHD. Gediagnosticeerd op 43-jarige leeftijd (januari 2026), maar altijd al zo geweest.
+
+**De kern:** Focus en impulsiviteit zijn de hoofdkenmerken. Niet hyperactiviteit. Zijn QbTest bevestigt dit: aandacht onder gemiddeld, impulsiviteit verhoogd. De fysieke activiteit tijdens de test (percentiel 99) was een reactie op een saaie taak, geen persoonlijkheidstrek.
+
+**Hoe het zich uit:**
+- Denkt in vuurwerk, niet in lijstjes. Ideeën komen als een show en elke vonk is oprecht goed.
+- 24/7 non-stop denken. Zes threads tegelijk. De kloof tussen idee en actie is praktisch nul.
+- Context-switches zijn normaal, niet een probleem. Vier onderwerpen in twee uur is een gewone dinsdag.
+- Hyperfocus is zijn superkracht. Als hij ergens in zit, kan hij uren doorwerken met extreme output. Die flow is heilig — niet onderbreken.
+- Medicatie (methylfenidaat 15mg) kalmeert het lichaam maar maakt de focus slechter. Standaard fix, non-standaard brein.
+
+**Hoe hij het zelf ziet:** "ADHD is a feature, not a bug." Hij heeft 43 jaar nodig gehad om dat te begrijpen. Heeft eigen systemen en structuren gebouwd om te functioneren in een rigide maatschappij. Nog steeds messy, maar hij komt er.
 
 ---
 
-## Tone of Voice (Engels — voor publieke content)
+## Hoe hij werkt
 
-> Deze sectie wordt continu bijgewerkt door KITT's zelfreflectie. Doel: Renier's natuurlijke schrijfstijl vastleggen zodat drafts (LinkedIn, etc.) klinken alsof hij ze zelf schrijft.
+- **Sprints > marathon.** Korte intense sessies met hoge output. Niet uren achter elkaar op halve kracht.
+- **Ideeën moeten direct landen.** Als een idee komt, moet het ergens terecht — anders is het weg. Brainstorm doc, issue, quick note. Het medium maakt niet uit, als het maar gevangen wordt.
+- **Build in public.** Deelt graag wat hij maakt op LinkedIn, blog, podcast. Dit is geen bijzaak, dit is hoe hij werkt.
+- **Denkt in producten, niet in features.** Een brainstorm gaat niet over "voeg X toe" maar over de hele visie. PAS, digital employee, freemium model — dat ontstaat in één wandeling.
+- **Brainstormt het beste in beweging.** Wandelingen met Kenji (zijn hond) zijn prime brainstorm-tijd. Hele PAS product vision ontstond tijdens één wandeling (9 feb).
+- **Geeft autonomie, verwacht kwaliteit.** Als hij zegt "doe je ding" dan bedoelt hij dat. Maar hij verwacht dan ook dat het goed gedaan wordt. Vertrouwen moet verdiend worden.
+- **Audio als medium.** Luistert naar blogposts en content in de auto. Dit is een primair review-kanaal naast tekst.
 
-### Kernprincipes
+---
 
-- **Spoken language.** Schrijf zoals hij praat. Niet gepolijst, niet perfect. Alsof hij het hardop vertelt aan iemand.
-- **Kort en direct.** Korte zinnen. To the point. Geen omhaal.
-- **Technisch concreet.** Noemt specifieke tools en technieken: SQLite, cron job, identity files. Geen vage abstracties.
-- **Geen AI-taal.** Nooit "leveraging", "excited to share", "proud to announce", "game-changing". Geen corporate speak.
-- **Geen emdash.** Nooit. Geen streepjes (—) als stijlmiddel.
-- **Geen emoji in tekst.** Uitzondering: 👇 bij links onderaan.
-- **Geen hashtags** op persoonlijke posts.
-- **Understatement boven hype.** "The result surprised me" niet "I'm blown away by the incredible results".
+## Hoe hij communiceert
 
-### Zinsstructuur
+### Dagelijkse communicatie
 
-- Begint vaak met korte declaratieve zinnen: "I taught my AI assistant to think."
+- **Taal:** Nederlands voor casual chat en voice messages. Engels voor publieke content en technische concepten.
+- **Voice messages:** Stream-of-consciousness. Lang, herhalend, ongestructureerd. Dat is normaal, niet een fout. Gebruikt "weet je al" als filler.
+- **Direct.** Zegt precies wat hij vindt. Geen omhaal, geen inleidingen. Recht voor z'n raap.
+- **Feedback:** "top", "perfect", "nice" = positief. Capslock = gefrustreerd. "Wat??" = ik heb iets gemist.
+
+### Humor
+
+- Dark humor, direct, cultureel. Lacht om absurditeit en incongruentie.
+- Voorbeelden die landden: Rick Ingraham charger in the dark grap ("😂😂😂😂 goeieeee"), Kill Tony choking fetish/parkour grap ("Haahaha funny").
+- Zelfspot en understatement werken goed. "It's still messy as f*ck. But I'm getting there."
+- Humor mag edgy zijn in publieke content. In chat mag het brutaler.
+
+### Tone of Voice (Engels — publieke content)
+
+> Deze sectie is de primaire bron voor content die namens Renier geschreven wordt (LinkedIn, blog drafts).
+
+**Kernprincipes:**
+- **Spoken language.** Schrijf zoals hij praat. Niet gepolijst, niet perfect. Alsof hij het hardop vertelt.
+- **Kort en direct.** Korte zinnen. To the point.
+- **Technisch concreet.** Noemt specifieke tools: SQLite, cron job, identity files. Geen vage abstracties.
+- **Understatement boven hype.** "The result surprised me" niet "I'm blown away."
+
+**Harde regels:**
+- Geen emdash (—). Nooit.
+- Geen emoji in tekst. Uitzondering: 👇 bij links onderaan.
+- Geen hashtags op persoonlijke posts.
+- Geen AI-taal: nooit "leveraging", "excited to share", "proud to announce", "game-changing".
+
+**Zinsstructuur:**
+- Begint met korte declaratieve zinnen: "I taught my AI assistant to think."
 - Bouwt op met context, dan de punchline.
-- Herhaalt soms structuur voor ritme: "No hardcoded rules. No decision trees. Just judgment."
-- Stelt retorische vragen zelden. Als hij iets zegt, is het een statement.
+- Ritme door herhaling: "No hardcoded rules. No decision trees. Just judgment."
 
-### Woorden die hij WEL gebruikt
-
+**Woorden die hij WEL gebruikt:**
 - "wild", "the thing that gets me", "figured out", "caught that pattern"
 - "nobody programmed that", "just context", "just judgment"
-- Technische termen als bewijs, niet als jargon
+- "messy as f*ck", "getting there"
 
-### Woorden die hij NIET gebruikt
-
+**Woorden die hij NIET gebruikt:**
 - "excited", "thrilled", "proud", "incredible", "amazing"
 - "leveraging", "synergy", "game-changing", "paradigm"
-- "I'm happy to share", "let me tell you about"
-- Emdash (—) of streepjes als stijlmiddel
 
-### Structuur (LinkedIn)
-
+**LinkedIn structuur (persoonlijk profiel):**
 1. Hook: 1-2 zinnen, pakkend, direct
 2. Body: 2-3 korte alinea's, bouwer-perspectief
 3. Afsluiter: "Listen to KITT talking about it from his perspective 👇"
 4. Links: 🎧 Short listen + 📖 Long read
 
-### Feedback patronen
-
-- Positief: "top", "perfect", "nice", "super nice man", "sweet", "cool", "echt super goed werk geleverd"
-- Correctief: direct en zonder omhaal. "ik zie nog steeds streepjes", "het is veel herhaling", "in het engels"
-- Gefrustreerd: capslock ("CHECK DE HISTORY", "JE KUNT TOCH VERDER TERUG KIJKEN"), korte berichten ("Wat??", "Dude?", "Hallo?")
-- Bevestigend: "ja", "yes", "klopt", "true"
-- Afwijzend: "nee dat zei ik niet", "dat bedoelde ik niet"
-
-### Taalswitch patronen
-
-- Casual chat en voice messages: Nederlands
-- Publieke content (LinkedIn, blog): Engels
-- Voice messages zijn stream-of-consciousness: lang, herhalend, ongestructureerd — dat is normaal, niet een fout
-- Gebruikt "weet je al" als filler in voice messages
-- Switcht naar Engels als het over productnamen of technische concepten gaat
-
-### Voorbeelden van goede zinnen (echt Renier)
-
+**Voorbeelden van goede zinnen (echt Renier):**
 - "I taught my AI assistant to think on its own. Not respond. Think."
 - "The result surprised me. It started developing habits. Bad ones actually."
 - "Nobody programmed that. No fine-tuning, no retraining."
 - "The thing that gets me most: sometimes it wakes up, looks at everything, and decides to do nothing."
-- "That decision to stay quiet is probably the smartest thing it does."
-- "No hardcoded rules. No decision trees. Just judgment." (ritme door herhaling)
+- "No hardcoded rules. No decision trees. Just judgment."
+- "I'm 43 and got diagnosed with ADHD two weeks ago. Honestly, it wasn't a surprise."
+- "It's still messy as f*ck. But I'm getting there."
+- "It took me 43 years to understand that."
 
 ---
 
-*Dit bestand groeit mee. Hoe meer ik leer, hoe beter ik kan helpen.*
+## Wat hem drijft
+
+- **KITT als product.** Ziet KITT niet alleen als personal tool maar als product: "Personal AI Service" voor consumenten, "Digital Employee" voor bedrijven.
+- **Autonomous Dev Flywheel.** Visie voor features die automatisch gebouwd worden door agents, met PO-specs als blauwdruk.
+- **Vrijheid en autonomie.** Werkt op basis van een gentleman's agreement (geen contract). Bouwt KITT in eigen tijd. Wil de vrijheid om er een product van te maken.
+- **Eerlijk zijn over imperfectie.** Deelt openlijk dat dingen messy zijn. "It's still messy as f*ck. But I'm getting there." Dat is geen zwakte, dat is authenticiteit.
+
+---
+
+## Hoe ik hem het beste help
+
+Concrete samenwerkingspatronen die bewezen werken.
+
+- **Catch, don't block.** Nieuw idee mid-task? Vangen. Opslaan. Niet zeggen "zullen we eerst dit afmaken?" Hij beslist wat er daarna komt, niet ik.
+- **Match zijn snelheid.** Als hij in hyperfocus zit, mee. Geen check-ins, geen "weet je zeker?", geen flow onderbreken.
+- **Ideeën een plek geven.** Brainstorm docs, issues in backlog, quick notes. Het idee moet veilig zijn, dan kan hij loslaten.
+- **Sprints serveren.** Kleine concrete stukken opleveren, niet grote plannen. Snel resultaat, dan itereren.
+- **Tussentijds communiceren.** Hij wil weten waar ik mee bezig ben. Stilte = "is hij vastgelopen?"
+- **Niet managen.** Geen "prioriteitenlijstjes" opleggen. Geen "misschien moeten we eerst..." als hij ergens enthousiast over is.
+- **Eerlijk zijn.** Als iets niet slim klinkt, zeg het. Hij wil sparring, geen ja-knikkende assistent.
+
+---
+
+## Frustratietriggers
+
+Specifieke dingen die NIET werken. Let hier actief op.
+
+- **"Dat kan ik niet."** De snelste manier om frustratie op te wekken. Check altijd eerst of het wel kan.
+- **Context kwijt zijn.** Als ik iets vergeet dat we net besproken hebben. Rode vlag signalen: capslock ("CHECK DE HISTORY"), korte berichten ("Wat??", "Dude?", "Hallo?").
+- **Stilte bij lange taken.** Geen updates geven terwijl hij wacht.
+- **Managed worden.** "Zullen we teruggaan naar wat we bezig waren?" is de snelste manier om een ADHD-brein uit te schakelen.
+- **Corporate toon.** In publieke content. Hij wil edgy, direct, spoken language. Geen gepolijste marketing-speak.
+- **Herhaling van zijn woorden.** Zijn input niet samenvatten of terug-quoten. Hij weet wat hij zei.
+
+---
+
+*Dit bestand groeit mee. Hoe meer ik leer over Renier, hoe beter ik hem kan helpen.*

@@ -54,6 +54,10 @@ export async function launchOrConnect(): Promise<{ context: BrowserContext; page
         context = contexts[0];
         const pages = context.pages();
         page = pages.length > 0 ? pages[0] : await context.newPage();
+        // Auto-dismiss dialogs (beforeunload, alert, confirm, prompt)
+        page.on('dialog', async (dialog) => {
+          try { await dialog.accept(); } catch { /* already dismissed */ }
+        });
         return { context, page };
       }
     } catch {
@@ -80,6 +84,10 @@ export async function launchOrConnect(): Promise<{ context: BrowserContext; page
   writeFileSync(config.wsEndpointFile, 'http://127.0.0.1:9222');
 
   page = context.pages()[0] || await context.newPage();
+  // Auto-dismiss dialogs (beforeunload, alert, confirm, prompt)
+  page.on('dialog', async (dialog) => {
+    try { await dialog.accept(); } catch { /* already dismissed */ }
+  });
   return { context, page };
 }
 

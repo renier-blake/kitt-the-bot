@@ -155,6 +155,28 @@ protein = (11 * 150) / 100 = 16.5g
 - **Altijd bevestigen** bij nieuwe foods uit web search
 - **Serving size rule:** Als portie niet expliciet is, vraag: "Hoeveel gram/ml was dat?"
 
+## Gedrag (Scheduled Tasks)
+
+Bij het checken of een maaltijd gelogd is (ontbijt/lunch/avondeten tasks):
+
+- **ALTIJD filteren op vandaag:** `WHERE logged_date = date('now', 'localtime')`
+- Geen entries voor vandaag = NIET gelogd → stuur reminder aan de user
+- Entries van gisteren of eerder tellen NIET als vandaag gelogd
+- Bij twijfel: query eerst, dan pas beslissen
+
+**Check query:**
+```bash
+sqlite3 -json profile/data/kitt.db "
+  SELECT COUNT(*) as count FROM food_log
+  WHERE logged_date = date('now', 'localtime')
+    AND meal_type = 'breakfast'"
+```
+Vervang `'breakfast'` met `'lunch'` of `'dinner'` afhankelijk van de task.
+
+**0 entries = niet gelogd → reminder sturen. Niet aannemen dat het gelogd is.**
+
+---
+
 ## Example Response
 
 **User:** "Log 150g skyr als ontbijt"

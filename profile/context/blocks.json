@@ -89,7 +89,7 @@
       "header": "Conversatie Status",
       "modes": ["think"],
       "priority": 32,
-      "enabled": true
+      "enabled": false
     },
     {
       "id": "open-tasks",
