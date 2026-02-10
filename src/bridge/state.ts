@@ -8,7 +8,7 @@ import { existsSync } from 'fs';
 import type { BridgeState, ChatState } from './types.js';
 import { log } from './logger.js';
 
-const STATE_FILE = './profile/state/bridge-state.json';
+const STATE_FILE = './profile/data/bridge-state.json';
 
 let state: BridgeState = {
   startedAt: new Date().toISOString(),

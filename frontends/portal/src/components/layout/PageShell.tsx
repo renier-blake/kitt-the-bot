@@ -16,7 +16,7 @@ export function PageShell({ children, className, fullHeight }: PageShellProps) {
       )}
     >
       <main className={cn(
-        'container mx-auto',
+        'container mx-auto h-full',
         fullHeight ? 'flex-1 overflow-hidden p-0' : 'p-8'
       )}>
         {children}

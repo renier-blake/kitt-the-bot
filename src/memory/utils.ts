@@ -101,12 +101,16 @@ export function bufferToEmbedding(buffer: Buffer): number[] {
 /**
  * Convert BM25 rank to normalized score (0-1)
  * FTS5 rank is typically negative, lower is better
+ *
+ * Old formula: 1/(1+|rank|) — too conservative, typical ranks -5 to -25
+ * gave scores 0.04-0.17 which barely contributed to the hybrid score.
+ * New formula: sigmoid-style that maps typical BM25 ranges to 0.3-0.9
  */
 export function bm25RankToScore(rank: number): number {
   // FTS5 returns negative values where more negative = better match
-  // Convert to 0-1 score where higher = better
-  const normalized = Number.isFinite(rank) ? Math.abs(rank) : 999;
-  return 1 / (1 + normalized);
+  const absRank = Number.isFinite(rank) ? Math.abs(rank) : 0;
+  // Sigmoid-style: maps rank 1->0.33, 5->0.71, 10->0.83, 25->0.93
+  return absRank / (absRank + 3);
 }
 
 /**

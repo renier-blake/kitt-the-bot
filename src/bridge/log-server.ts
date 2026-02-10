@@ -28,7 +28,7 @@ import { getRouter } from './router.js';
 import type { WhatsAppAdapter } from './adapters/whatsapp.js';
 import * as fs from 'fs';
 
-const DB_PATH = process.env.KITT_DB_PATH || './profile/memory/kitt.db';
+const DB_PATH = process.env.KITT_DB_PATH || './profile/data/kitt.db';
 let db: Client | null = null;
 
 function getDb(): Client {

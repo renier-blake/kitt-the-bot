@@ -1,0 +1,14 @@
+[
+  {"id": "Q1", "query": "Jana", "expected": "Johanna reflecties (7-8 feb)", "type": "naam-variant"},
+  {"id": "Q2", "query": "verdrietig over Johanna", "expected": "Avondreflectie 7 feb (relatie uit)", "type": "emotie+naam"},
+  {"id": "Q3", "query": "Nango OAuth", "expected": "PAS brainstorm gesprek (9 feb)", "type": "technisch"},
+  {"id": "Q4", "query": "wall balls", "expected": "Gym/workout gesprekken", "type": "specifiek-onderwerp"},
+  {"id": "Q5", "query": "hoe heb ik geslapen", "expected": "Garmin slaap gesprekken", "type": "vraag-formaat"},
+  {"id": "Q6", "query": "embedding fix", "expected": "Embedding pipeline gesprek (9 feb)", "type": "technisch"},
+  {"id": "Q7", "query": "Kenji", "expected": "Wandeling/hond referenties", "type": "naam-kort"},
+  {"id": "Q8", "query": "boodschappen", "expected": "Boodschappenlijst (9 feb)", "type": "onderwerp"},
+  {"id": "Q9", "query": "context builder", "expected": "KITT-106 / unified context gesprek", "type": "technisch"},
+  {"id": "Q10", "query": "slaapdata", "expected": "Garmin slaap gesprekken", "type": "nl-variant"},
+  {"id": "Q11", "query": "sleep data", "expected": "Garmin slaap gesprekken", "type": "en-variant"},
+  {"id": "Q12", "query": "gehakt mais crackers", "expected": "Dinner logging (9 feb)", "type": "specifiek"}
+]

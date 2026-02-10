@@ -15,15 +15,84 @@
 - "Meet KITT, the bot"
 - "Your personal AI, locally."
 
+**Website positionering (twee ingangen):**
+- **"KITT as your Personal Assistant"** → Consumer
+- **"KITT as your Digital Employee"** → Business
+
 ---
 
 ## Het idee
 
-Een service waarbij we custom personal AI systems bouwen voor mensen en bedrijven. Gebaseerd op de KITT-stack die we al hebben, maar dan als product.
+Een freemium personal AI systeem dat lokaal draait. Gratis te installeren, betalen voor integraties. Gebaseerd op de KITT-stack die we al hebben, maar dan als schaalbaar product.
 
-## Twee modellen
+## Distributie Model: Freemium Self-Install
 
-### 1. Out-of-the-box
+### Hoe het werkt
+
+1. Bezoeker gaat naar kitt-the.bot
+2. Maakt account aan (free tier)
+3. Krijgt installatie-instructie: VS Code + Claude Code + copy-paste install command
+4. Claude Code installeert de hele applicatie automatisch
+5. Source code is gepackaged — niet publiek zichtbaar
+6. Alles draait lokaal, portal op localhost
+7. Basis skills zijn gratis (nutrition, workout, reminders, think loop, memory)
+8. Integraties (Gmail, Calendar, Slack, CRM, etc.) → betaald abonnement
+9. Free trial van 7 dagen op integraties
+
+### Waarom dit model
+
+| Oud model (per-install service) | Nieuw model (freemium self-install) |
+|---------------------------------|-------------------------------------|
+| Bottleneck op Renier's tijd | Schaalbaar, geen menselijke handeling |
+| €750 setup fee | Gratis instap |
+| Klant moet wachten op installatie | Klant kan direct starten |
+| Max ~20 klanten | Onbeperkt |
+| Revenue: eenmalig | Revenue: recurring |
+
+### Pricing (integraties)
+
+| Tier | Integraties | Prijs | Doelgroep |
+|------|-------------|-------|-----------|
+| **Free** | 0 (alleen lokale skills) | €0 | Uitproberen |
+| **Starter** | 10 | ~€20/maand | Consumer |
+| **Pro** | 50 | ~€50/maand | Power user |
+| **Business** | Onbeperkt + multi-user | €200+/maand | Teams/bedrijven |
+
+**Kosten voor ons (Nango):** ~$1/connectie/maand → marge zit in de markup.
+
+### Source Code Bescherming
+
+Source code wordt gepackaged (compiled JS, geen TypeScript). Klant draait het, maar ziet de broncode niet. Geen publieke repo.
+
+---
+
+## Twee Positioneringen
+
+### Consumer: "KITT as your Personal Assistant"
+
+- Persoonlijke AI die lokaal draait
+- Onthoudt alles, denkt mee, neemt initiatief
+- Integraties: Gmail, Calendar, WhatsApp, fitness, nutrition
+- Prijs: €0-50/maand
+
+### Business: "KITT as your Digital Employee"
+
+- Digitale medewerker voor je organisatie
+- Krijgt eigen accounts: Slack, Gmail, Asana, CRM
+- Zit in alle channels, leest mee, onthoudt context, neemt taken op
+- Functioneert als office manager / project manager / assistent voor het hele team
+- Multi-user: heel team praat met dezelfde bot
+- Gedeelde context: de bot kent het bedrijf, niet één persoon
+- Hoe meer integraties, hoe waardevoller → sticky
+- Prijs: €200+/maand
+
+**Zelfde product, andere positionering en pricing.**
+
+---
+
+## Legacy Modellen (oorspronkelijk, mogelijk als premium track)
+
+### 1. Out-of-the-box (premium optie)
 - Pre-geconfigureerde Mac Mini (of MacBook) met de hele KITT-stack
 - Plug & play: aanzetten, Telegram koppelen, klaar
 - Skills via een interface/API zelf toevoegen
@@ -314,6 +383,215 @@ Plus in de klant's SOUL.md:
 ```
 
 Dubbele bescherming: Claude weigert het, en als hij het toch probeert failt het op file permissions.
+
+## Security
+
+### Huidige staat (assessment 9 feb 2026)
+
+| Area | Status | Risico |
+|------|--------|--------|
+| **API keys** | Plaintext in .env, in git history | 🔴 Critical |
+| **Portal API** | Geen authenticatie op endpoints | 🔴 Critical |
+| **Prompt injection** | Geen input sanitization | 🔴 High |
+| **Agent permissions** | `bypassPermissions: true`, volledige file/bash access | 🔴 High |
+| **npm deps** | 3 high severity vulns (axios via @nangohq/node) | 🟡 High |
+| **Network** | Server bindt aan 127.0.0.1 (alleen lokaal) | 🟢 Goed |
+| **Telegram** | Whitelist actief (1 user ID) | 🟢 Goed |
+| **WhatsApp** | Default read-only voor onbekende nummers | 🟢 Goed |
+| **State files** | Plain JSON, geen encryptie | 🟡 Medium |
+
+### Aanvalsoppervlak
+
+**Prompt Injection Vectors:**
+- Telegram/WhatsApp berichten → ongesanitized naar Claude
+- Email inbox (als Gmail gekoppeld) → kwaadaardige emails met instructies
+- Browser skill → scraping van websites met hidden prompts
+- Elke publieke integratie waar derden content kunnen sturen
+
+**Mitigatie:** Combinatie van input sanitization + mode-gebaseerde restricties (zie Secure Mode / Developer Mode).
+
+### Secure Mode vs Developer Mode
+
+Het systeem heeft twee modi, configureerbaar via de portal:
+
+| | Secure Mode (default) | Developer Mode |
+|---|---|---|
+| **Bash/Shell** | ❌ Geen toegang | ✅ Volledige toegang |
+| **File editing** | Alleen profile/ en skills/ | ✅ Alles in workspace |
+| **Skills gebruiken** | ✅ Bestaande skills | ✅ + eigen skills bouwen |
+| **Integraties** | ✅ Via portal koppelen | ✅ + custom integraties maken |
+| **Browser** | ❌ Uit | ✅ Aan (met waarschuwing) |
+| **Nieuwe tools** | ❌ Niet mogelijk | ✅ Via guided builder |
+| **Prompt injection risico** | Laag — geroutineerd systeem | Hoger — meer vrijheid |
+
+**Waarom twee modi:**
+- **90% van de gebruikers** blijft in Secure Mode. Skills werken, integraties werken, alles is veilig en voorspelbaar.
+- **Developers/power users** schakelen Developer Mode in om eigen tools te bouwen.
+- Bij het inschakelen van Developer Mode: duidelijke waarschuwing over de extra risico's.
+
+### Developer Mode activatie (human-only)
+
+**Kritiek punt:** Developer Mode mag NOOIT door Claude zelf geactiveerd kunnen worden. Geen prompt injection, geen system prompt override, geen "slim" verzoek — alleen een menselijke actie.
+
+**Het probleem:** Claude heeft in Secure Mode wél browser access (de browser skill is een standaard skill). Dat betekent dat Claude in theorie:
+1. De browser kan openen → naar localhost portal navigeren
+2. Kan inloggen als er een actieve sessie is
+3. De Developer Mode toggle kan vinden en aanzetten
+4. Als het wachtwoord gehashed in de DB staat → Claude kan SQLite queries draaien → hash uitlezen of overschrijven
+
+**Dus: een portal wachtwoord alleen is NIET genoeg.** Claude kan de hele chain doorlopen.
+
+**Oplossing: Out-of-band verificatie**
+
+De activatie moet via een kanaal dat Claude niet kan bereiken of manipuleren:
+
+| Methode | Hoe | Claude-proof? |
+|---------|-----|---------------|
+| **TOTP code (Authenticator app)** | User scant QR bij setup → voert 6-digit code in bij toggle | ✅ Claude kan geen TOTP genereren |
+| **Email verificatie** | Portal stuurt code naar user's email → user voert code in | ✅ Claude kan email niet lezen (eigen email, niet de connected Gmail) |
+| **Hardware key / biometric** | TouchID / YubiKey bevestiging | ✅ Fysieke actie vereist |
+| **SMS code** | Twilio stuurt code → user voert in | ✅ Maar extra dependency |
+
+**Voorstel v1: Email verificatie code**
+
+Simpelste oplossing die Claude-proof is: een tijdelijke code via email.
+
+**Activatie flow:**
+```
+Portal → Settings → Developer Mode
+  → Klik "Enable Developer Mode"
+  → ⚠️ Warning dialog met uitleg risico's
+  → Portal backend:
+      1. Check: is user's emailadres ook gekoppeld als Gmail integratie?
+      2. Ja? → Tijdelijk Gmail connectie disablen (Claude kan inbox niet lezen)
+      3. Genereer 6-digit code (60 seconden geldig)
+      4. Stuur code via KITT Labs mailserver naar user's registratie-email
+  → User opent eigen mailbox → leest code
+  → Voert code in portal in
+  → Code geldig? → Developer Mode aan + Gmail connectie weer enablen
+  → Agent herstart met uitgebreide allowedTools
+  → Developer Mode actief (zichtbaar in portal header)
+```
+
+**Deactivatie:** Kan ZONDER code (terug naar veilig is altijd ok). Eén klik.
+
+**Waarom dit Claude-proof is:**
+- De code gaat via KITT Labs mailserver, niet via de klant's eigen Gmail
+- Als het emailadres ook een gekoppelde Gmail integratie is → wordt die tijdelijk gedisabled zodat Claude de inbox niet kan lezen
+- Code is maar 60 seconden geldig
+- Max 3 pogingen per minuut (brute force geblokkeerd)
+- Claude kan de code niet onderscheppen: geen Gmail access + code zit in user's eigen mailbox
+- Na verificatie wordt de Gmail connectie automatisch weer enabled
+
+**Edge cases:**
+- Email NIET gekoppeld als integratie → geen disable nodig, gewoon code sturen
+- Email WEL gekoppeld → disable, stuur code, enable na verificatie (of na 60 sec timeout)
+- User heeft meerdere email accounts gekoppeld → check alle gekoppelde accounts tegen het verificatie-emailadres
+
+**Alternatief: TOTP (Authenticator app)**
+Voor users die extra security willen:
+- Bij onboarding: scan QR code met Google Authenticator / Authy
+- Bij Developer Mode toggle: voer 6-digit TOTP code in
+- Nog sterker dan email: vereist fysiek device
+- Optioneel aanbieden naast email verificatie
+
+**Technisch:**
+- Verificatie-emailadres opgeslagen bij registratie (bij ons, server-side)
+- Code + expiry opgeslagen in `meta` tabel (tijdelijk, verloopt na 60 sec)
+- Mode opgeslagen in `kitt_config` tabel
+- Agent leest mode bij startup → bepaalt allowedTools
+- Mode-switch via portal API → vereist session token + geldige verificatie code
+- Rate limiting op verificatie endpoint (max 3 attempts/min)
+- Gmail disable/enable via Nango connection toggle
+- Claude's agent process wordt herstart na mode-switch (nieuwe allowedTools set)
+
+**Secure Mode tools (allowedTools):**
+- Read (alleen profile/ en skills/)
+- Write (alleen profile/ en skills/)
+- Grep, Glob (workspace-breed maar read-only)
+- Skill-specifieke tools (integratie APIs via Nango)
+- GEEN Bash, GEEN WebFetch, GEEN Browser
+
+**Developer Mode tools (allowedTools):**
+- Alles van Secure Mode
+- Bash (volledige shell access)
+- WebFetch, WebSearch
+- Browser skill
+- File editing overal in workspace
+
+### Security Warnings per Integratie
+
+Bij het koppelen van bepaalde integraties toont de portal een waarschuwing:
+
+| Integratie | Waarschuwing |
+|------------|-------------|
+| **Gmail (publiek adres)** | ⚠️ "If you connect a public email address, incoming emails could contain prompt injection attempts. We filter for this, but the risk exists." |
+| **Slack (publieke channels)** | ⚠️ "Messages from external users in public channels could contain prompt injection. Consider using private channels only." |
+| **Browser** | ⚠️ "Web pages can contain hidden instructions. Only available in Developer Mode." |
+| **Webhooks/Zapier** | ⚠️ "Incoming webhook data is not verified. Only connect trusted sources." |
+
+**Principe:** De user informeren over risico's, niet alles blokkeren. Transparantie > paternalisme.
+
+### Custom Integrations Framework (Developer Mode)
+
+Als een developer een nieuwe tool wil bouwen die een API key nodig heeft:
+
+```
+Developer Mode aan
+  → User: "Ik wil een Trello integratie bouwen"
+  → Claude: "Hoe wil je de integratie noemen?"
+  → User: "Trello Sync"
+  → Claude maakt skill aan: skills/trello-sync/SKILL.md
+  → Custom integratie verschijnt in portal onder "Custom Integrations"
+  → User kan API key, Client ID, etc. invullen via portal
+  → Keys worden encrypted opgeslagen (zelfde vault als andere keys)
+  → Skill kan de keys ophalen via de standaard credentials API
+  → Tool is actief
+```
+
+**Portal UI:**
+```
+Integrations
+├── Official Integrations
+│   ├── Gmail          ✅ Connected
+│   ├── Google Calendar ✅ Connected
+│   ├── Slack          ❌ Not connected
+│   └── ... (Nango-based)
+│
+└── Custom Integrations (Developer Mode only)
+    ├── Trello Sync    ✅ API key configured
+    │   └── [Edit] [Delete]
+    ├── + Add Custom Integration
+    └── ⚠️ Custom integrations are not verified by KITT Labs
+```
+
+**Framework regels:**
+- Custom integraties leven in skills/ → worden NIET overschreven bij updates
+- API keys worden opgeslagen in dezelfde encrypted vault als official keys
+- Elke custom integratie volgt het standaard SKILL.md format
+- Claude begeleidt het proces (guided builder) zodat het resultaat past in het framework
+- Custom integraties krijgen een ⚠️ label in de portal (niet door ons geverifieerd)
+
+### Credential Storage
+
+| Optie | Cross-platform | Encryptie | Complexiteit |
+|-------|---------------|-----------|-------------|
+| **Encrypted DB kolom** (voorstel v1) | ✅ | AES-256 | Laag |
+| **macOS Keychain** | ❌ macOS only | OS-level | Midden |
+| **HashiCorp Vault** | ✅ | Industry standard | Hoog (overkill) |
+
+**v1 aanpak:** Encrypted kolom in SQLite (AES-256 met een master key). Master key wordt afgeleid van een user-gekozen wachtwoord of machine-specifieke identifier. Cross-platform, simpel, veilig genoeg.
+
+### Portal API Authenticatie
+
+De portal API (localhost:8000) krijgt authenticatie, ook al luistert het alleen lokaal:
+
+- **Session-based auth** met een lokaal wachtwoord
+- Wachtwoord wordt ingesteld bij eerste setup (onboarding wizard)
+- Alle API endpoints vereisen een geldig session token
+- WebSocket (logs) ook achter auth
+
+---
 
 ## Open vragen
 

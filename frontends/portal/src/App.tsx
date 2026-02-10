@@ -12,11 +12,13 @@ import { Identity } from '@/pages/user/Identity'
 import { Skills } from '@/pages/user/Skills'
 import { UserSettings } from '@/pages/user/Settings'
 
-// Standard layout with padding
+// Standard layout with padding and proper height
 function StandardLayout() {
   return (
-    <PageShell>
-      <Outlet />
+    <PageShell className="flex flex-col">
+      <div className="flex-1 flex flex-col min-h-0">
+        <Outlet />
+      </div>
     </PageShell>
   )
 }

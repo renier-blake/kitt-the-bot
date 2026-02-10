@@ -309,23 +309,39 @@ function mergeResults(
 
 /**
  * Build FTS5 query from raw search text
- * Converts to AND-ed quoted terms for exact matching
+ *
+ * Strategy: OR-based with prefix matching for broader recall.
+ * - Each token gets an exact match AND a prefix match (token*)
+ * - Single tokens use OR for broad matching: "Jana" OR Jana*
+ * - Multiple tokens use AND between groups for relevance:
+ *   ("wall" OR wall*) AND ("balls" OR balls*)
+ *
+ * This means "Jana" will match "Johanna" via prefix,
+ * and "embedding" will match "embeddings".
  */
 function buildFtsQuery(raw: string): string | null {
-  // Extract alphanumeric tokens
+  // Extract alphanumeric tokens (skip single-char tokens)
   const tokens =
     raw
       .match(/[A-Za-z0-9_]+/g)
       ?.map((t) => t.trim())
-      .filter((t) => t.length > 0) ?? [];
+      .filter((t) => t.length > 1) ?? [];
 
   if (tokens.length === 0) {
     return null;
   }
 
-  // Quote each token and AND them together
-  const quoted = tokens.map((t) => `"${t.replace(/"/g, '')}"`);
-  return quoted.join(' AND ');
+  // Each token: exact OR prefix match
+  const termGroups = tokens.map((t) => {
+    const clean = t.replace(/"/g, '');
+    return `("${clean}" OR ${clean}*)`;
+  });
+
+  // Single token: just the group. Multiple: AND them for relevance.
+  if (termGroups.length === 1) {
+    return termGroups[0];
+  }
+  return termGroups.join(' AND ');
 }
 
 /**

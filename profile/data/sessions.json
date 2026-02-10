@@ -1,0 +1,26 @@
+{
+  "sessions": {
+    "telegram:1306998969": {
+      "chatId": "telegram:1306998969",
+      "sessionId": "233e0c2f-9d9c-4fbc-b405-e5336a609533",
+      "displayName": "Rblake",
+      "lastActivity": "2026-02-10T06:57:04.300Z",
+      "messageCount": 107
+    },
+    "whatsapp:31612437997@s.whatsapp.net": {
+      "chatId": "whatsapp:31612437997@s.whatsapp.net",
+      "sessionId": "524de3e0-dcf1-46ad-9e03-ef667470570e",
+      "displayName": "Renier Bleeker",
+      "lastActivity": "2026-02-09T17:50:01.966Z",
+      "messageCount": 2
+    },
+    "whatsapp:70970073198729@lid": {
+      "chatId": "whatsapp:70970073198729@lid",
+      "sessionId": "0d92de5d-4746-4995-9dee-c969c35ac293",
+      "displayName": "Blake",
+      "lastActivity": "2026-02-09T20:06:42.343Z",
+      "messageCount": 33
+    }
+  },
+  "lastSaved": "2026-02-10T06:57:04.300Z"
+}

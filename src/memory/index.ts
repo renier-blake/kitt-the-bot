@@ -31,8 +31,8 @@ import { generateId, now, formatDate } from './utils.js';
 
 // Default configuration
 const DEFAULT_CONFIG: MemoryConfig = {
-  dbPath: './profile/memory/kitt.db',
-  memoryPath: './profile/memory/MEMORY.md',
+  dbPath: './profile/data/kitt.db',
+  memoryPath: './profile/identity/MEMORY.md',
   openaiApiKey: process.env.OPENAI_API_KEY ?? '',
   embeddingModel: 'text-embedding-3-large',
   embeddingDimensions: 3072,

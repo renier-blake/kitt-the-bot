@@ -1,6 +1,7 @@
 # Think Loop Architecture
 
 > De kern van KITT's autonomie - minimal hardcoding, maximal intelligence
+> **Laatst bijgewerkt:** 9 februari 2026
 
 ## Philosophy
 
@@ -36,13 +37,17 @@ De **Think Loop** is het mechanisme waardoor KITT autonoom gedrag vertoont. Elke
                        │ All clear
                        ▼
 ┌──────────────────────────────────────────────────────┐
-│              BUILD CONTEXT                            │
-│  • Identity, Soul, User, Working Memory (.md files)  │
-│  • Alle transcripts van vandaag                      │
-│  • Conversatie status (recente exchanges, gaps)      │
-│  • Open taken (Task Engine)                          │
+│         UNIFIED CONTEXT BUILDER                       │
+│  buildContext({ mode: 'think', db })                 │
+│  → Zie: _prd/architecture/context.md                 │
+│                                                       │
+│  Loads via profile/context/blocks.json:              │
+│  • Identity, Soul, Humor, User, Working Memory       │
 │  • Skills (every_time + scheduled) met fetch data    │
-│  • Huidige tijd, dag, week                           │
+│  • Alle transcripts van vandaag                      │
+│  • Conversatie status (gaps, unanswered)             │
+│  • Open taken (Task Engine)                          │
+│  • Instructies (core, capabilities, think-loop)      │
 └──────────────────────┬───────────────────────────────┘
                        │
                        ▼
@@ -50,19 +55,15 @@ De **Think Loop** is het mechanisme waardoor KITT autonoom gedrag vertoont. Elke
 │        PRE-PROCESS: SUB-AGENT TASKS (F63)            │
 │  Tasks met model != thinkLoop model (bijv. opus)     │
 │  worden apart afgehandeld door een sub-agent          │
-│  → Verwijderd uit context voor de main think prompt  │
+│  → Verwijderd uit taken lijst voor main prompt       │
 └──────────────────────┬───────────────────────────────┘
                        │
                        ▼
 ┌──────────────────────────────────────────────────────┐
-│              THINK PROMPT                             │
-│  Combineert alle context tot een enkele prompt:      │
-│  - Identiteit + waarden                              │
-│  - Conversatie status                                │
-│  - Transcripts van vandaag                           │
-│  - Open taken (met skill instructies)                │
-│  - Every-time + scheduled skills                     │
-│  - Response format instructies                       │
+│              AGENT RUN                                │
+│  runAgent(systemPrompt, { model, skipMemorySearch }) │
+│  → System prompt bevat alle context                  │
+│  → Geen aparte memory search (al in context)         │
 └──────────────────────┬───────────────────────────────┘
                        │
                        ▼

@@ -9,10 +9,11 @@
 
 | Wat | Waar |
 |-----|------|
-| **Issues & Projecten** | `profile/memory/kitt.db` (portal_issues, portal_projects) |
+| **Database** | `profile/data/kitt.db` |
+| **Issues & Projecten** | `portal_issues`, `portal_projects` tabellen |
 | **Issue Workflow** | `/issue PAS-01` of `/issue KITT-05` |
 | **Skills** | `.claude/skills/` |
-| **Think Loop** | `_prd/THINK-LOOP.md` |
+| **Context Config** | `profile/context/blocks.json` |
 | **Architecture** | `_prd/architecture/` |
 
 ---
@@ -47,7 +48,7 @@ pm2 logs kitt
 
 ## Project Management (Database)
 
-Issues en projecten worden beheerd in SQLite: `profile/memory/kitt.db`
+Issues en projecten worden beheerd in SQLite: `profile/data/kitt.db`
 
 ### Issue Starten
 
@@ -74,7 +75,7 @@ Dit:
 ### Issue Query
 
 ```bash
-sqlite3 -json profile/memory/kitt.db "
+sqlite3 -json profile/data/kitt.db "
   SELECT i.identifier, i.title, i.description, i.type, i.state, i.priority,
          p.identifier as project
   FROM portal_issues i
@@ -82,6 +83,39 @@ sqlite3 -json profile/memory/kitt.db "
   WHERE i.identifier = 'PAS-01'
 "
 ```
+
+---
+
+## Context System
+
+KITT's context wordt gebouwd via `profile/context/blocks.json`. Dit bepaalt welke bestanden en loaders worden geladen voor chat en think loop modes. Zie `_prd/architecture/context.md` voor details.
+
+### blocks.json
+
+```json
+{
+  "version": 1,
+  "blocks": [
+    { "id": "identity", "type": "file", "path": "profile/identity/IDENTITY.md", ... },
+    { "id": "skills", "type": "dynamic", "source": "skills-loader", ... }
+  ]
+}
+```
+
+### Block Types
+
+| Type | Beschrijving |
+|------|-------------|
+| `file` | Laad .md bestand |
+| `dynamic` | Run loader (skills, transcripts, tasks, etc.) |
+| `instruction` | Laad instructie bestand |
+
+### Instructions
+
+Hardcoded instructies staan nu in `profile/context/instructions/`:
+- `core.md` - Basis gedragsinstructies
+- `capabilities.md` - Memory search, sleep/DND mode
+- `think-loop.md` - Think loop taak + response format
 
 ---
 
@@ -112,7 +146,7 @@ Skills staan in `.claude/skills/`. Elke skill heeft een `SKILL.md`.
 
 ## Think Loop
 
-De Think Loop draait elke 5 minuten autonoom. Zie `_prd/THINK-LOOP.md`.
+De Think Loop draait elke 5 minuten autonoom. Zie `_prd/architecture/think-loop.md` voor details.
 
 **Logging:** Alle reasoning wordt gelogd in `[think-loop]` prefix.
 
@@ -128,9 +162,11 @@ De Think Loop draait elke 5 minuten autonoom. Zie `_prd/THINK-LOOP.md`.
 
 | File | Doel |
 |------|------|
-| `profile/memory/MEMORY.md` | Working memory, user facts |
+| `profile/identity/MEMORY.md` | Working memory, user facts |
 | `profile/identity/IDENTITY.md` | Wie KITT is |
-| `profile/identity/SOUL.md` | Ethiek, gedrag, think loop |
+| `profile/identity/SOUL.md` | Ethiek, gedrag |
+| `profile/identity/HUMOR.md` | Humor stijl |
+| `profile/context/blocks.json` | Context configuratie |
 
 ---
 
@@ -140,12 +176,17 @@ De Think Loop draait elke 5 minuten autonoom. Zie `_prd/THINK-LOOP.md`.
 KITT V1/
 ├── .claude/skills/           # Skills (garmin, nutrition, gmail, issue, etc.)
 ├── profile/                  # User data & KITT personality
-│   ├── identity/             # IDENTITY.md, SOUL.md
-│   └── memory/               # MEMORY.md, kitt.db (project management)
+│   ├── identity/             # IDENTITY.md, SOUL.md, HUMOR.md, MEMORY.md
+│   ├── user/                 # USER.md
+│   ├── context/              # blocks.json, instructions/
+│   └── data/                 # kitt.db, sessions, state, runtime
 ├── src/
 │   ├── bridge/               # Telegram → Agent SDK
+│   ├── context/              # Unified context builder
+│   ├── scheduler/            # Think Loop, Task Engine
+│   ├── memory/               # Memory service, hybrid search
 │   └── integrations/         # Nango OAuth, externe APIs
-├── frontends/kitt-portal/    # KITT Portal (issues, logs, integraties)
+├── frontends/portal/         # KITT Portal (issues, logs, integraties)
 └── _prd/                     # Architecture & briefings
 ```
 

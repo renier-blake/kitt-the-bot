@@ -105,7 +105,7 @@ interface Issue {
 }
 
 type IssueState = 'backlog' | 'todo' | 'in_progress' | 'done' | 'canceled'
-type IssuePriority = 'urgent' | 'high' | 'medium' | 'low'
+type IssuePriority = 'critical' | 'urgent' | 'high' | 'medium' | 'low'
 type ViewMode = 'board' | 'list'
 
 const STATE_COLUMNS: { id: IssueState; label: string }[] = [
@@ -117,6 +117,7 @@ const STATE_COLUMNS: { id: IssueState; label: string }[] = [
 ]
 
 const PRIORITY_CONFIG: Record<IssuePriority, { label: string; color: string; icon: React.ReactNode }> = {
+  critical: { label: 'Critical', color: '#7F1D1D', icon: <AlertCircle className="w-3 h-3" /> },
   urgent: { label: 'Urgent', color: '#DC2626', icon: <AlertCircle className="w-3 h-3" /> },
   high: { label: 'High', color: '#F97316', icon: <ArrowUpCircle className="w-3 h-3" /> },
   medium: { label: 'Medium', color: '#EAB308', icon: <MinusCircle className="w-3 h-3" /> },
@@ -240,7 +241,11 @@ function useIssues(filters: {
 
 // Components
 function PriorityBadge({ priority }: { priority: IssuePriority }) {
-  const config = PRIORITY_CONFIG[priority]
+  const config = PRIORITY_CONFIG[priority] || { 
+    label: priority, 
+    color: '#6B7280', 
+    icon: <MinusCircle className="w-3 h-3" /> 
+  }
   return (
     <span
       className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium rounded"
@@ -586,7 +591,7 @@ function IssueDetailPanel({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {(['urgent', 'high', 'medium', 'low'] as IssuePriority[]).map((p) => (
+                  {(['critical', 'urgent', 'high', 'medium', 'low'] as IssuePriority[]).map((p) => (
                     <SelectItem key={p} value={p}>
                       {PRIORITY_CONFIG[p].label}
                     </SelectItem>
@@ -776,7 +781,7 @@ function CreateIssueDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {(['urgent', 'high', 'medium', 'low'] as IssuePriority[]).map((p) => (
+                  {(['critical', 'urgent', 'high', 'medium', 'low'] as IssuePriority[]).map((p) => (
                     <SelectItem key={p} value={p}>
                       {PRIORITY_CONFIG[p].label}
                     </SelectItem>
@@ -1131,7 +1136,7 @@ export function Projects() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Priorities</SelectItem>
-            {(['urgent', 'high', 'medium', 'low'] as IssuePriority[]).map((p) => (
+            {(['critical', 'urgent', 'high', 'medium', 'low'] as IssuePriority[]).map((p) => (
               <SelectItem key={p} value={p}>
                 {PRIORITY_CONFIG[p].label}
               </SelectItem>

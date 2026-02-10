@@ -20,7 +20,7 @@ interface SessionsData {
   lastSaved: string;
 }
 
-const SESSIONS_FILE = './profile/state/sessions.json';
+const SESSIONS_FILE = './profile/data/sessions.json';
 const sessions: Map<string, ChatSession> = new Map();
 
 /**

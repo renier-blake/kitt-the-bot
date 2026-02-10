@@ -10,12 +10,9 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { ScheduleRegistry, ScheduledTask, TaskExecutionResult } from './types.js';
 import { getNextRun, describeCron } from './cron.js';
-import {
-  buildThinkLoopContext,
-  buildThinkPrompt,
-  parseThinkResponse,
-} from './think-loop.js';
-import { logTaskExecution } from './task-engine.js';
+import { parseThinkResponse } from './think-loop.js';
+import { buildContext } from '../context/index.js';
+import { getOpenTasks, logTaskExecution } from './task-engine.js';
 import {
   getSleepUntil,
   formatWakeTime,
@@ -27,7 +24,7 @@ import {
 } from './sleep-mode.js';
 import { isAgentProcessing } from './processing-lock.js';
 
-const REGISTRY_PATH = process.env.KITT_SCHEDULER_REGISTRY || './profile/schedules/registry.json';
+const REGISTRY_PATH = process.env.KITT_SCHEDULER_REGISTRY || './profile/data/runtime.json';
 const DEFAULT_TIMEZONE = 'Europe/Amsterdam';
 
 // Singleton instance
@@ -331,20 +328,38 @@ export class SchedulerService {
 
     console.log('[think-loop] 🧠 Running think loop');
 
-    // Build context from today's transcripts
-    const context = await buildThinkLoopContext(db);
+    // Get open tasks directly (no longer loading full context twice)
+    const { tasks } = await getOpenTasks(db);
 
-    // Log if no conversations today (but continue - scheduled skills may need to run)
-    if (context.messageCount === 0) {
-      console.log('[think-loop] 📭 No transcripts today, checking scheduled skills anyway');
+    // Get message count for today
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const messageCountResult = await db.execute({
+      sql: 'SELECT COUNT(*) as count FROM transcripts WHERE created_at >= ?',
+      args: [startOfDay.getTime()],
+    });
+    const messageCount = Number(messageCountResult.rows[0]?.count || 0);
+
+    if (messageCount === 0) {
+      console.log('[think-loop] 📭 No transcripts today, checking scheduled tasks anyway');
     }
+
+    // Calculate time values for logging/sub-agent prompts
+    const now = new Date();
+    const days = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag'];
+    const currentTime = now.toLocaleTimeString('nl-NL', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: 'Europe/Amsterdam',
+    });
+    const dayOfWeek = days[now.getDay()];
 
     // ========================================
     // F63: PRE-PROCESS TASKS WITH DIFFERENT MODEL
     // Tasks that require Opus/Sonnet are handled separately
     // ========================================
     const thinkLoopModel = this.registry?.thinkLoop?.model || 'haiku';
-    const tasksForSubAgent = context.tasks.filter(t => t.model && t.model !== thinkLoopModel);
+    const tasksForSubAgent = tasks.filter((t) => t.model && t.model !== thinkLoopModel);
 
     if (tasksForSubAgent.length > 0) {
       console.log(`[think-loop] 🚀 Found ${tasksForSubAgent.length} task(s) requiring different model`);
@@ -367,8 +382,8 @@ export class SchedulerService {
 ${skillContent ? `## Skill Instructies\n\n${skillContent}` : ''}
 
 ## Context
-- Tijd: ${context.currentTime}
-- Dag: ${context.dayOfWeek}
+- Tijd: ${currentTime}
+- Dag: ${dayOfWeek}
 
 Voer de taak uit volgens de skill instructies.
 Als je klaar bent, geef een korte samenvatting van wat je hebt gedaan.`;
@@ -397,29 +412,28 @@ Als je klaar bent, geef een korte samenvatting van wat je hebt gedaan.`;
           console.error(`[think-loop] ❌ Sub-agent failed for "${task.title}":`, err);
         }
       }
-
-      // Remove these tasks from context so Haiku doesn't see them
-      context.tasks = context.tasks.filter(t => !t.model || t.model === thinkLoopModel);
-      console.log(`[think-loop] 📋 Remaining tasks for ${thinkLoopModel}: ${context.tasks.length}`);
     }
 
-    // Build think prompt
-    const thinkPrompt = buildThinkPrompt(context);
+    // Filter out tasks already handled by sub-agents
+    const remainingTasks = tasks.filter((t) => !t.model || t.model === thinkLoopModel);
+    if (tasksForSubAgent.length > 0) {
+      console.log(`[think-loop] 📋 Remaining tasks for ${thinkLoopModel}: ${remainingTasks.length}`);
+    }
+
+    // Build think prompt using unified context builder
+    const thinkPrompt = await buildContext({ mode: 'think', db });
 
     // Get model from config (default to haiku for efficiency)
     const model = this.registry?.thinkLoop?.model || 'haiku';
 
     // Log task summary
-    if (context.tasks.length > 0) {
-      console.log(`[think-loop] 📋 Open tasks (${context.tasks.length}):`, context.tasks.map(t => `"${t.title}" [${t.priority}]`).join(', '));
+    if (remainingTasks.length > 0) {
+      console.log(`[think-loop] 📋 Open tasks (${remainingTasks.length}):`, remainingTasks.map((t) => `"${t.title}" [${t.priority}]`).join(', '));
     }
 
     console.log('[think-loop] 🤔 Asking agent to think...', {
-      messageCount: context.messageCount,
-      openTasks: context.tasks.length,
-      skills: context.skills.length,
-      skillsWithData: context.skills.filter(s => s.fetchResult).length,
-      lastUserMessage: context.lastUserMessage?.minutesAgo,
+      messageCount,
+      openTasks: remainingTasks.length,
       model,
     });
 
@@ -465,7 +479,7 @@ Als je klaar bent, geef een korte samenvatting van wat je hebt gedaan.`;
     // Handle different action types
     if (thought.action === 'task' && thought.taskId !== undefined && thought.message && thought.taskComplete) {
       // F37: COMPLETE_TASK — Phase 2: store reflection summary internally, do NOT send to Telegram
-      const task = context.tasks.find(t => t.id === thought.taskId);
+      const task = tasks.find((t) => t.id === thought.taskId);
       const taskTitle = task?.title || `Task #${thought.taskId}`;
 
       // Store reflection summary as type='reflection' transcript
@@ -495,8 +509,8 @@ Als je klaar bent, geef een korte samenvatting van wat je hebt gedaan.`;
     }
     else if (thought.action === 'task' && thought.taskId !== undefined && thought.message) {
       // Task execution - send message AND log the task
-      // Find the task title from context
-      const task = context.tasks.find(t => t.id === thought.taskId);
+      // Find the task title from tasks
+      const task = tasks.find((t) => t.id === thought.taskId);
       const taskTitle = task?.title || `Task #${thought.taskId}`;
 
       // F73: Check if we can send messages (not in DND mode)

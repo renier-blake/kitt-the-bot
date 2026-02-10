@@ -6,7 +6,7 @@
 import { createClient, type Client } from '@libsql/client';
 import * as path from 'path';
 
-const DB_PATH = path.resolve(process.cwd(), 'profile/memory/kitt.db');
+const DB_PATH = path.resolve(process.cwd(), 'profile/data/kitt.db');
 
 let dbClient: Client | null = null;
 

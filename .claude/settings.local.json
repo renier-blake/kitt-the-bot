@@ -55,7 +55,9 @@
       "Bash(npm run mode:*)",
       "Bash(git rm:*)",
       "Bash(claude:*)",
-      "Bash(npx ts-node:*)"
+      "Bash(npx ts-node:*)",
+      "Bash(pm2 show:*)",
+      "Bash(ln:*)"
     ]
   }
 }

@@ -1,7 +1,7 @@
 # KITT - System Overview
 
 > Architectuur overzicht van KITT (Knowledge Interface for Transparent Tasks)
-> **Laatst bijgewerkt:** 6 februari 2026
+> **Laatst bijgewerkt:** 9 februari 2026
 
 ---
 
@@ -20,9 +20,10 @@
 │  │                                                            │  │
 │  │  Workspace: KITT V1/                                      │  │
 │  │  ├── profile/           (user-specific data)             │  │
-│  │  │   ├── memory/        (MEMORY.md, kitt.db)             │  │
-│  │  │   ├── identity/      (SOUL.md, IDENTITY.md, etc.)     │  │
-│  │  │   └── state/         (sessions, bridge state)         │  │
+│  │  │   ├── identity/      (IDENTITY, SOUL, HUMOR, MEMORY)  │  │
+│  │  │   ├── user/          (USER.md)                        │  │
+│  │  │   ├── context/       (blocks.json, instructions/)     │  │
+│  │  │   └── data/          (kitt.db, sessions, state)       │  │
 │  │  ├── src/               (source code)                     │  │
 │  │  └── _prd/              (documentation)                   │  │
 │  └───────────────────────────────────────────────────────────┘  │
@@ -59,28 +60,49 @@ KITT V1/
 │   ├── bridge/                 # Message bridge
 │   │   ├── index.ts            # Entry point
 │   │   ├── agent.ts            # Agent SDK wrapper
-│   │   ├── telegram.ts         # Telegram bot
+│   │   ├── context.ts          # Context wrapper (thin, calls unified builder)
+│   │   ├── telegram.ts         # Telegram adapter
+│   │   ├── whatsapp.ts         # WhatsApp adapter (Baileys)
+│   │   ├── router.ts           # Multi-channel message router
 │   │   ├── sessions.ts         # Session management
 │   │   ├── state.ts            # Bridge state
-│   │   ├── logger.ts           # Logging
-│   │   └── types.ts            # Type definitions
-│   └── memory/                 # Memory service (F03)
+│   │   └── logger.ts           # Logging
+│   ├── context/                # Unified context builder (zie context.md)
+│   │   ├── index.ts            # Main export: buildContext()
+│   │   ├── builder.ts          # Core builder logic
+│   │   ├── types.ts            # TypeScript interfaces
+│   │   └── loaders/            # Dynamic loaders
+│   │       ├── skills-loader.ts
+│   │       ├── transcript-loader.ts
+│   │       ├── memory-search.ts
+│   │       ├── task-engine.ts
+│   │       └── conversation-state.ts
+│   ├── scheduler/              # Think loop & task engine
+│   │   ├── index.ts            # Scheduler service
+│   │   ├── think-loop.ts       # Response parser
+│   │   ├── task-engine.ts      # Task management
+│   │   └── sleep-mode.ts       # Sleep/DND mode
+│   └── memory/                 # Memory service
 │
 ├── profile/                    # 👤 User-specific data
-│   ├── identity/               # KITT's personality for this user
+│   ├── identity/               # KITT's personality
 │   │   ├── IDENTITY.md         # Core identity
 │   │   ├── SOUL.md             # Personality & values
-│   │   └── HUMOR.md            # Humor style
+│   │   ├── HUMOR.md            # Humor style
+│   │   └── MEMORY.md           # Working memory (always in context)
 │   ├── user/                   # User information
 │   │   └── USER.md             # User profile
-│   ├── memory/                 # Memory storage
-│   │   ├── MEMORY.md           # Working memory (always in context)
-│   │   └── kitt.db             # Long-term memory database
-│   ├── config/                 # User preferences
-│   │   └── HEARTBEAT.md        # Heartbeat config
-│   └── state/                  # Runtime state
+│   ├── context/                # Context builder config (zie context.md)
+│   │   ├── blocks.json         # Welke context blocks laden
+│   │   └── instructions/       # Editeerbare agent instructies
+│   │       ├── core.md         # Basis gedragsregels
+│   │       ├── capabilities.md # Interne tools
+│   │       └── think-loop.md   # Think loop response format
+│   └── data/                   # Runtime data & database
+│       ├── kitt.db             # SQLite database (memory, transcripts)
 │       ├── sessions.json       # Chat sessions
-│       └── bridge-state.json   # Bridge state
+│       ├── bridge-state.json   # Bridge state
+│       └── runtime.json        # Scheduler registry
 │
 ├── _prd/                       # 📋 Product documentation
 │   ├── features/               # Feature specs (F00, F01, etc.)
@@ -119,21 +141,29 @@ KITT V1/
 
 ### 2. Message Bridge
 - **Rol:** Connects external channels to Claude Agent SDK
-- **Tech:** Node.js + grammy (Telegram) + Agent SDK
+- **Tech:** Node.js + grammy (Telegram) + Baileys (WhatsApp) + Agent SDK
 - **Flow:** Message → Bridge → Agent SDK → Response → Bridge → Channel
-- **State:** `profile/state/` folder
+- **State:** `profile/data/` folder
+- **Docs:** `_prd/architecture/bridge.md`
 
-### 3. Profile Directory
+### 3. Unified Context System
+- **Rol:** Bouwt de system prompt voor zowel chat als think loop
+- **Config:** `profile/context/blocks.json` definieert welke blocks laden
+- **Loaders:** Skills, transcripts, memory search, tasks, conversation state
+- **Instructies:** Editeerbare `.md` files in `profile/context/instructions/`
+- **Docs:** `_prd/architecture/context.md`
+
+### 4. Profile Directory
 - **Rol:** All user-specific data, portable between installations
-- **Contents:** Identity, memory, config, state
+- **Contents:** Identity, user, context config, runtime data
 - **Principle:** Source code is same for all users, profile differs
 
-### 4. Sub-Agents
+### 5. Sub-Agents
 - **Rol:** Background tasks via Task tool
 - **Types:** Explore (research), Bash (commands), Plan (design)
-- **Memory:** Access same `profile/memory/` as main agent
+- **Memory:** Access same database as main agent
 
-### 5. KITT Portal
+### 6. KITT Portal
 - **Rol:** Web UI voor beheer en monitoring
 - **URL:** `http://localhost:3000` (dev) / `http://localhost:8000` (bridge)
 - **Features:** System health, database explorer, task engine, live logs
@@ -141,11 +171,12 @@ KITT V1/
 - **Status:** ✅ Geïmplementeerd (F64)
 - **Docs:** `_prd/architecture/portal.md`
 
-### 6. Memory Database
+### 7. Memory Database
 - **Rol:** Hybrid search over memory
-- **Location:** `profile/memory/kitt.db`
+- **Location:** `profile/data/kitt.db`
 - **Components:** sqlite-vec (vectors) + FTS5 (keyword search)
 - **Embeddings:** OpenAI text-embedding-3-large
+- **Docs:** `_prd/architecture/memory.md`
 
 ---
 
