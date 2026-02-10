@@ -1218,93 +1218,289 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
   // Integrations API (Nango)
   // ==========================================
 
-  // Available integrations configuration
-  // These map to the integration IDs configured in Nango dashboard
-  const AVAILABLE_INTEGRATIONS = [
-    { id: 'google-mail', name: 'Gmail', description: 'Read emails, send drafts', icon: '📧', category: 'Email' },
-    { id: 'google-calendar', name: 'Google Calendar', description: 'Manage your schedule', icon: '📅', category: 'Calendar' },
-    { id: 'slack', name: 'Slack', description: 'Send and receive messages', icon: '💬', category: 'Communication' },
-    { id: 'notion', name: 'Notion', description: 'Sync pages and databases', icon: '📝', category: 'Productivity' },
-    { id: 'hubspot', name: 'HubSpot', description: 'CRM sync and management', icon: '🎯', category: 'CRM' },
-    { id: 'google-drive', name: 'Google Drive', description: 'Access and manage files', icon: '📁', category: 'Storage' },
-    { id: 'github', name: 'GitHub', description: 'Repository and issue tracking', icon: '⚙️', category: 'Development' },
-    { id: 'linear', name: 'Linear', description: 'Issue tracking and projects', icon: '🎯', category: 'Development' },
-  ];
-
-  // List all integrations with connection status
+  // List all integrations from DB with auth/connection status
   app.get('/api/integrations', async (_req, res) => {
     try {
-      // Get active connections from Nango
-      const connections = await listConnections();
-      const connectedIds = new Set(connections.map(c => c.integrationId));
+      const db = getDb();
 
-      // Build response with status
-      const integrations = AVAILABLE_INTEGRATIONS.map(integration => {
-        const connection = connections.find(c => c.integrationId === integration.id);
+      // Get all integrations from registry
+      const result = await db.execute(
+        'SELECT id, name, description, icon, category, auth_type, provider, auth_config, enabled, sort_order FROM integrations WHERE enabled = 1 ORDER BY category, sort_order'
+      );
+
+      // Get Nango connections (for oauth integrations)
+      let nangoConnections: Array<{ id: string; integrationId: string; createdAt: string }> = [];
+      try {
+        nangoConnections = await listConnections();
+      } catch {
+        // Nango might not be configured yet
+      }
+
+      // Get vault credentials (for api_key/token/credentials integrations)
+      const { listCredentials } = await import('../credentials/index.js');
+      const vaultEntries = await listCredentials();
+      const vaultKeys = new Set(vaultEntries.map(e => e.key));
+
+      const integrations = result.rows.map(row => {
+        const authConfig = row.auth_config ? JSON.parse(row.auth_config as string) : {};
+        const authType = row.auth_type as string;
+        const provider = row.provider as string;
+        const id = row.id as string;
+
+        // Determine connected status based on auth_type
+        let connected = false;
+        let connection: { id: string; createdAt: string } | null = null;
+
+        if (authType === 'oauth' && provider === 'nango') {
+          const nangoId = authConfig.nango_id || id;
+          const nangoConn = nangoConnections.find(c => c.integrationId === nangoId);
+          connected = !!nangoConn;
+          connection = nangoConn ? { id: nangoConn.id, createdAt: nangoConn.createdAt } : null;
+        } else if (authType === 'api_key' || authType === 'token') {
+          const credKey = authConfig.credential_key;
+          connected = credKey ? (vaultKeys.has(credKey) || !!process.env[credKey]) : false;
+        } else if (authType === 'oauth' && provider === 'custom') {
+          // Custom OAuth (Podbean, Google OAuth app): check if all credential_keys are set
+          const keys: string[] = authConfig.credential_keys || [];
+          connected = keys.length > 0 && keys.every(k => vaultKeys.has(k) || !!process.env[k]);
+        } else if (authType === 'credentials') {
+          // Username/password: check vault for integration-specific key
+          const credKey = `${id.toUpperCase().replace(/-/g, '_')}_CREDENTIALS`;
+          connected = vaultKeys.has(credKey);
+        }
+
         return {
-          ...integration,
-          connected: connectedIds.has(integration.id),
-          connection: connection ? {
-            id: connection.id,
-            createdAt: connection.createdAt,
-          } : null,
+          id,
+          name: row.name as string,
+          description: row.description as string,
+          icon: row.icon as string,
+          category: row.category as string,
+          auth_type: authType,
+          provider,
+          auth_config: authConfig,
+          connected,
+          connection,
         };
       });
 
       res.json({ integrations });
     } catch (err) {
       console.error('[integrations] Failed to list:', err);
-      // Return integrations without status if Nango fails
-      res.json({ 
-        integrations: AVAILABLE_INTEGRATIONS.map(i => ({ ...i, connected: false, connection: null })),
-        error: 'Failed to fetch connection status'
-      });
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to list integrations' });
     }
   });
 
-  // Create connect session for an integration
+  // Create Nango connect session for OAuth integrations
   app.post('/api/integrations/:id/connect', async (req, res) => {
     try {
       const integrationId = req.params.id;
-      
-      // Validate integration exists
-      const integration = AVAILABLE_INTEGRATIONS.find(i => i.id === integrationId);
-      if (!integration) {
+      const db = getDb();
+
+      // Look up integration in DB
+      const result = await db.execute({
+        sql: 'SELECT auth_type, provider, auth_config FROM integrations WHERE id = ?',
+        args: [integrationId],
+      });
+      if (result.rows.length === 0) {
         res.status(404).json({ error: 'Integration not found' });
         return;
       }
 
-      // Create Nango connect session
-      const session = await createConnectSession(integrationId);
+      const row = result.rows[0];
+      if (row.auth_type !== 'oauth' || row.provider !== 'nango') {
+        res.status(400).json({ error: 'This integration does not use Nango OAuth' });
+        return;
+      }
 
-      res.json({ 
-        token: session.token,
-        expiresAt: session.expiresAt,
-      });
+      const authConfig = row.auth_config ? JSON.parse(row.auth_config as string) : {};
+      const nangoId = authConfig.nango_id || integrationId;
+
+      const session = await createConnectSession(nangoId);
+      res.json({ token: session.token, expiresAt: session.expiresAt });
     } catch (err) {
       console.error('[integrations] Failed to create session:', err);
       res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to create connect session' });
     }
   });
 
-  // Disconnect an integration
+  // Set auth for non-OAuth integrations (API key, token, credentials)
+  app.post('/api/integrations/:id/auth', async (req, res) => {
+    try {
+      const integrationId = req.params.id;
+      const db = getDb();
+
+      const result = await db.execute({
+        sql: 'SELECT auth_type, auth_config FROM integrations WHERE id = ?',
+        args: [integrationId],
+      });
+      if (result.rows.length === 0) {
+        res.status(404).json({ error: 'Integration not found' });
+        return;
+      }
+
+      const row = result.rows[0];
+      const authType = row.auth_type as string;
+      const authConfig = row.auth_config ? JSON.parse(row.auth_config as string) : {};
+      const { setCredential } = await import('../credentials/index.js');
+
+      if (authType === 'api_key' || authType === 'token') {
+        const { value } = req.body;
+        if (!value) {
+          res.status(400).json({ error: 'value is required' });
+          return;
+        }
+        const credKey = authConfig.credential_key;
+        if (!credKey) {
+          res.status(500).json({ error: 'No credential_key configured for this integration' });
+          return;
+        }
+        await setCredential(credKey, value, authType, `${integrationId} auth`);
+        res.json({ success: true });
+
+      } else if (authType === 'oauth' && authConfig.credential_keys) {
+        // Custom OAuth with multiple keys (Podbean, Google OAuth)
+        const { values } = req.body;
+        if (!values || typeof values !== 'object') {
+          res.status(400).json({ error: 'values object is required with keys: ' + (authConfig.credential_keys || []).join(', ') });
+          return;
+        }
+        for (const key of authConfig.credential_keys) {
+          if (values[key]) {
+            await setCredential(key, values[key], 'oauth', `${integrationId} auth`);
+          }
+        }
+        res.json({ success: true });
+
+      } else if (authType === 'credentials') {
+        const { username, password } = req.body;
+        if (!username || !password) {
+          res.status(400).json({ error: 'username and password are required' });
+          return;
+        }
+        const credKey = `${integrationId.toUpperCase().replace(/-/g, '_')}_CREDENTIALS`;
+        await setCredential(credKey, JSON.stringify({ username, password }), 'credentials', `${integrationId} login`);
+        res.json({ success: true });
+
+      } else {
+        res.status(400).json({ error: `Auth type '${authType}' does not support manual auth. Use /connect for OAuth.` });
+      }
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to set auth' });
+    }
+  });
+
+  // Remove auth for an integration
+  app.delete('/api/integrations/:id/auth', async (req, res) => {
+    try {
+      const integrationId = req.params.id;
+      const db = getDb();
+
+      const result = await db.execute({
+        sql: 'SELECT auth_type, provider, auth_config FROM integrations WHERE id = ?',
+        args: [integrationId],
+      });
+      if (result.rows.length === 0) {
+        res.status(404).json({ error: 'Integration not found' });
+        return;
+      }
+
+      const row = result.rows[0];
+      const authType = row.auth_type as string;
+      const provider = row.provider as string;
+      const authConfig = row.auth_config ? JSON.parse(row.auth_config as string) : {};
+
+      if (authType === 'oauth' && provider === 'nango') {
+        const nangoId = authConfig.nango_id || integrationId;
+        await deleteConnection(nangoId);
+      } else if (authType === 'api_key' || authType === 'token') {
+        const { deleteCredential } = await import('../credentials/index.js');
+        const credKey = authConfig.credential_key;
+        if (credKey) await deleteCredential(credKey);
+      } else if (authType === 'oauth' && authConfig.credential_keys) {
+        const { deleteCredential } = await import('../credentials/index.js');
+        for (const key of authConfig.credential_keys) {
+          await deleteCredential(key);
+        }
+      } else if (authType === 'credentials') {
+        const { deleteCredential } = await import('../credentials/index.js');
+        const credKey = `${integrationId.toUpperCase().replace(/-/g, '_')}_CREDENTIALS`;
+        await deleteCredential(credKey);
+      }
+
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to remove auth' });
+    }
+  });
+
+  // Test auth for an integration
+  app.post('/api/integrations/:id/test', async (req, res) => {
+    try {
+      const integrationId = req.params.id;
+      const db = getDb();
+
+      const result = await db.execute({
+        sql: 'SELECT auth_type, provider, auth_config FROM integrations WHERE id = ?',
+        args: [integrationId],
+      });
+      if (result.rows.length === 0) {
+        res.status(404).json({ error: 'Integration not found' });
+        return;
+      }
+
+      const row = result.rows[0];
+      const authType = row.auth_type as string;
+      const provider = row.provider as string;
+      const authConfig = row.auth_config ? JSON.parse(row.auth_config as string) : {};
+      const { getCredential } = await import('../credentials/index.js');
+
+      if (authType === 'oauth' && provider === 'nango') {
+        const nangoId = authConfig.nango_id || integrationId;
+        const connection = await getConnection(nangoId);
+        res.json({ success: !!connection, provider: connection?.provider });
+      } else if (authType === 'api_key' || authType === 'token') {
+        const credKey = authConfig.credential_key;
+        const value = credKey ? await getCredential(credKey) : null;
+        if (!value) {
+          res.json({ success: false, error: 'Not configured' });
+        } else {
+          res.json({
+            success: true,
+            preview: value.substring(0, 4) + '...' + value.substring(value.length - 4),
+          });
+        }
+      } else if (authType === 'oauth' && authConfig.credential_keys) {
+        const keys: string[] = authConfig.credential_keys;
+        const results: Record<string, boolean> = {};
+        for (const key of keys) {
+          results[key] = !!(await getCredential(key));
+        }
+        const allSet = Object.values(results).every(Boolean);
+        res.json({ success: allSet, keys: results });
+      } else if (authType === 'credentials') {
+        const credKey = `${integrationId.toUpperCase().replace(/-/g, '_')}_CREDENTIALS`;
+        const value = await getCredential(credKey);
+        res.json({ success: !!value });
+      } else {
+        res.json({ success: false, error: 'Unknown auth type' });
+      }
+    } catch (err) {
+      res.json({ success: false, error: err instanceof Error ? err.message : 'Test failed' });
+    }
+  });
+
+  // Disconnect Nango OAuth integration (legacy compat alias)
   app.delete('/api/integrations/:id/disconnect', async (req, res) => {
     try {
       const integrationId = req.params.id;
-      
-      // Check if connected
       const connection = await getConnection(integrationId);
       if (!connection) {
         res.status(404).json({ error: 'Not connected' });
         return;
       }
-
-      // Delete connection
       await deleteConnection(integrationId);
-
       res.json({ success: true });
     } catch (err) {
-      console.error('[integrations] Failed to disconnect:', err);
       res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to disconnect' });
     }
   });
@@ -1314,18 +1510,24 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
     try {
       const integrationId = req.params.id;
       const connection = await getConnection(integrationId);
-
       if (!connection) {
         res.json({ connected: false });
         return;
       }
-
-      res.json({
-        connected: true,
-        provider: connection.provider,
-      });
+      res.json({ connected: true, provider: connection.provider });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to get status' });
+    }
+  });
+
+  // Migrate .env secrets to vault under their integration credential keys
+  app.post('/api/integrations/migrate', async (_req, res) => {
+    try {
+      const { migrateFromEnv } = await import('../credentials/index.js');
+      const result = await migrateFromEnv();
+      res.json({ success: true, ...result });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Migration failed' });
     }
   });
 
@@ -1404,125 +1606,7 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
     }
   });
 
-  // ============================================================
-  // Credential Vault Endpoints
-  // ============================================================
-
-  // List all credentials (metadata only, no values)
-  app.get('/api/credentials', async (_req, res) => {
-    try {
-      const { listCredentials, KNOWN_CREDENTIALS } = await import('../credentials/index.js');
-      const stored = await listCredentials();
-
-      // Merge with known credentials to show which ones are missing
-      const allKeys: Array<{
-        key: string;
-        category: string;
-        description: string | null;
-        inVault: boolean;
-        inEnv: boolean;
-        updatedAt: number | null;
-      }> = Object.entries(KNOWN_CREDENTIALS).map(([key, meta]) => {
-        const stored_entry = stored.find(s => s.key === key);
-        return {
-          key,
-          category: meta.category,
-          description: meta.description,
-          inVault: !!stored_entry,
-          inEnv: !!process.env[key],
-          updatedAt: stored_entry?.updatedAt || null,
-        };
-      });
-
-      // Also include any custom credentials not in KNOWN_CREDENTIALS
-      for (const entry of stored) {
-        if (!allKeys.find(k => k.key === entry.key)) {
-          allKeys.push({
-            key: entry.key,
-            category: entry.category,
-            description: entry.description,
-            inVault: true,
-            inEnv: !!process.env[entry.key],
-            updatedAt: entry.updatedAt,
-          });
-        }
-      }
-
-      res.json({ credentials: allKeys });
-    } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to list credentials' });
-    }
-  });
-
-  // Set/update a credential
-  app.post('/api/credentials', async (req, res) => {
-    try {
-      const { setCredential } = await import('../credentials/index.js');
-      const { key, value, category, description } = req.body;
-
-      if (!key || !value) {
-        res.status(400).json({ error: 'key and value are required' });
-        return;
-      }
-
-      await setCredential(key, value, category, description);
-      res.json({ success: true, key });
-    } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to set credential' });
-    }
-  });
-
-  // Delete a credential
-  app.delete('/api/credentials/:key', async (req, res) => {
-    try {
-      const { deleteCredential } = await import('../credentials/index.js');
-      const deleted = await deleteCredential(req.params.key);
-
-      if (!deleted) {
-        res.status(404).json({ error: 'Credential not found' });
-        return;
-      }
-
-      res.json({ success: true });
-    } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to delete credential' });
-    }
-  });
-
-  // Migrate from .env to vault
-  app.post('/api/credentials/migrate', async (_req, res) => {
-    try {
-      const { migrateFromEnv } = await import('../credentials/index.js');
-      const result = await migrateFromEnv();
-      res.json({ success: true, ...result });
-    } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : 'Migration failed' });
-    }
-  });
-
-  // Test a credential (basic validation)
-  app.post('/api/credentials/:key/test', async (req, res) => {
-    try {
-      const { getCredential } = await import('../credentials/index.js');
-      const value = await getCredential(req.params.key);
-
-      if (!value) {
-        res.json({ success: false, error: 'Credential not found' });
-        return;
-      }
-
-      // Basic validation: key exists and has a value
-      // For real validation, we'd need service-specific checks
-      res.json({
-        success: true,
-        key: req.params.key,
-        length: value.length,
-        preview: value.substring(0, 4) + '...' + value.substring(value.length - 4),
-      });
-    } catch (err) {
-      res.json({ success: false, error: err instanceof Error ? err.message : 'Test failed' });
-    }
-  });
+  // (Credential endpoints removed — auth is now managed via /api/integrations/:id/auth)
 
   // ============================================================
   // Channel Endpoints (WhatsApp)

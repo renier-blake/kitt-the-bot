@@ -11,7 +11,7 @@ import { Integrations } from '@/pages/user/Integrations'
 import { Identity } from '@/pages/user/Identity'
 import { Skills } from '@/pages/user/Skills'
 import { UserSettings } from '@/pages/user/Settings'
-import { Credentials } from '@/pages/user/Credentials'
+
 
 // Standard layout with padding and proper height
 function StandardLayout() {
@@ -61,7 +61,6 @@ function App() {
           <Route path="/user/identity" element={<Identity />} />
           <Route path="/user/skills" element={<Skills />} />
           <Route path="/user/settings" element={<UserSettings />} />
-          <Route path="/user/credentials" element={<Credentials />} />
         </Route>
         
         {/* Fallback */}

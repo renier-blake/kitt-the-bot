@@ -28,7 +28,7 @@ export interface MigrationResult {
 }
 
 /** Known credential categories */
-export type CredentialCategory = 'api_key' | 'oauth' | 'token' | 'other';
+export type CredentialCategory = 'api_key' | 'oauth' | 'token' | 'credentials' | 'other';
 
 /** Registry of known credentials with metadata */
 export const KNOWN_CREDENTIALS: Record<string, { category: CredentialCategory; description: string }> = {

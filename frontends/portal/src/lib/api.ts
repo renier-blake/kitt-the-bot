@@ -100,14 +100,18 @@ export interface TablesList {
   tables: DBTable[]
 }
 
-// Credentials
-export interface CredentialInfo {
-  key: string
+// Integration types
+export interface Integration {
+  id: string
+  name: string
+  description: string
+  icon: string
   category: string
-  description: string | null
-  inVault: boolean
-  inEnv: boolean
-  updatedAt: number | null
+  auth_type: 'oauth' | 'api_key' | 'token' | 'credentials'
+  provider: 'nango' | 'custom'
+  auth_config: Record<string, unknown>
+  connected: boolean
+  connection: { id: string; createdAt: string } | null
 }
 
 export interface MigrationResult {
@@ -115,54 +119,6 @@ export interface MigrationResult {
   migrated: string[]
   skipped: string[]
   failed: Array<{ key: string; error: string }>
-}
-
-export interface CredentialTestResult {
-  success: boolean
-  key?: string
-  length?: number
-  preview?: string
-  error?: string
-}
-
-const credentialsApi = {
-  async list(): Promise<{ credentials: CredentialInfo[] }> {
-    const res = await fetch(`${API_BASE}/credentials`)
-    if (!res.ok) throw new Error('Failed to fetch credentials')
-    return res.json()
-  },
-
-  async set(key: string, value: string, category?: string, description?: string): Promise<void> {
-    const res = await fetch(`${API_BASE}/credentials`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key, value, category, description }),
-    })
-    if (!res.ok) throw new Error('Failed to set credential')
-  },
-
-  async delete(key: string): Promise<void> {
-    const res = await fetch(`${API_BASE}/credentials/${encodeURIComponent(key)}`, {
-      method: 'DELETE',
-    })
-    if (!res.ok) throw new Error('Failed to delete credential')
-  },
-
-  async test(key: string): Promise<CredentialTestResult> {
-    const res = await fetch(`${API_BASE}/credentials/${encodeURIComponent(key)}/test`, {
-      method: 'POST',
-    })
-    if (!res.ok) throw new Error('Failed to test credential')
-    return res.json()
-  },
-
-  async migrate(): Promise<MigrationResult> {
-    const res = await fetch(`${API_BASE}/credentials/migrate`, {
-      method: 'POST',
-    })
-    if (!res.ok) throw new Error('Migration failed')
-    return res.json()
-  },
 }
 
 export const api = {
@@ -238,15 +194,7 @@ export const api = {
   },
 
   // Integrations
-  async getIntegrations(): Promise<{ integrations: Array<{
-    id: string
-    name: string
-    description: string
-    icon: string
-    category: string
-    connected: boolean
-    connection: { id: string; createdAt: string } | null
-  }> }> {
+  async getIntegrations(): Promise<{ integrations: Integration[] }> {
     const res = await fetch(`${API_BASE}/integrations`)
     if (!res.ok) throw new Error('Failed to fetch integrations')
     return res.json()
@@ -261,14 +209,39 @@ export const api = {
     return res.json()
   },
 
-  async disconnectIntegration(integrationId: string): Promise<void> {
-    const res = await fetch(`${API_BASE}/integrations/${integrationId}/disconnect`, {
-      method: 'DELETE',
+  async setIntegrationAuth(integrationId: string, data: Record<string, string>): Promise<void> {
+    const res = await fetch(`${API_BASE}/integrations/${integrationId}/auth`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
     })
-    if (!res.ok) throw new Error('Failed to disconnect integration')
+    if (!res.ok) throw new Error('Failed to set auth')
   },
 
-  // Multi-account connections
+  async removeIntegrationAuth(integrationId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/integrations/${integrationId}/auth`, {
+      method: 'DELETE',
+    })
+    if (!res.ok) throw new Error('Failed to remove auth')
+  },
+
+  async testIntegration(integrationId: string): Promise<{ success: boolean; preview?: string; error?: string }> {
+    const res = await fetch(`${API_BASE}/integrations/${integrationId}/test`, {
+      method: 'POST',
+    })
+    if (!res.ok) throw new Error('Failed to test integration')
+    return res.json()
+  },
+
+  async migrateIntegrations(): Promise<MigrationResult> {
+    const res = await fetch(`${API_BASE}/integrations/migrate`, {
+      method: 'POST',
+    })
+    if (!res.ok) throw new Error('Migration failed')
+    return res.json()
+  },
+
+  // Multi-account connections (Nango OAuth)
   async getConnections(integrationId: string): Promise<{ connections: Array<{
     id: number
     integrationId: string
@@ -340,8 +313,6 @@ export const api = {
     if (!res.ok) throw new Error('Failed to disconnect WhatsApp')
   },
 
-  // Credentials
-  credentials: credentialsApi,
 }
 
 // WhatsApp status type

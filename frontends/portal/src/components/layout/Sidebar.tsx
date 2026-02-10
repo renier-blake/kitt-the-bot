@@ -12,7 +12,6 @@ import {
   Settings,
   Wrench,
   Cpu,
-  KeyRound
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -38,7 +37,6 @@ const systemItems: NavItem[] = [
 const userItems: NavItem[] = [
   { to: '/user/identity', icon: <User className="h-5 w-5" />, label: 'Identity' },
   { to: '/user/skills', icon: <Wrench className="h-5 w-5" />, label: 'My Skills' },
-  { to: '/user/credentials', icon: <KeyRound className="h-5 w-5" />, label: 'API Keys' },
   { to: '/user/settings', icon: <Settings className="h-5 w-5" />, label: 'Settings' },
 ]
 
