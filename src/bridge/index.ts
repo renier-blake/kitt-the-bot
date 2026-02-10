@@ -17,6 +17,7 @@ import { getRouter } from './router.js';
 import { createTelegramAdapter } from './adapters/telegram.js';
 import { createWhatsAppAdapter } from './adapters/whatsapp.js';
 import { getMemoryService } from '../memory/index.js';
+import { getCredential } from '../credentials/index.js';
 
 const BANNER = `
 ╔═══════════════════════════════════════════════════════╗
@@ -40,9 +41,10 @@ async function main(): Promise<void> {
 
   console.log(BANNER);
 
-  // Load environment
-  if (!process.env.TELEGRAM_BOT_TOKEN) {
-    log.error('TELEGRAM_BOT_TOKEN not set. Copy .env.example to .env and add your token.');
+  // Check critical credential
+  const telegramToken = await getCredential('TELEGRAM_BOT_TOKEN');
+  if (!telegramToken) {
+    log.error('TELEGRAM_BOT_TOKEN not set. Add to vault or .env.');
     process.exit(1);
   }
 

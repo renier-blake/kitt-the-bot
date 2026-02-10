@@ -5,6 +5,7 @@
  */
 
 import { log } from './logger.js';
+import { getCredential } from '../credentials/index.js';
 
 const OPENAI_WHISPER_URL = 'https://api.openai.com/v1/audio/transcriptions';
 
@@ -25,7 +26,7 @@ export async function transcribeAudio(
   audioBuffer: Buffer,
   filename = 'voice.ogg'
 ): Promise<TranscriptionResult> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = await getCredential('OPENAI_API_KEY');
 
   if (!apiKey) {
     log.error('OPENAI_API_KEY not configured for transcription');

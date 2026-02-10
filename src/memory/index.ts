@@ -28,6 +28,7 @@ import {
   type DatabaseStatus,
 } from './schema.js';
 import { generateId, now, formatDate } from './utils.js';
+import { getCredential } from '../credentials/index.js';
 
 // Default configuration
 const DEFAULT_CONFIG: MemoryConfig = {
@@ -59,10 +60,11 @@ export class MemoryService {
   constructor(config: Partial<MemoryConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
 
-    // Override from environment variables if set
+    // Override DB path from environment if set
     if (process.env.KITT_MEMORY_DB) {
       this.config.dbPath = process.env.KITT_MEMORY_DB;
     }
+    // OpenAI key: sync fallback from env, async vault resolution happens in initialize()
     if (process.env.OPENAI_API_KEY) {
       this.config.openaiApiKey = process.env.OPENAI_API_KEY;
     }
@@ -75,6 +77,12 @@ export class MemoryService {
   async initialize(): Promise<DatabaseStatus> {
     if (this.initialized && this.status) {
       return this.status;
+    }
+
+    // Resolve OpenAI key from vault (async) — overrides sync env fallback
+    const vaultKey = await getCredential('OPENAI_API_KEY');
+    if (vaultKey) {
+      this.config.openaiApiKey = vaultKey;
     }
 
     const { db, status } = await initializeDatabase(this.config.dbPath, {

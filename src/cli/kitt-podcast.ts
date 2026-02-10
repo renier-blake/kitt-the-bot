@@ -17,6 +17,7 @@
 import 'dotenv/config';
 import * as fs from 'fs';
 import * as path from 'path';
+import { getCredential } from '../credentials/index.js';
 
 const API_BASE = 'https://api.podbean.com/v1';
 const TOKEN_CACHE = '/tmp/podbean-token.json';
@@ -37,11 +38,11 @@ async function getAccessToken(): Promise<string> {
     }
   }
 
-  const clientId = process.env.PODBEAN_CLIENT_ID;
-  const clientSecret = process.env.PODBEAN_CLIENT_SECRET;
+  const clientId = await getCredential('PODBEAN_CLIENT_ID');
+  const clientSecret = await getCredential('PODBEAN_CLIENT_SECRET');
 
   if (!clientId || !clientSecret) {
-    throw new Error('Missing PODBEAN_CLIENT_ID or PODBEAN_CLIENT_SECRET in .env');
+    throw new Error('Missing PODBEAN_CLIENT_ID or PODBEAN_CLIENT_SECRET in vault or .env');
   }
 
   const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');

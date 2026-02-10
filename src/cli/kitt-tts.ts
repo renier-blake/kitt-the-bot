@@ -16,9 +16,11 @@
 import 'dotenv/config';
 import * as fs from 'fs';
 import { textToSpeech, cleanTextForTTS } from '../bridge/tts.js';
+import { getCredential } from '../credentials/index.js';
 
-const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`;
-const CHAT_ID = process.env.TELEGRAM_ALLOWED_USERS;
+// Resolved in main() — need async credential access
+let TELEGRAM_API = '';
+let CHAT_ID = '';
 
 /**
  * Strip markdown frontmatter (---...---) from text
@@ -60,13 +62,18 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  // Validate env
-  if (!process.env.ELEVENLABS_API_KEY) {
-    console.error('❌ ELEVENLABS_API_KEY not set in .env');
+  // Resolve credentials from vault
+  const telegramToken = await getCredential('TELEGRAM_BOT_TOKEN');
+  const elevenlabsKey = await getCredential('ELEVENLABS_API_KEY');
+  CHAT_ID = process.env.TELEGRAM_ALLOWED_USERS || '';
+  TELEGRAM_API = `https://api.telegram.org/bot${telegramToken}`;
+
+  if (!elevenlabsKey) {
+    console.error('❌ ELEVENLABS_API_KEY not set in vault or .env');
     process.exit(1);
   }
-  if (!process.env.TELEGRAM_BOT_TOKEN || !CHAT_ID) {
-    console.error('❌ TELEGRAM_BOT_TOKEN or TELEGRAM_ALLOWED_USERS not set in .env');
+  if (!telegramToken || !CHAT_ID) {
+    console.error('❌ TELEGRAM_BOT_TOKEN or TELEGRAM_ALLOWED_USERS not set');
     process.exit(1);
   }
 

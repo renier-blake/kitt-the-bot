@@ -100,6 +100,71 @@ export interface TablesList {
   tables: DBTable[]
 }
 
+// Credentials
+export interface CredentialInfo {
+  key: string
+  category: string
+  description: string | null
+  inVault: boolean
+  inEnv: boolean
+  updatedAt: number | null
+}
+
+export interface MigrationResult {
+  success: boolean
+  migrated: string[]
+  skipped: string[]
+  failed: Array<{ key: string; error: string }>
+}
+
+export interface CredentialTestResult {
+  success: boolean
+  key?: string
+  length?: number
+  preview?: string
+  error?: string
+}
+
+const credentialsApi = {
+  async list(): Promise<{ credentials: CredentialInfo[] }> {
+    const res = await fetch(`${API_BASE}/credentials`)
+    if (!res.ok) throw new Error('Failed to fetch credentials')
+    return res.json()
+  },
+
+  async set(key: string, value: string, category?: string, description?: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/credentials`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key, value, category, description }),
+    })
+    if (!res.ok) throw new Error('Failed to set credential')
+  },
+
+  async delete(key: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/credentials/${encodeURIComponent(key)}`, {
+      method: 'DELETE',
+    })
+    if (!res.ok) throw new Error('Failed to delete credential')
+  },
+
+  async test(key: string): Promise<CredentialTestResult> {
+    const res = await fetch(`${API_BASE}/credentials/${encodeURIComponent(key)}/test`, {
+      method: 'POST',
+    })
+    if (!res.ok) throw new Error('Failed to test credential')
+    return res.json()
+  },
+
+  async migrate(): Promise<MigrationResult> {
+    const res = await fetch(`${API_BASE}/credentials/migrate`, {
+      method: 'POST',
+    })
+    if (!res.ok) throw new Error('Migration failed')
+    return res.json()
+  },
+}
+
 export const api = {
   // Status
   async getStatus(): Promise<KITTStatus> {
@@ -274,6 +339,9 @@ export const api = {
     })
     if (!res.ok) throw new Error('Failed to disconnect WhatsApp')
   },
+
+  // Credentials
+  credentials: credentialsApi,
 }
 
 // WhatsApp status type

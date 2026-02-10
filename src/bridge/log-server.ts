@@ -1405,6 +1405,126 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
   });
 
   // ============================================================
+  // Credential Vault Endpoints
+  // ============================================================
+
+  // List all credentials (metadata only, no values)
+  app.get('/api/credentials', async (_req, res) => {
+    try {
+      const { listCredentials, KNOWN_CREDENTIALS } = await import('../credentials/index.js');
+      const stored = await listCredentials();
+
+      // Merge with known credentials to show which ones are missing
+      const allKeys: Array<{
+        key: string;
+        category: string;
+        description: string | null;
+        inVault: boolean;
+        inEnv: boolean;
+        updatedAt: number | null;
+      }> = Object.entries(KNOWN_CREDENTIALS).map(([key, meta]) => {
+        const stored_entry = stored.find(s => s.key === key);
+        return {
+          key,
+          category: meta.category,
+          description: meta.description,
+          inVault: !!stored_entry,
+          inEnv: !!process.env[key],
+          updatedAt: stored_entry?.updatedAt || null,
+        };
+      });
+
+      // Also include any custom credentials not in KNOWN_CREDENTIALS
+      for (const entry of stored) {
+        if (!allKeys.find(k => k.key === entry.key)) {
+          allKeys.push({
+            key: entry.key,
+            category: entry.category,
+            description: entry.description,
+            inVault: true,
+            inEnv: !!process.env[entry.key],
+            updatedAt: entry.updatedAt,
+          });
+        }
+      }
+
+      res.json({ credentials: allKeys });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to list credentials' });
+    }
+  });
+
+  // Set/update a credential
+  app.post('/api/credentials', async (req, res) => {
+    try {
+      const { setCredential } = await import('../credentials/index.js');
+      const { key, value, category, description } = req.body;
+
+      if (!key || !value) {
+        res.status(400).json({ error: 'key and value are required' });
+        return;
+      }
+
+      await setCredential(key, value, category, description);
+      res.json({ success: true, key });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to set credential' });
+    }
+  });
+
+  // Delete a credential
+  app.delete('/api/credentials/:key', async (req, res) => {
+    try {
+      const { deleteCredential } = await import('../credentials/index.js');
+      const deleted = await deleteCredential(req.params.key);
+
+      if (!deleted) {
+        res.status(404).json({ error: 'Credential not found' });
+        return;
+      }
+
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to delete credential' });
+    }
+  });
+
+  // Migrate from .env to vault
+  app.post('/api/credentials/migrate', async (_req, res) => {
+    try {
+      const { migrateFromEnv } = await import('../credentials/index.js');
+      const result = await migrateFromEnv();
+      res.json({ success: true, ...result });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Migration failed' });
+    }
+  });
+
+  // Test a credential (basic validation)
+  app.post('/api/credentials/:key/test', async (req, res) => {
+    try {
+      const { getCredential } = await import('../credentials/index.js');
+      const value = await getCredential(req.params.key);
+
+      if (!value) {
+        res.json({ success: false, error: 'Credential not found' });
+        return;
+      }
+
+      // Basic validation: key exists and has a value
+      // For real validation, we'd need service-specific checks
+      res.json({
+        success: true,
+        key: req.params.key,
+        length: value.length,
+        preview: value.substring(0, 4) + '...' + value.substring(value.length - 4),
+      });
+    } catch (err) {
+      res.json({ success: false, error: err instanceof Error ? err.message : 'Test failed' });
+    }
+  });
+
+  // ============================================================
   // Channel Endpoints (WhatsApp)
   // ============================================================
 

@@ -5,6 +5,7 @@
  */
 
 import { log } from './logger.js';
+import { getCredential } from '../credentials/index.js';
 
 const ELEVENLABS_API_URL = 'https://api.elevenlabs.io/v1/text-to-speech';
 
@@ -36,7 +37,7 @@ export async function textToSpeech(
   text: string,
   options: TTSOptions = {}
 ): Promise<TTSResult> {
-  const apiKey = process.env.ELEVENLABS_API_KEY;
+  const apiKey = await getCredential('ELEVENLABS_API_KEY');
   const voiceId = options.voiceId || process.env.ELEVENLABS_VOICE_ID || DEFAULT_VOICE_ID;
 
   if (!apiKey) {

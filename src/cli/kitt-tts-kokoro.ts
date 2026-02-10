@@ -22,13 +22,16 @@ import 'dotenv/config';
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import { getCredential } from '../credentials/index.js';
 
 const PROJECT_ROOT = process.cwd();
 const VENV_ACTIVATE = path.join(PROJECT_ROOT, '.venv/kokoro/bin/activate');
 const MODEL = 'prince-canuma/Kokoro-82M';
 const DEFAULT_VOICE = 'am_adam';
-const TELEGRAM_API = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}`;
-const CHAT_ID = process.env.TELEGRAM_ALLOWED_USERS;
+
+// Resolved in main() — need async credential access
+let TELEGRAM_API = '';
+let CHAT_ID = '';
 
 const VOICES: Record<string, string[]> = {
   'US Female': ['af_alloy', 'af_aoede', 'af_bella', 'af_heart', 'af_jessica', 'af_kore', 'af_nicole', 'af_nova', 'af_river', 'af_sarah', 'af_sky'],
@@ -127,6 +130,11 @@ async function sendVoice(mp3Path: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  // Resolve credentials from vault
+  const telegramToken = await getCredential('TELEGRAM_BOT_TOKEN');
+  TELEGRAM_API = `https://api.telegram.org/bot${telegramToken}`;
+  CHAT_ID = process.env.TELEGRAM_ALLOWED_USERS || '';
+
   const args = process.argv.slice(2);
 
   // List voices
@@ -225,7 +233,7 @@ async function main(): Promise<void> {
 
   // Send to Telegram
   if (!noSend) {
-    if (!process.env.TELEGRAM_BOT_TOKEN || !CHAT_ID) {
+    if (!telegramToken || !CHAT_ID) {
       console.warn('⚠️  Telegram not configured, skipping send');
     } else {
       console.log('📤 Sending to Telegram...');

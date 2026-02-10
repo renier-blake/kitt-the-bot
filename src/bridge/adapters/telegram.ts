@@ -12,6 +12,7 @@ import { log } from '../logger.js';
 import { formatForTelegramSafe, splitMessage } from '../format.js';
 import { transcribeAudio, downloadTelegramFile } from '../transcribe.js';
 import { textToSpeech, shouldRespondWithVoice } from '../tts.js';
+import { getCredential } from '../../credentials/index.js';
 
 /**
  * Check if a chat is a group (not DM)
@@ -104,9 +105,9 @@ export class TelegramAdapter implements ChannelAdapter {
   private pendingResponses: Map<string, { useVoice: boolean; transcribedText?: string }> = new Map();
 
   async start(): Promise<void> {
-    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const token = await getCredential('TELEGRAM_BOT_TOKEN');
     if (!token) {
-      throw new Error('TELEGRAM_BOT_TOKEN is not set');
+      throw new Error('TELEGRAM_BOT_TOKEN is not set in vault or .env');
     }
 
     this.bot = new Bot(token);
@@ -327,7 +328,8 @@ export class TelegramAdapter implements ChannelAdapter {
     try {
       // Get file info from Telegram
       const file = await ctx.getFile();
-      const fileUrl = `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${file.file_path}`;
+      const botToken = await getCredential('TELEGRAM_BOT_TOKEN');
+      const fileUrl = `https://api.telegram.org/file/bot${botToken}/${file.file_path}`;
 
       // Download the audio file
       const audioBuffer = await downloadTelegramFile(fileUrl);
@@ -377,7 +379,8 @@ export class TelegramAdapter implements ChannelAdapter {
 
   private async sendVoiceResponse(rawChatId: string, text: string): Promise<boolean> {
     // Check if ElevenLabs is configured
-    if (!process.env.ELEVENLABS_API_KEY || !this.bot) {
+    const elevenlabsKey = await getCredential('ELEVENLABS_API_KEY');
+    if (!elevenlabsKey || !this.bot) {
       log.debug('ElevenLabs not configured, skipping voice response');
       return false;
     }

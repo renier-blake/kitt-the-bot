@@ -22,6 +22,7 @@ import {
   deleteConnectionRecord,
   type KittConfig,
 } from './config.js';
+import { getCredential } from '../credentials/index.js';
 
 let nangoClient: Nango | null = null;
 let cachedConfig: KittConfig | null = null;
@@ -67,11 +68,11 @@ async function getUserInfo(): Promise<{ id: string; email: string; displayName: 
 /**
  * Get or create Nango client instance
  */
-export function getNango(): Nango {
+export async function getNango(): Promise<Nango> {
   if (!nangoClient) {
-    const secretKey = process.env.NANGO_SECRET_KEY;
+    const secretKey = await getCredential('NANGO_SECRET_KEY');
     if (!secretKey) {
-      throw new Error('NANGO_SECRET_KEY not configured in .env');
+      throw new Error('NANGO_SECRET_KEY not configured in vault or .env');
     }
     nangoClient = new Nango({ secretKey });
   }
@@ -85,7 +86,7 @@ export function getNango(): Nango {
 export async function createConnectSession(
   integrationId: string
 ): Promise<{ token: string; expiresAt: string }> {
-  const nango = getNango();
+  const nango = await getNango();
   const userInfo = await getUserInfo();
 
   const session = await nango.createConnectSession({
@@ -114,7 +115,7 @@ export async function listConnections(): Promise<
     createdAt: string;
   }>
 > {
-  const nango = getNango();
+  const nango = await getNango();
 
   const result = await nango.listConnections();
 
@@ -166,7 +167,7 @@ export async function getConnection(
   provider: string;
   credentials: unknown;
 } | null> {
-  const nango = getNango();
+  const nango = await getNango();
 
   // If no connectionId provided, find it dynamically
   const connId = connectionId || (await findConnectionId(integrationId));
@@ -192,7 +193,7 @@ export async function deleteConnection(
   integrationId: string,
   connectionId?: string
 ): Promise<void> {
-  const nango = getNango();
+  const nango = await getNango();
   const connId = connectionId || (await findConnectionId(integrationId));
   if (!connId) {
     throw new Error(`No connection found for integration: ${integrationId}`);
@@ -239,7 +240,7 @@ export async function proxyRequest<T = unknown>(
     account?: string; // Account label for multi-account
   }
 ): Promise<T> {
-  const nango = getNango();
+  const nango = await getNango();
 
   // Find connection ID: explicit > by label > default
   let connId = options.connectionId;
@@ -285,7 +286,7 @@ export async function listIntegrations(): Promise<
     provider: string;
   }>
 > {
-  const nango = getNango();
+  const nango = await getNango();
   const result = await nango.listIntegrations();
 
   return result.configs.map((config) => ({
