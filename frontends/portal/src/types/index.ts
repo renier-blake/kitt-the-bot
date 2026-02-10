@@ -6,7 +6,7 @@ export interface NavItem {
   label: string
 }
 
-export type TaskState = 'backlog' | 'todo' | 'in_progress' | 'done' | 'canceled'
+export type TaskState = 'backlog' | 'todo' | 'in_progress' | 'testing' | 'done' | 'canceled'
 export type TaskPriority = 'high' | 'medium' | 'low'
 export type TaskType = 'feature' | 'bug' | 'improvement'
 

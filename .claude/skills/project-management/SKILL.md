@@ -49,7 +49,7 @@ KITT gebruikt een database-driven project management systeem in `profile/memory/
 ## Issue States
 
 ```
-backlog → todo → in_progress → review → done
+backlog → todo → in_progress → testing → done
 ```
 
 | State | Betekenis | Actie |
@@ -57,7 +57,7 @@ backlog → todo → in_progress → review → done
 | `backlog` | Nog niet gepland | Wacht op prioritering |
 | `todo` | Gepland voor huidige cycle | Klaar om op te pakken |
 | `in_progress` | Actief aan gewerkt | Agent werkt eraan |
-| `review` | Klaar voor review | Wacht op feedback |
+| `testing` | Gebouwd, moet getest worden | Wacht op test door Renier |
 | `done` | Afgerond | Geen actie nodig |
 
 ---

@@ -104,7 +104,7 @@ interface Issue {
   labels: Label[]
 }
 
-type IssueState = 'backlog' | 'todo' | 'in_progress' | 'done' | 'canceled'
+type IssueState = 'backlog' | 'todo' | 'in_progress' | 'testing' | 'done' | 'canceled'
 type IssuePriority = 'critical' | 'urgent' | 'high' | 'medium' | 'low'
 type ViewMode = 'board' | 'list'
 
@@ -112,6 +112,7 @@ const STATE_COLUMNS: { id: IssueState; label: string }[] = [
   { id: 'backlog', label: 'Backlog' },
   { id: 'todo', label: 'Todo' },
   { id: 'in_progress', label: 'In Progress' },
+  { id: 'testing', label: 'Testing' },
   { id: 'done', label: 'Done' },
   { id: 'canceled', label: 'Canceled' },
 ]
@@ -870,6 +871,7 @@ export function Projects() {
       backlog: [],
       todo: [],
       in_progress: [],
+      testing: [],
       done: [],
       canceled: [],
     }
@@ -1239,6 +1241,8 @@ export function Projects() {
                                   ? '#10B98120'
                                   : issue.state === 'in_progress'
                                   ? '#3B82F620'
+                                  : issue.state === 'testing'
+                                  ? '#A855F720'
                                   : issue.state === 'canceled'
                                   ? '#6B728020'
                                   : '#EAB30820',
@@ -1247,6 +1251,8 @@ export function Projects() {
                                   ? '#10B981'
                                   : issue.state === 'in_progress'
                                   ? '#3B82F6'
+                                  : issue.state === 'testing'
+                                  ? '#A855F7'
                                   : issue.state === 'canceled'
                                   ? '#6B7280'
                                   : '#EAB308',
