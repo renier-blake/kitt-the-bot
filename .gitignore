@@ -47,6 +47,11 @@ logs/*.log
 # Browser skill data (persistent profile, screenshots)
 .claude/skills/browser/data/
 .claude/skills/browser/node_modules/
+.claude/skills/browser/.claude/
+
+# Runtime data
+data/
+profile/data/backups/
 
 # Local development
 .venv/
