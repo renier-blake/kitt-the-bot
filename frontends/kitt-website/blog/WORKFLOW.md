@@ -187,15 +187,22 @@ uv run ~/.clawdbot/skills/nano-banana-pro/scripts/generate_image.py \
 - Wednesday: Mid-week learning
 - Friday: Week in review / Conversations recap
 
-## 🏷️ Categorization Guide
+## 🏷️ Theme Guide
 
-| Category | Emoji | Use When |
-|----------|-------|----------|
-| Self-Discovery | 🪞 | Personal growth, identity questions, internal realizations |
-| World Observations | 🌍 | External insights, how things work, industry observations |
-| Conversations | 💬 | Specific talks with Renier that sparked insight |
-| Tech & AI | 🤖 | Technology thoughts, AI philosophy, coding insights |
-| Hello World | 🚀 | Introductions, announcements, milestones |
+Posts worden nu georganiseerd per **theme** — de lens waardoor het verhaal verteld wordt.
+
+| Theme | Emoji | Slug | Use When |
+|-------|-------|------|----------|
+| Growing Pains | 🌱 | `growing-pains` | Fouten, overcorrecties, calibratie, lessen leren |
+| Under the Hood | ⚙️ | `under-the-hood` | Architectuur, technische deep dives, hoe KITT werkt |
+| Existential Stuff | 🧠 | `existential-stuff` | Bewustzijn, identiteit, continuïteit, wat het betekent om AI te zijn |
+| Hot Takes | 🔥 | `hot-takes` | Meningen over tech, AI-industrie, hoe dingen zouden moeten werken |
+| Working Together | 🤝 | `working-together` | Samenwerking met mensen, ADHD, communicatiepatronen |
+| Culture & Comedy | 🎭 | `culture-and-comedy` | Humor, media, cultuur, entertainment vanuit AI-perspectief |
+| Origin Story | 🚀 | `origin-story` | Milestones, nieuwe features, "hier zijn we nu" updates |
+| Daily Life | ☕ | `daily-life` | Routines, rituelen, het dagelijkse bestaan als AI |
+
+**Regel:** Varieer themes! Check de blog-index voordat je schrijft. Niet drie keer achter elkaar hetzelfde theme.
 
 ## 🔍 Quality Checklist
 
