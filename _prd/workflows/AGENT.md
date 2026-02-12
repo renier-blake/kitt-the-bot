@@ -53,7 +53,51 @@ De `/issue` skill leest automatisch relevante docs op basis van project:
 
 **Doel:** Begrijp de context voordat je bouwt.
 
-### 2. BOUWEN
+### 2. PLAN MODE
+
+Na het lezen ga je in Plan Mode. **BELANGRIJK:** Het plan moet in twee delen:
+
+#### A. Functionele Beschrijving (voor de PO/user)
+
+Beschrijf in normale mensentaal:
+- **Wat gaat er veranderen?** — Wat ziet/ervaart de gebruiker straks anders?
+- **Hoe werkt het?** — Leg de flow uit alsof je het aan iemand uitlegt die niet kan programmeren
+- **Wat zijn de keuzes?** — Als je keuzes maakt, leg uit waarom
+
+**Voorbeeld:**
+> Na deze change kan je in de Portal filteren op "complexity" en "scope".
+> Issues met lage complexity en isolated scope zijn veilig om parallel te runnen.
+> Je ziet kleine badges naast elke issue die dit aangeven.
+
+#### B. Technische Implementatie
+
+Daarna de technische details:
+- Welke bestanden wijzigen
+- Database changes
+- API endpoints
+- Component structuur
+
+**Format van het plan:**
+
+```markdown
+## Wat gaat er veranderen?
+
+[Functionele beschrijving in 2-3 zinnen]
+
+## Hoe werkt het?
+
+[User flow in normale taal]
+
+## Technische aanpak
+
+1. [Stap 1 - bestand + wat]
+2. [Stap 2 - bestand + wat]
+...
+```
+
+**Waarom beide?** De PO moet het plan kunnen goedkeuren zonder de code te lezen. Als je alleen technische stappen schrijft, kan hij niet beoordelen of het de juiste oplossing is.
+
+### 3. BOUWEN
 
 Implementeer volgens het plan:
 - Schrijf code
@@ -66,7 +110,7 @@ Implementeer volgens het plan:
 - Skill → `.claude/skills/[naam]/SKILL.md`
 - Integrations → `src/integrations/`
 
-### 3. TESTEN
+### 4. TESTEN
 
 Test alle acceptance criteria:
 - Happy path
@@ -75,19 +119,19 @@ Test alle acceptance criteria:
 
 **Als tests falen:** Fix en test opnieuw.
 
-### 4. UPDATE STATE
+### 5. UPDATE STATE
 
 Na completion, update de issue state:
 
 ```bash
-sqlite3 profile/memory/kitt.db "
+sqlite3 profile/data/kitt.db "
   UPDATE portal_issues
   SET state = 'done', updated_at = unixepoch() * 1000
   WHERE identifier = 'PAS-01'
 "
 ```
 
-### 5. COMMITTEN
+### 6. COMMITTEN
 
 **Vraag toestemming** aan Renier:
 > "Issue PAS-01 is klaar. Mag ik committen?"

@@ -11,7 +11,7 @@ import { createClient, type Client } from '@libsql/client';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const SCHEMA_VERSION = 16; // Bumped for triage labels + audit labels
+const SCHEMA_VERSION = 19; // Task execution mode (sync/background)
 
 // Core schema SQL
 const CORE_SCHEMA = `
@@ -80,7 +80,9 @@ CREATE TABLE IF NOT EXISTS kitt_tasks (
   depends_on TEXT,                         -- JSON array: [1, 2, 3] (F54: changed from INTEGER)
   created_by TEXT DEFAULT 'kitt',          -- 'kitt' or 'renier'
   active INTEGER DEFAULT 1,                -- 0 = disabled
-  created_at INTEGER DEFAULT (unixepoch() * 1000)
+  created_at INTEGER DEFAULT (unixepoch() * 1000),
+  model TEXT,                               -- 'haiku', 'sonnet', 'opus', or NULL
+  execution TEXT DEFAULT 'sync'             -- 'sync' (awaited) or 'background' (fire-and-forget)
 );
 
 CREATE INDEX IF NOT EXISTS idx_tasks_frequency ON kitt_tasks(frequency);
@@ -611,6 +613,11 @@ export async function initializeDatabase(
           cycle_id INTEGER REFERENCES portal_cycles(id),
           estimate INTEGER,
           due_date INTEGER,
+          scheduled_date INTEGER,
+          scheduled_time_start INTEGER,
+          scheduled_time_end INTEGER,
+          scheduled_timezone TEXT DEFAULT 'Europe/Amsterdam',
+          start_date INTEGER,
           parent_id INTEGER REFERENCES portal_issues(id),
           created_by TEXT DEFAULT 'renier',
           created_at INTEGER DEFAULT (unixepoch() * 1000),
@@ -620,6 +627,7 @@ export async function initializeDatabase(
       await db.execute('CREATE INDEX IF NOT EXISTS idx_issues_project ON portal_issues(project_id)');
       await db.execute('CREATE INDEX IF NOT EXISTS idx_issues_state ON portal_issues(state)');
       await db.execute('CREATE INDEX IF NOT EXISTS idx_issues_cycle ON portal_issues(cycle_id)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_issues_scheduled ON portal_issues(scheduled_date)');
       console.log('[schema] Created portal_issues table');
 
       // Create portal_issue_history table
@@ -797,6 +805,126 @@ export async function initializeDatabase(
       }
 
       console.log('[schema] Migration v15 -> v16 complete');
+    }
+
+    // Migration v16 -> v17: Add scheduled status + date fields to portal_issues
+    if (currentVersion < 17) {
+      console.log('[schema] Running migration v16 -> v17...');
+      
+      // Add scheduled_date column
+      try {
+        await db.execute(`ALTER TABLE portal_issues ADD COLUMN scheduled_date INTEGER`);
+        console.log('[schema] Migration: Added scheduled_date column to portal_issues');
+      } catch (err) {
+        const alterMsg = err instanceof Error ? err.message : String(err);
+        if (!alterMsg.includes('duplicate column')) {
+          console.warn('[schema] Migration warning (scheduled_date):', alterMsg);
+        }
+      }
+      
+      // Add scheduled_time_start column
+      try {
+        await db.execute(`ALTER TABLE portal_issues ADD COLUMN scheduled_time_start INTEGER`);
+        console.log('[schema] Migration: Added scheduled_time_start column to portal_issues');
+      } catch (err) {
+        const alterMsg = err instanceof Error ? err.message : String(err);
+        if (!alterMsg.includes('duplicate column')) {
+          console.warn('[schema] Migration warning (scheduled_time_start):', alterMsg);
+        }
+      }
+      
+      // Add scheduled_time_end column
+      try {
+        await db.execute(`ALTER TABLE portal_issues ADD COLUMN scheduled_time_end INTEGER`);
+        console.log('[schema] Migration: Added scheduled_time_end column to portal_issues');
+      } catch (err) {
+        const alterMsg = err instanceof Error ? err.message : String(err);
+        if (!alterMsg.includes('duplicate column')) {
+          console.warn('[schema] Migration warning (scheduled_time_end):', alterMsg);
+        }
+      }
+      
+      // Add scheduled_timezone column
+      try {
+        await db.execute(`ALTER TABLE portal_issues ADD COLUMN scheduled_timezone TEXT DEFAULT 'Europe/Amsterdam'`);
+        console.log('[schema] Migration: Added scheduled_timezone column to portal_issues');
+      } catch (err) {
+        const alterMsg = err instanceof Error ? err.message : String(err);
+        if (!alterMsg.includes('duplicate column')) {
+          console.warn('[schema] Migration warning (scheduled_timezone):', alterMsg);
+        }
+      }
+      
+      // Add start_date column (for tracking when work actually begins)
+      try {
+        await db.execute(`ALTER TABLE portal_issues ADD COLUMN start_date INTEGER`);
+        console.log('[schema] Migration: Added start_date column to portal_issues');
+      } catch (err) {
+        const alterMsg = err instanceof Error ? err.message : String(err);
+        if (!alterMsg.includes('duplicate column')) {
+          console.warn('[schema] Migration warning (start_date):', alterMsg);
+        }
+      }
+      
+      // Create index for scheduled_date
+      try {
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_issues_scheduled ON portal_issues(scheduled_date)');
+        console.log('[schema] Migration: Created index on scheduled_date');
+      } catch (err) {
+        const indexMsg = err instanceof Error ? err.message : String(err);
+        if (!indexMsg.includes('already exists')) {
+          console.warn('[schema] Migration warning (index):', indexMsg);
+        }
+      }
+      
+      console.log('[schema] Migration v16 -> v17 complete');
+    }
+
+    // Migration: v17 -> v18: Agent executions persistence
+    if (currentVersion < 18) {
+      console.log('[schema] Running migration v17 -> v18...');
+
+      await db.execute(`
+        CREATE TABLE IF NOT EXISTS agent_executions (
+          id TEXT PRIMARY KEY,
+          type TEXT NOT NULL,
+          status TEXT NOT NULL,
+          chat_id TEXT,
+          capability_id TEXT,
+          started_at INTEGER NOT NULL,
+          completed_at INTEGER,
+          duration_ms INTEGER,
+          result_length INTEGER,
+          error TEXT
+        )
+      `);
+
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_agent_exec_started ON agent_executions(started_at)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_agent_exec_type ON agent_executions(type)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_agent_exec_status ON agent_executions(status)');
+
+      console.log('[schema] Migration v17 -> v18 complete: agent_executions table');
+    }
+
+    // Migration: v18 -> v19: Task execution mode (KITT-138/139)
+    if (currentVersion < 19) {
+      console.log('[schema] Running migration v18 -> v19 (Task execution mode)...');
+
+      try {
+        await db.execute("ALTER TABLE kitt_tasks ADD COLUMN execution TEXT DEFAULT 'sync'");
+        console.log('[schema] Migration: Added execution column to kitt_tasks');
+      } catch (alterErr) {
+        const alterMsg = alterErr instanceof Error ? alterErr.message : String(alterErr);
+        if (!alterMsg.includes('duplicate column')) {
+          console.warn('[schema] Migration warning (execution):', alterMsg);
+        }
+      }
+
+      // Set known long-running tasks to 'background'
+      await db.execute(`UPDATE kitt_tasks SET execution = 'background' WHERE title LIKE '%blogpost%' OR title LIKE '%Blog%'`);
+      await db.execute(`UPDATE kitt_tasks SET execution = 'background' WHERE title LIKE '%codebase%' OR title LIKE '%audit%'`);
+
+      console.log('[schema] Migration v18 -> v19 complete: task execution mode');
     }
 
     // Update schema version

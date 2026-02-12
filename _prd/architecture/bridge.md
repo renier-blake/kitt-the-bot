@@ -1,7 +1,7 @@
 # Message Bridge Architecture
 
 > Hoe de message bridge werkt tussen channels en Claude Agent SDK.
-> **Status:** v2.0 - Channel Adapter Pattern (PAS-06)
+> **Status:** v2.2 - Channel Adapter Pattern + Agent Pool + Slack
 
 ---
 
@@ -25,8 +25,8 @@ De Message Bridge is een Node.js process dat:
 │                                                             │
 │   ┌──────────────┐    ┌──────────────┐    ┌─────────────┐  │
 │   │   Telegram   │    │   WhatsApp   │    │    Slack    │  │
-│   │   Adapter    │    │   Adapter    │    │   (later)   │  │
-│   │   (grammy)   │    │  (baileys)   │    │             │  │
+│   │   Adapter    │    │   Adapter    │    │   Adapter   │  │
+│   │   (grammy)   │    │  (baileys)   │    │ (web-api)   │  │
 │   └──────┬───────┘    └──────┬───────┘    └──────┬──────┘  │
 │          │                   │                   │          │
 │          └───────────────────┼───────────────────┘          │
@@ -39,9 +39,17 @@ De Message Bridge is een Node.js process dat:
 │          ┌──────────────────┼──────────────────┐            │
 │          ▼                  ▼                  ▼            │
 │   ┌────────────┐    ┌─────────────┐    ┌─────────────┐     │
-│   │   Agent    │    │   Memory    │    │  Sessions   │     │
-│   │  (Claude)  │    │(transcripts)│    │ (per chat)  │     │
-│   └────────────┘    └─────────────┘    └─────────────┘     │
+│   │ Agent Pool │    │   Memory    │    │  Sessions   │     │
+│   │  registry  │    │(transcripts)│    │ (per chat)  │     │
+│   │  timeouts  │    └─────────────┘    └─────────────┘     │
+│   │  persist   │                                           │
+│   └─────┬──────┘                                           │
+│         ▼                                                  │
+│   ┌────────────┐    ┌─────────────┐                        │
+│   │   Agent    │    │  kitt.db    │                        │
+│   │  (Claude)  │    │  agent_    │                        │
+│   │            │    │  executions│                        │
+│   └────────────┘    └─────────────┘                        │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -103,16 +111,22 @@ slack:C1234567890               # Slack channel
 
 ```
 src/bridge/
-├── index.ts              # Entry point, start router + adapters
+├── index.ts              # Entry point, start router + adapters + tunnel + graceful shutdown
 ├── router.ts             # MessageRouter (shared logic)
+├── agent.ts              # Agent SDK wrapper (runAgent → pool.register/complete/fail)
+├── agent-pool.ts         # Agent Pool — registry, timeouts, DB persistence
 ├── adapters/
 │   ├── types.ts          # ChannelAdapter interface
 │   ├── telegram.ts       # TelegramAdapter (grammy)
-│   └── whatsapp.ts       # WhatsAppAdapter (baileys)
-├── agent.ts              # Agent SDK wrapper
+│   ├── whatsapp.ts       # WhatsAppAdapter (baileys)
+│   ├── slack.ts          # SlackAdapter (@slack/web-api, user token)
+│   └── slack-bot.ts      # SlackBotAdapter (@slack/bolt, Socket Mode, bot token)
+├── slack-events.ts       # Slack Events API endpoint (signing verification + dedup)
+├── tunnel.ts             # Cloudflare Tunnel child process manager
 ├── context.ts            # KITT personality loading
 ├── sessions.ts           # Per-chat session management
-├── format.ts             # Response formatting
+├── format.ts             # Response formatting (Telegram, Slack mrkdwn)
+├── log-server.ts         # Portal API (Express + WebSocket) + Slack events route
 ├── transcribe.ts         # Voice → text (Whisper)
 ├── tts.ts                # Text → voice (ElevenLabs)
 ├── logger.ts             # Structured logging
@@ -142,13 +156,35 @@ src/bridge/
 | Env | `WHATSAPP_ENABLED=true`, `WHATSAPP_ALLOWED_NUMBERS` |
 | Auth storage | `data/whatsapp-auth/` |
 
-### Slack (Planned)
+### Slack (Active)
+
+| Aspect | Detail |
+|--------|--------|
+| Library | `@slack/web-api` |
+| Auth | User token (xoxp-) via eigen OAuth framework |
+| File | `src/bridge/adapters/slack.ts` |
+| Events | HTTP webhook via Slack Events API (`/slack/events`) |
+| Tunnel | Cloudflare Tunnel (child process, `src/bridge/tunnel.ts`) |
+| Signing | HMAC SHA256 verificatie (`SLACK_SIGNING_SECRET`) |
+| Credentials | `SLACK_USER_TOKEN`, `SLACK_SIGNING_SECRET` (vault) |
+| Setup guide | `_prd/guides/slack-setup.md` |
+
+**Architectuur:** KITT verschijnt als reguliere Slack user (geen "APP" label). Events komen binnen via Cloudflare Tunnel → `localhost:8000/slack/events`. Berichten worden verstuurd met een user token via `chat.postMessage`. DMs: altijd reageren. Channels: alleen bij `@mention`.
+
+### Slack Bot (Active)
 
 | Aspect | Detail |
 |--------|--------|
 | Library | `@slack/bolt` |
-| Auth | OAuth via Nango |
-| Status | PAS-17 |
+| Auth | Bot token (xoxb-) + App-Level token (xapp-) |
+| File | `src/bridge/adapters/slack-bot.ts` |
+| Events | Socket Mode (outbound WebSocket, geen tunnel nodig) |
+| Credentials | `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN` (vault) |
+| Channel type | `slack-bot` (apart van `slack`) |
+
+**Architectuur:** KITT verschijnt als bot met "APP" label. Socket Mode maakt een outbound WebSocket verbinding — geen tunnel of public URL nodig. DMs via App Home "Messages" tab. Channels: alleen bij `@mention` (via `app_mention` event). Antwoorden in channels gaan als thread reply. Kan naast de User adapter draaien (verschillende channel types, verschillende tokens, zelfde Slack App).
+
+**Permissions:** Database-backed via `slack_bot_allowed_users` meta key (apart van User adapter's `slack_allowed_users`). Levels: `respond`, `read-only`, `blocked`. Geen config = iedereen mag (backwards compatible).
 
 ---
 
@@ -217,6 +253,10 @@ Elke chat krijgt een eigen session voor context persistence:
 | Telegram Group | Group | Reply to bot | Process replies |
 | WhatsApp Private | Private | Any message | Always process |
 | WhatsApp Group | Group | Any message | Process all (configurable) |
+| Slack User DM | Private | Any message | Always process |
+| Slack User Channel | Group | `@mention` | Only mentioned, replies in thread |
+| Slack Bot DM | Private | Any message | Always process (App Home) |
+| Slack Bot Channel | Group | `@mention` | Only mentioned, replies in thread |
 
 ---
 
@@ -236,6 +276,24 @@ WHATSAPP_ALLOWED_NUMBERS=31612345678,31698765432
 # General
 KITT_WORKSPACE=/path/to/KITT V1
 ```
+
+### Slack credentials (credential vault, niet .env)
+
+| Key | Type | Bron |
+|-----|------|------|
+| `CLOUDFLARE_TUNNEL_TOKEN` | token | Cloudflare dashboard |
+| `SLACK_CLIENT_ID` | oauth | Slack App → Basic Information |
+| `SLACK_CLIENT_SECRET` | oauth | Slack App → Basic Information |
+| `SLACK_SIGNING_SECRET` | api_key | Slack App → Basic Information |
+| `SLACK_USER_TOKEN` | token | Via OAuth flow (automatisch) |
+| `SLACK_BOT_TOKEN` | token | Via OAuth flow (slack-bot integratie) |
+| `SLACK_APP_TOKEN` | token | Slack App → Basic Information → App-Level Tokens |
+
+Slack heeft geen `.env` variabelen nodig. Auto-detectie:
+- `SLACK_USER_TOKEN` + `SLACK_SIGNING_SECRET` in vault → Slack User adapter start
+- `SLACK_BOT_TOKEN` + `SLACK_APP_TOKEN` in vault → Slack Bot adapter start (Socket Mode)
+- `CLOUDFLARE_TUNNEL_TOKEN` in vault → Cloudflared tunnel start als child process
+- Beide adapters kunnen tegelijk draaien (verschillende channel types)
 
 ---
 

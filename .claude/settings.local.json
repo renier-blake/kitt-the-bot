@@ -57,7 +57,19 @@
       "Bash(claude:*)",
       "Bash(npx ts-node:*)",
       "Bash(pm2 show:*)",
-      "Bash(ln:*)"
+      "Bash(ln:*)",
+      "Bash(npm ls:*)",
+      "Bash(for f in .claude/skills/*/SKILL.md)",
+      "Bash(do wc -c \"$f\")",
+      "WebFetch(domain:baileys.wiki)",
+      "WebFetch(domain:github.com)",
+      "Bash(python3:*)",
+      "Bash(pm2 describe:*)",
+      "WebFetch(domain:docs.cloud.google.com)",
+      "WebFetch(domain:speechactors.com)",
+      "WebFetch(domain:www.videosdk.live)",
+      "Bash(awk:*)",
+      "Bash(cloudflared:*)"
     ]
   }
 }

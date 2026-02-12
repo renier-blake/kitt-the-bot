@@ -55,7 +55,7 @@
       "priority": 20,
       "enabled": true,
       "config": {
-        "chat": { "filter": "all" },
+        "chat": { "format": "dispatch-catalog" },
         "think": { "filter": "automated" }
       }
     },
@@ -68,8 +68,8 @@
       "priority": 30,
       "enabled": true,
       "config": {
-        "chat": { "windowMinutes": 15, "maxMessages": 10 },
-        "think": { "windowMinutes": 1440, "maxMessages": 100 }
+        "chat": { "windowMinutes": 15, "maxMessages": 20 },
+        "think": { "windowMinutes": 10, "maxMessages": 50 }
       }
     },
     {
@@ -80,7 +80,7 @@
       "modes": ["chat"],
       "priority": 31,
       "enabled": true,
-      "config": { "maxResults": 8, "minScore": 0.20 }
+      "config": { "maxResults": 15, "minScore": 0.15 }
     },
     {
       "id": "conversation-state",
@@ -101,11 +101,20 @@
       "enabled": true
     },
     {
+      "id": "background-tasks",
+      "type": "dynamic",
+      "source": "background-tasks-loader",
+      "header": "Active Background Tasks",
+      "modes": ["think"],
+      "priority": 41,
+      "enabled": true
+    },
+    {
       "id": "core-instructions",
       "type": "instruction",
       "path": "profile/context/instructions/core.md",
       "header": "Core Instructions",
-      "modes": ["chat", "think"],
+      "modes": ["chat"],
       "priority": 100,
       "enabled": true
     },
@@ -114,7 +123,7 @@
       "type": "instruction",
       "path": "profile/context/instructions/capabilities.md",
       "header": "Internal Capabilities",
-      "modes": ["chat", "think"],
+      "modes": ["chat"],
       "priority": 101,
       "enabled": true
     },

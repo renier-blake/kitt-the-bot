@@ -1,7 +1,7 @@
 # KITT - System Overview
 
 > Architectuur overzicht van KITT (Knowledge Interface for Transparent Tasks)
-> **Laatst bijgewerkt:** 9 februari 2026
+> **Laatst bijgewerkt:** 12 februari 2026
 
 ---
 
@@ -41,12 +41,12 @@
 │  │  └── sessions.ts   (session persistence)                   │  │
 │  └────────────────────────────────────────────────────────────┘  │
 │                               │                                   │
-│              ┌────────────────┼────────────────┐                 │
-│              ▼                ▼                ▼                 │
-│        ┌──────────┐    ┌──────────┐    ┌──────────┐             │
-│        │ Telegram │    │ WhatsApp │    │  Email   │             │
-│        │ (active) │    │ (future) │    │ (future) │             │
-│        └──────────┘    └──────────┘    └──────────┘             │
+│              ┌──────────┼──────────┼──────────┐                 │
+│              ▼          ▼          ▼          ▼                 │
+│        ┌──────────┐ ┌──────────┐ ┌────────┐ ┌───────────┐      │
+│        │ Telegram │ │ WhatsApp │ │ Slack  │ │ Slack Bot │      │
+│        │ (active) │ │ (active) │ │ (user) │ │  (socket) │      │
+│        └──────────┘ └──────────┘ └────────┘ └───────────┘      │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -61,8 +61,12 @@ KITT V1/
 │   │   ├── index.ts            # Entry point
 │   │   ├── agent.ts            # Agent SDK wrapper
 │   │   ├── context.ts          # Context wrapper (thin, calls unified builder)
-│   │   ├── telegram.ts         # Telegram adapter
-│   │   ├── whatsapp.ts         # WhatsApp adapter (Baileys)
+│   │   ├── adapters/            # Channel adapters
+│   │   │   ├── types.ts         # ChannelAdapter interface
+│   │   │   ├── telegram.ts      # Telegram (grammy)
+│   │   │   ├── whatsapp.ts      # WhatsApp (Baileys)
+│   │   │   ├── slack.ts         # Slack User (@slack/web-api)
+│   │   │   └── slack-bot.ts     # Slack Bot (@slack/bolt, Socket Mode)
 │   │   ├── router.ts           # Multi-channel message router
 │   │   ├── sessions.ts         # Session management
 │   │   ├── state.ts            # Bridge state
@@ -141,7 +145,8 @@ KITT V1/
 
 ### 2. Message Bridge
 - **Rol:** Connects external channels to Claude Agent SDK
-- **Tech:** Node.js + grammy (Telegram) + Baileys (WhatsApp) + Agent SDK
+- **Tech:** Node.js + grammy (Telegram) + Baileys (WhatsApp) + @slack/web-api (Slack User) + @slack/bolt (Slack Bot) + Agent SDK
+- **Channels:** Telegram (bot), WhatsApp (QR), Slack User (xoxp- token + Events API + Cloudflare Tunnel), Slack Bot (xoxb- token + Socket Mode)
 - **Flow:** Message → Bridge → Agent SDK → Response → Bridge → Channel
 - **State:** `profile/data/` folder
 - **Docs:** `_prd/architecture/bridge.md`
@@ -229,8 +234,9 @@ KITT V1/
 
 ## Security Considerations
 
-- Bridge runs locally (no external API exposure)
-- User whitelist via `TELEGRAM_ALLOWED_USERS`
-- Credentials in `.env` (gitignored)
+- Bridge runs locally (no external API exposure, behalve via Cloudflare Tunnel voor Slack events)
+- User whitelist via `TELEGRAM_ALLOWED_USERS`, `WHATSAPP_ALLOWED_NUMBERS`, database-backed Slack permissions
+- Credentials via encrypted credential vault (`profile/data/kitt.db`)
+- Slack Events API beschermd met HMAC SHA256 signing secret verificatie
 - No automatic code execution from external messages
 - Profile data stays local

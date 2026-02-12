@@ -11,7 +11,6 @@ import { getRouter } from '../router.js';
 import { log } from '../logger.js';
 import { formatForTelegramSafe, splitMessage } from '../format.js';
 import { transcribeAudio, downloadTelegramFile } from '../transcribe.js';
-import { textToSpeech, shouldRespondWithVoice } from '../tts.js';
 import { getCredential } from '../../credentials/index.js';
 
 /**
@@ -102,7 +101,6 @@ export class TelegramAdapter implements ChannelAdapter {
   private bot: Bot | null = null;
   private startedAt: Date | null = null;
   private lastError: string | null = null;
-  private pendingResponses: Map<string, { useVoice: boolean; transcribedText?: string }> = new Map();
 
   async start(): Promise<void> {
     const token = await getCredential('TELEGRAM_BOT_TOKEN');
@@ -150,35 +148,9 @@ export class TelegramAdapter implements ChannelAdapter {
     }
 
     const rawChatId = extractRawId(chatId);
-    const pending = this.pendingResponses.get(chatId);
-
-    // Check if we should respond with voice
-    if (pending?.useVoice && options?.asVoice !== false) {
-      const voiceSent = await this.sendVoiceResponse(rawChatId, content);
-
-      if (voiceSent) {
-        // Also send transcription note if this was a voice message
-        if (pending.transcribedText) {
-          await this.bot.api.sendMessage(
-            rawChatId,
-            `*Ik hoorde:* "${pending.transcribedText}"`,
-            { parse_mode: 'Markdown' }
-          );
-        }
-        this.pendingResponses.delete(chatId);
-        return;
-      }
-      // Fallback to text if voice failed
-    }
-
-    // Text response - include transcription note if needed
-    let messageContent = content;
-    if (pending?.transcribedText) {
-      messageContent = `*Ik hoorde:* "${pending.transcribedText}"\n\n${content}`;
-    }
 
     // Split and send
-    const chunks = splitMessage(messageContent, 4000);
+    const chunks = splitMessage(content, 4000);
     for (const chunk of chunks) {
       const { text, parseMode } = formatForTelegramSafe(chunk);
       await this.bot.api.sendMessage(rawChatId, text, {
@@ -187,7 +159,6 @@ export class TelegramAdapter implements ChannelAdapter {
       });
     }
 
-    this.pendingResponses.delete(chatId);
     log.info('Sent Telegram message', { chatId, length: content.length });
   }
 
@@ -197,7 +168,7 @@ export class TelegramAdapter implements ChannelAdapter {
     }
 
     const rawChatId = extractRawId(chatId);
-    await this.bot.api.sendVoice(rawChatId, new InputFile(audioBuffer, 'response.mp3'));
+    await this.bot.api.sendVoice(rawChatId, new InputFile(audioBuffer, 'response.ogg'));
   }
 
   isConnected(): boolean {
@@ -266,10 +237,6 @@ export class TelegramAdapter implements ChannelAdapter {
 
     // Show typing indicator
     await ctx.replyWithChatAction('typing');
-
-    // Check if user wants voice response
-    const useVoice = shouldRespondWithVoice(false, content);
-    this.pendingResponses.set(chatId, { useVoice });
 
     // Build incoming message and route to handler
     const message: IncomingMessage = {
@@ -350,10 +317,6 @@ export class TelegramAdapter implements ChannelAdapter {
         text: transcribedText.slice(0, 50),
       });
 
-      // Check if we should respond with voice
-      const useVoice = shouldRespondWithVoice(true, transcribedText);
-      this.pendingResponses.set(chatId, { useVoice, transcribedText });
-
       // Build incoming message and route to handler
       const message: IncomingMessage = {
         chatId,
@@ -377,42 +340,6 @@ export class TelegramAdapter implements ChannelAdapter {
     }
   }
 
-  private async sendVoiceResponse(rawChatId: string, text: string): Promise<boolean> {
-    // Check if ElevenLabs is configured
-    const elevenlabsKey = await getCredential('ELEVENLABS_API_KEY');
-    if (!elevenlabsKey || !this.bot) {
-      log.debug('ElevenLabs not configured, skipping voice response');
-      return false;
-    }
-
-    try {
-      // Show recording indicator while generating
-      await this.bot.api.sendChatAction(rawChatId, 'record_voice');
-
-      const ttsResult = await textToSpeech(text);
-
-      if (!ttsResult.success || ttsResult.audio.length === 0) {
-        log.error('TTS generation failed', { error: ttsResult.error });
-        return false;
-      }
-
-      // Send voice message
-      await this.bot.api.sendVoice(
-        rawChatId,
-        new InputFile(ttsResult.audio, 'response.mp3')
-      );
-
-      log.info('Voice response sent', {
-        textLength: text.length,
-        audioSize: ttsResult.audio.length,
-      });
-
-      return true;
-    } catch (err) {
-      log.error('Failed to send voice response', { error: String(err) });
-      return false;
-    }
-  }
 }
 
 // Export convenience function for direct access

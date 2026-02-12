@@ -108,10 +108,11 @@ export interface Integration {
   icon: string
   category: string
   auth_type: 'oauth' | 'api_key' | 'token' | 'credentials'
-  provider: 'nango' | 'custom'
+  provider: 'nango' | 'direct' | 'custom'
   auth_config: Record<string, unknown>
   connected: boolean
   connection: { id: string; createdAt: string } | null
+  settings_values?: Record<string, string>
 }
 
 export interface MigrationResult {
@@ -200,7 +201,7 @@ export const api = {
     return res.json()
   },
 
-  async createConnectSession(integrationId: string): Promise<{ token: string; expiresAt: string }> {
+  async createConnectSession(integrationId: string): Promise<{ token?: string; expiresAt?: string; url?: string; provider?: string }> {
     const res = await fetch(`${API_BASE}/integrations/${integrationId}/connect`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -299,6 +300,13 @@ export const api = {
     if (!res.ok) throw new Error('Failed to update config')
   },
 
+  // Agents
+  async getAgents(): Promise<AgentsData> {
+    const res = await fetch(`${API_BASE}/agents`)
+    if (!res.ok) throw new Error('Failed to fetch agents')
+    return res.json()
+  },
+
   // WhatsApp Channel
   async getWhatsAppStatus(): Promise<WhatsAppStatus> {
     const res = await fetch(`${API_BASE}/channels/whatsapp/status`)
@@ -313,6 +321,47 @@ export const api = {
     if (!res.ok) throw new Error('Failed to disconnect WhatsApp')
   },
 
+}
+
+// Agent types
+export type AgentType = 'chat' | 'think' | 'think-sub' | 'background'
+export type AgentStatus = 'starting' | 'running' | 'completed' | 'timeout' | 'error'
+
+export interface ActiveAgent {
+  id: string
+  type: AgentType
+  status: AgentStatus
+  chatId?: string
+  capabilityId?: string
+  duration: string
+  startedAt: number
+}
+
+export interface RecentAgent {
+  id: string
+  type: AgentType
+  status: AgentStatus
+  chatId?: string
+  capabilityId?: string
+  duration: string
+  resultLength?: number
+  error?: string
+  completedAt?: number
+}
+
+export interface AgentStats {
+  totalToday: number
+  active: number
+  completed: number
+  timeouts: number
+  errors: number
+  byType: Record<AgentType, { total: number; active: number; timeouts: number; errors: number }>
+}
+
+export interface AgentsData {
+  active: ActiveAgent[]
+  recent: RecentAgent[]
+  stats: AgentStats
 }
 
 // WhatsApp status type

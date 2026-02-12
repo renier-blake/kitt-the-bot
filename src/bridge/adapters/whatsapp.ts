@@ -31,8 +31,34 @@ const baileysLogger = pino({ level: 'silent' });
 // Auth state directory
 const AUTH_DIR = process.env.WHATSAPP_AUTH_DIR || './data/whatsapp-auth';
 
-// Allowed phone numbers (whitelist)
-const ALLOWED_NUMBERS = process.env.WHATSAPP_ALLOWED_NUMBERS?.split(',').map(n => n.trim()) || [];
+// Allowed numbers cache (refreshed from DB)
+let allowedNumbersCache: string[] = [];
+let cacheTimestamp = 0;
+const CACHE_TTL = 30000; // 30 seconds
+
+/**
+ * Get allowed numbers from database (with caching)
+ */
+async function getAllowedNumbers(): Promise<string[]> {
+  const now = Date.now();
+  if (now - cacheTimestamp < CACHE_TTL) {
+    return allowedNumbersCache;
+  }
+
+  try {
+    const { getMetaValue } = await import('../../capabilities/index.js');
+    const value = await getMetaValue('whatsapp_allowed_numbers');
+    if (value) {
+      allowedNumbersCache = JSON.parse(value);
+    } else {
+      allowedNumbersCache = [];
+    }
+  } catch {
+    // Keep existing cache on error
+  }
+  cacheTimestamp = now;
+  return allowedNumbersCache;
+}
 
 /**
  * Extract text content from WhatsApp message
@@ -99,7 +125,7 @@ function isGroupJid(jid: string): boolean {
  * @param isFromMe - Whether the message is from the connected account (for @lid detection)
  * @returns 'respond' = can have conversations, 'read-only' = KITT reads but doesn't respond
  */
-function getNumberPermission(jid: string, ownJid?: string, isFromMe?: boolean): 'respond' | 'read-only' {
+async function getNumberPermission(jid: string, ownJid?: string, isFromMe?: boolean): Promise<'respond' | 'read-only'> {
   // Always allow your own number (for "Message Yourself" chat)
   if (ownJid) {
     const ownNumber = ownJid.split('@')[0].split(':')[0]; // Remove @s.whatsapp.net and :device
@@ -113,13 +139,36 @@ function getNumberPermission(jid: string, ownJid?: string, isFromMe?: boolean): 
     return 'respond';
   }
 
+  // Get allowed numbers from database
+  const allowedNumbers = await getAllowedNumbers();
+
   // No whitelist configured = only connected number allowed (checked above)
   // This is the safe default: strangers are read-only
-  if (ALLOWED_NUMBERS.length === 0) return 'read-only';
+  if (allowedNumbers.length === 0) return 'read-only';
 
-  // Extract phone number from JID (remove @s.whatsapp.net or @g.us)
-  const number = jid.split('@')[0];
-  const isWhitelisted = ALLOWED_NUMBERS.some(allowed => number.includes(allowed.replace(/[^0-9]/g, '')));
+  // Extract identifier from JID (phone number or @lid ID)
+  const identifier = jid.split('@')[0];
+
+  // Check if whitelisted - works for both phone numbers and @lid values
+  // For phone numbers: match if the number contains the allowed digits
+  // For @lid: exact match on the numeric ID
+  const isWhitelisted = allowedNumbers.some((allowed) => {
+    const allowedDigits = allowed.replace(/[^\d]/g, '');
+    // Exact match for @lid IDs (they don't overlap with phone numbers)
+    if (identifier === allowedDigits) return true;
+    // Partial match for phone numbers (handles country code variations)
+    if (identifier.includes(allowedDigits) || allowedDigits.includes(identifier)) return true;
+    return false;
+  });
+
+  // Log for debugging @lid issues - show how to add them
+  if (!isWhitelisted && jid.endsWith('@lid')) {
+    log.warn('Blocked @lid message - add to allowlist if wanted', {
+      lid: identifier,
+      addThis: `+${identifier}`,
+      allowedNumbers
+    });
+  }
 
   return isWhitelisted ? 'respond' : 'read-only';
 }
@@ -186,28 +235,37 @@ export class WhatsAppAdapter implements ChannelAdapter {
 
         if (connection === 'close') {
           const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
-          const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+          const errorMsg = lastDisconnect?.error?.message || 'Connection closed';
+          const isQrTimeout = statusCode === 408 || errorMsg.includes('QR refs');
+          const shouldReconnect = statusCode !== DisconnectReason.loggedOut && !isQrTimeout;
 
           this._connected = false;
-          this.lastError = lastDisconnect?.error?.message || 'Connection closed';
+          this.lastError = errorMsg;
 
           log.warn('WhatsApp connection closed', {
             statusCode,
             shouldReconnect,
-            error: this.lastError,
+            isQrTimeout,
+            error: errorMsg,
           });
 
-          if (shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
+          if (isQrTimeout) {
+            // QR code timed out — nobody scanned. Don't keep looping.
+            console.log('[whatsapp] QR code timed out. Scan via Portal to reconnect.');
+          } else if (shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
             this.reconnectAttempts++;
             console.log(`[whatsapp] Reconnecting... (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
 
-            // Wait before reconnecting
-            await new Promise(resolve => setTimeout(resolve, 5000));
+            // Exponential backoff: 5s, 10s, 20s, 40s, 80s
+            const delay = 5000 * Math.pow(2, this.reconnectAttempts - 1);
+            await new Promise(resolve => setTimeout(resolve, delay));
             await this.connect();
           } else if (statusCode === DisconnectReason.loggedOut) {
             console.log('[whatsapp] Logged out. Please re-authenticate by restarting the bridge.');
             // Clear auth state
             fs.rmSync(AUTH_DIR, { recursive: true, force: true });
+          } else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+            console.log('[whatsapp] Max reconnect attempts reached. Restart bridge to try again.');
           }
         } else if (connection === 'open') {
           this._connected = true;
@@ -287,19 +345,41 @@ export class WhatsAppAdapter implements ChannelAdapter {
     const userId = msg.key.participant || jid;
     const displayName = msg.pushName || userId.split('@')[0];
 
-    // In groups, check if bot is mentioned (look for @number in message)
-    // For now, we process all group messages - this can be refined later
+    // Groups: KITT does not respond in group chats by default.
+    // Only store messages as read-only context (no response).
     if (isGroup) {
-      // TODO: Add @mention detection for group messages
-      log.debug('Group message received', { jid, from: displayName });
+      try {
+        const memory = getMemoryService();
+        await memory.storeMessage({
+          sessionId: prefixChatId('whatsapp', jid),
+          channel: 'whatsapp',
+          role: 'user',
+          type: 'message',
+          content: `[Group message from ${displayName}]: ${content}`,
+          metadata: {
+            fromNumber: userId.split('@')[0],
+            displayName,
+            readOnly: true,
+            isGroup: true,
+            groupJid: jid,
+            messageId: msg.key.id,
+          },
+        });
+      } catch (err) {
+        log.error('Failed to store group message', { error: String(err) });
+      }
+      log.debug('Group message stored (read-only, no response)', { jid, from: displayName });
+      return;
     }
 
     const chatId = prefixChatId('whatsapp', jid);
 
     // Check permission level (own number is always 'respond')
-    // Pass fromMe for @lid detection (Message Yourself chat)
+    // For @lid JIDs, use participant if available (actual sender's number)
+    // This handles linked device messages correctly
     const ownJid = this.sock?.user?.id;
-    const permission = getNumberPermission(jid, ownJid, msg.key.fromMe ?? false);
+    const senderJid = msg.key.participant || jid;
+    const permission = await getNumberPermission(senderJid, ownJid, msg.key.fromMe ?? false);
 
     log.info('Processing WhatsApp message', {
       chatId,
@@ -311,6 +391,11 @@ export class WhatsAppAdapter implements ChannelAdapter {
     });
 
     // For read-only: store in memory but don't respond
+    // Skip our own outgoing messages to non-allowlisted chats (not useful to store)
+    if (permission === 'read-only' && msg.key.fromMe) {
+      log.debug('Skipping own outgoing message to non-allowlisted chat', { chatId });
+      return;
+    }
     if (permission === 'read-only') {
       try {
         const memory = getMemoryService();
@@ -324,11 +409,21 @@ export class WhatsAppAdapter implements ChannelAdapter {
             fromNumber: userId.split('@')[0],
             displayName,
             readOnly: true,
+            fromMe: msg.key.fromMe ?? false,
             messageId: msg.key.id,
             isVoice,
           },
         });
-        log.info('Stored read-only WhatsApp message', { from: displayName, chatId });
+        // Log with sender info so user knows who tried to message
+        const senderId = userId.split('@')[0];
+        const isLid = userId.endsWith('@lid');
+        log.info('Stored read-only WhatsApp message (not responding)', {
+          from: displayName,
+          senderId,
+          isLid,
+          chatId,
+          tip: `Add +${senderId} to allowlist to enable responses`
+        });
       } catch (err) {
         log.error('Failed to store read-only message', { error: String(err) });
       }

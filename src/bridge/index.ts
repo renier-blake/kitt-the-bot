@@ -8,7 +8,7 @@
  */
 
 import 'dotenv/config';
-import { loadSessions } from './sessions.js';
+import { loadSessions, clearAllSessions } from './sessions.js';
 import { loadState, saveState } from './state.js';
 import { log } from './logger.js';
 import { getScheduler } from '../scheduler/index.js';
@@ -16,6 +16,9 @@ import { startLogServer, stopLogServer } from './log-server.js';
 import { getRouter } from './router.js';
 import { createTelegramAdapter } from './adapters/telegram.js';
 import { createWhatsAppAdapter } from './adapters/whatsapp.js';
+import { createSlackAdapter } from './adapters/slack.js';
+import { createSlackBotAdapter } from './adapters/slack-bot.js';
+import { startTunnel, stopTunnel } from './tunnel.js';
 import { getMemoryService } from '../memory/index.js';
 import { getCredential } from '../credentials/index.js';
 
@@ -52,9 +55,10 @@ async function main(): Promise<void> {
   const workspace = process.env.KITT_WORKSPACE || process.cwd();
   log.info('Workspace', { path: workspace });
 
-  // Load previous state and sessions
+  // Load previous state and clear sessions (fresh start picks up new instructions/tools)
   await loadState();
   await loadSessions();
+  clearAllSessions();
 
   // Initialize memory service (enables embedding pipeline for all adapters)
   log.info('Initializing memory service...');
@@ -84,6 +88,27 @@ async function main(): Promise<void> {
     log.info('WhatsApp adapter enabled');
     const whatsappAdapter = createWhatsAppAdapter();
     router.registerAdapter(whatsappAdapter);
+  }
+
+  // Start Cloudflare Tunnel if token is configured (needed for Slack OAuth + Events API)
+  await startTunnel();
+
+  // Register Slack adapter if credentials are configured
+  const slackToken = await getCredential('SLACK_USER_TOKEN');
+  const slackSigningSecret = await getCredential('SLACK_SIGNING_SECRET');
+  if (slackToken && slackSigningSecret) {
+    log.info('Slack credentials found, enabling adapter');
+    const slackAdapter = createSlackAdapter();
+    router.registerAdapter(slackAdapter);
+  }
+
+  // Register Slack Bot adapter if bot credentials configured (Socket Mode — no tunnel needed)
+  const slackBotToken = await getCredential('SLACK_BOT_TOKEN');
+  const slackAppToken = await getCredential('SLACK_APP_TOKEN');
+  if (slackBotToken && slackAppToken) {
+    log.info('Slack Bot credentials found, enabling bot adapter');
+    const slackBotAdapter = createSlackBotAdapter();
+    router.registerAdapter(slackBotAdapter);
   }
 
   // Start all adapters
@@ -124,6 +149,10 @@ async function main(): Promise<void> {
     log.info('Shutting down...', { signal });
 
     clearInterval(thinkLoopTimer);
+    // Shutdown agent pool first — aborts running agents and logs what was killed
+    const { getAgentPool } = await import('./agent-pool.js');
+    getAgentPool().shutdown();
+    stopTunnel();
     await scheduler.shutdown();
     await router.stop();
     await saveState();

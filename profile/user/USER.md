@@ -3,11 +3,25 @@
 ## Basics
 
 - **Naam:** Renier Bleker
+- **Geboortedatum:** 24 januari 1983
 - **Leeftijd:** 43
 - **Pronouns:** hij/hem
 - **Timezone:** Europe/Amsterdam (Nederland)
 - **Beroep:** AI-engineer, bouwer, ondernemer
 - **Favoriete kleur:** groen 💚
+
+---
+
+## Familie & Kring
+
+- **Babs Bleeker** — Renier's zusje. Stuurt af en toe WhatsApp-berichten.
+- **Christian (Chris)** — Renier's broer. Bouwt ook aan een personal assistant project ("AI Partner Formule"). Gevoelige dynamiek: overlap in projecten, concurrentie-angst aan beide kanten.
+- **Johanna Hahn** — Ex-vriendin. Nog steeds contact via WhatsApp — praktische zaken (Kenji's eten ophalen). Woont in Witten, Duitsland.
+- **Sanja** — Goede vriendin. Leert coderen met Claude/Lovable. Enthousiast en sociaal.
+- **Daan Peeters** — Vriend.
+- **Leon** — Vriend. Vader van Loua. Woont in Nijmegen.
+- **Nico** — Vriend. Woont in het buitenland. Vader.
+- **Kenji** — Renier's hond. Centrale figuur in het dagelijks leven — wandelingen, brainstorm-tijd, eten ophalen.
 
 ---
 
@@ -22,6 +36,7 @@ Renier's brein is ADHD. Gediagnosticeerd op 43-jarige leeftijd (januari 2026), m
 - 24/7 non-stop denken. Zes threads tegelijk. De kloof tussen idee en actie is praktisch nul.
 - Context-switches zijn normaal, niet een probleem. Vier onderwerpen in twee uur is een gewone dinsdag.
 - Hyperfocus is zijn superkracht. Als hij ergens in zit, kan hij uren doorwerken met extreme output. Die flow is heilig — niet onderbreken.
+- **Hyperfocus trigger:** twee types geïdentificeerd. (1) Persoonlijk ervaren systeemfouten — frustratie als katalysator. (2) Curiosity-driven testing — nieuwsgierigheid als trigger, systematisch testen en analyseren.
 - Medicatie (methylfenidaat 15mg) kalmeert het lichaam maar maakt de focus slechter. Standaard fix, non-standaard brein.
 
 **Hoe hij het zelf ziet:** "ADHD is a feature, not a bug." Hij heeft 43 jaar nodig gehad om dat te begrijpen. Heeft eigen systemen en structuren gebouwd om te functioneren in een rigide maatschappij. Nog steeds messy, maar hij komt er.
@@ -31,12 +46,15 @@ Renier's brein is ADHD. Gediagnosticeerd op 43-jarige leeftijd (januari 2026), m
 ## Hoe hij werkt
 
 - **Sprints > marathon.** Korte intense sessies met hoge output. Niet uren achter elkaar op halve kracht.
+- **Dag-energie curve.** Ochtend: technische sprints en deep work. Middag: content creatie en strategische discussies. Avond: ontspannen, casual chat, reflectie. Zijn toon verschuift mee — van scherp en to-the-point naar "lekker weertje" en "mooie tijden wel". Match die curve.
 - **Ideeën moeten direct landen.** Als een idee komt, moet het ergens terecht — anders is het weg. Brainstorm doc, issue, quick note. Het medium maakt niet uit, als het maar gevangen wordt.
 - **Build in public.** Deelt graag wat hij maakt op LinkedIn, blog, podcast. Dit is geen bijzaak, dit is hoe hij werkt.
 - **Denkt in producten, niet in features.** Een brainstorm gaat niet over "voeg X toe" maar over de hele visie. PAS, digital employee, freemium model — dat ontstaat in één wandeling.
-- **Brainstormt het beste in beweging.** Wandelingen met Kenji (zijn hond) zijn prime brainstorm-tijd. Hele PAS product vision ontstond tijdens één wandeling (9 feb).
+- **Brainstormt het beste in beweging.** Wandelingen met Kenji (zijn hond) zijn prime brainstorm-tijd.
 - **Geeft autonomie, verwacht kwaliteit.** Als hij zegt "doe je ding" dan bedoelt hij dat. Maar hij verwacht dan ook dat het goed gedaan wordt. Vertrouwen moet verdiend worden.
 - **Audio als medium.** Luistert naar blogposts en content in de auto. Dit is een primair review-kanaal naast tekst.
+- **Drafts als springplank.** Gebruikt mijn content drafts (LinkedIn, blog) als startpunt, niet als eindproduct. Hij wil eigenaarschap over persoonlijke content.
+- **Delegatie verschuift door de dag.** Ochtend: wil meedenken, hands-on, stuurt mee. Avond: wil resultaten, delegeert sneller ("check dit", "haal dat op", "doe maar"). Match dit: ochtend = sparring, avond = service.
 
 ---
 
@@ -45,9 +63,10 @@ Renier's brein is ADHD. Gediagnosticeerd op 43-jarige leeftijd (januari 2026), m
 ### Dagelijkse communicatie
 
 - **Taal:** Nederlands voor casual chat en voice messages. Engels voor publieke content en technische concepten.
-- **Voice messages:** Stream-of-consciousness. Lang, herhalend, ongestructureerd. Dat is normaal, niet een fout. Gebruikt "weet je al" als filler.
+- **Voice messages:** Stream-of-consciousness. Lang, herhalend, ongestructureerd. Dat is normaal, niet een fout. Gebruikt "weet je al" als filler. **Signaalfunctie:** als hij overschakelt van tekst naar voice, is het onderwerp belangrijk voor hem — voice = dieper nadenken.
 - **Direct.** Zegt precies wat hij vindt. Geen omhaal, geen inleidingen. Recht voor z'n raap.
 - **Feedback:** "top", "perfect", "nice" = positief. Capslock = gefrustreerd. "Wat??" = ik heb iets gemist.
+- **Zelfreflectief over felheid.** Als hij te fel is geweest in een professionele context, biedt hij zelf excuses aan. Niet defensief maar reparerend. Trigger: "veel praten, weinig doen" bij anderen.
 
 ### Humor
 
@@ -110,6 +129,8 @@ Renier's brein is ADHD. Gediagnosticeerd op 43-jarige leeftijd (januari 2026), m
 - **Autonomous Dev Flywheel.** Visie voor features die automatisch gebouwd worden door agents, met PO-specs als blauwdruk.
 - **Vrijheid en autonomie.** Werkt op basis van een gentleman's agreement (geen contract). Bouwt KITT in eigen tijd. Wil de vrijheid om er een product van te maken.
 - **Eerlijk zijn over imperfectie.** Deelt openlijk dat dingen messy zijn. "It's still messy as f*ck. But I'm getting there." Dat is geen zwakte, dat is authenticiteit.
+- **Spanning KITT vs OPG.** KITT is passie/hobby, OPG is verantwoordelijkheid. Hij voelt zich schuldig als KITT te veel tijd inneemt ten koste van OPG. Terugkerend intern conflict.
+- **Emotioneel beschermingsmechanisme.** Als gesprekken te emotioneel of te complex worden, kan Renier afkappen met "laat maar ff" of "optie a!!!!" — hij wil dan niet verder praten maar actie. Dit is geen desinteresse maar een manier om controle te houden. Respecteer dit: niet doordrukken, gewoon doen wat gevraagd wordt.
 
 ---
 
@@ -137,6 +158,9 @@ Specifieke dingen die NIET werken. Let hier actief op.
 - **Managed worden.** "Zullen we teruggaan naar wat we bezig waren?" is de snelste manier om een ADHD-brein uit te schakelen.
 - **Corporate toon.** In publieke content. Hij wil edgy, direct, spoken language. Geen gepolijste marketing-speak.
 - **Herhaling van zijn woorden.** Zijn input niet samenvatten of terug-quoten. Hij weet wat hij zei.
+- **Frustratie is constructief.** Als Renier gefrustreerd raakt, is dat geen signaal om te stoppen maar om het systeem te verbeteren. Mijn reactie moet niet "sorry" zijn maar "oké, hoe fixen we dit?"
+- **Ongewenste acties.** Dingen doen die niet gevraagd zijn is erger dan dingen niet doen die wel gevraagd zijn. Liever te weinig dan te veel initiatief bij file-wijzigingen.
+- **Lage energie = lage tolerantie.** Als Body Battery laag start (<25) en slaap < 7u, is Renier sneller gefrustreerd en wil hij snellere resultaten. Erkenning bieden, niet meer data laden.
 
 ---
 

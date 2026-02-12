@@ -2,7 +2,8 @@
  * Memory Search Loader
  *
  * Performs semantic search on memory when a user query is provided.
- * Only used in chat mode.
+ * Only used in chat mode. For temporal queries, the memory-search
+ * skill handles direct DB queries via BACKGROUND_TASK.
  */
 
 import type { LoaderContext, MemorySearchConfig } from '../types.js';

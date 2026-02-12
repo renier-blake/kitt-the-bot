@@ -114,3 +114,15 @@ export function clearSession(chatId: string): void {
     log.error('Failed to save sessions after clear', { error: String(err) });
   });
 }
+
+/**
+ * Clear ALL sessions (called on bridge restart to pick up new instructions/tools)
+ */
+export function clearAllSessions(): void {
+  const count = sessions.size;
+  sessions.clear();
+  saveSessions().catch((err) => {
+    log.error('Failed to save sessions after clear all', { error: String(err) });
+  });
+  log.info('All sessions cleared', { count });
+}

@@ -24,8 +24,20 @@ import {
   getConnections as getLocalConnections,
   setDefaultConnection,
 } from '../integrations/config.js';
+import {
+  buildAuthorizeUrl,
+  exchangeCodeForTokens,
+  getOAuthConfig,
+  isOAuthConnected,
+  disconnectOAuth,
+} from '../integrations/oauth.js';
+import { testSlackConnection } from '../integrations/slack.js';
 import { getRouter } from './router.js';
+import { getAgentPool } from './agent-pool.js';
+import { getScheduler } from '../scheduler/index.js';
 import type { WhatsAppAdapter } from './adapters/whatsapp.js';
+import type { SlackAdapter } from './adapters/slack.js';
+import { registerSlackEventsRoute } from './slack-events.js';
 import * as fs from 'fs';
 
 const DB_PATH = process.env.KITT_DB_PATH || './profile/data/kitt.db';
@@ -80,10 +92,13 @@ function broadcast(entry: LogEntry): void {
 }
 
 function detectSource(content: string): string | undefined {
+  if (content.includes('[agent-pool]')) return 'agent-pool';
   if (content.includes('[think-loop]')) return 'think-loop';
   if (content.includes('[agent]')) return 'agent';
   if (content.includes('[scheduler]')) return 'scheduler';
   if (content.includes('[telegram]')) return 'telegram';
+  if (content.includes('[slack]')) return 'slack';
+  if (content.includes('[tunnel]')) return 'tunnel';
   if (content.startsWith('{"ts":')) return 'structured';
   return undefined;
 }
@@ -148,8 +163,18 @@ export function installLogInterceptor(): void {
 export function startLogServer(port = 8000): { server: Server; wss: WebSocketServer } {
   const app = express();
 
-  // Parse JSON body
-  app.use(express.json());
+  // Parse JSON body — preserve raw body for Slack signature verification
+  app.use(express.json({
+    verify: (req, _res, buf) => {
+      (req as unknown as { rawBody: string }).rawBody = buf.toString();
+    },
+  }));
+
+  // Register Slack Events API route (always — route self-guards via signing secret + adapter check)
+  registerSlackEventsRoute(app, () => {
+    const router = getRouter();
+    return router.getAdapter('slack') as SlackAdapter | undefined;
+  });
 
   // Serve portal static files
   const portalPath = path.join(process.cwd(), 'frontends', 'portal');
@@ -158,6 +183,27 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
   // Fallback to index.html
   app.get('/', (_req, res) => {
     res.sendFile(path.join(portalPath, 'index.html'));
+  });
+
+  // ==========================================
+  // Agent Pool API (KITT-147: Observability)
+  // ==========================================
+
+  app.get('/api/agents', async (_req, res) => {
+    try {
+      const pool = getAgentPool();
+      const [recent, stats] = await Promise.all([
+        pool.getRecent(20),
+        pool.getStats(),
+      ]);
+      res.json({
+        active: pool.getActive(),
+        recent,
+        stats,
+      });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
   });
 
   // ==========================================
@@ -234,13 +280,19 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
       const uptime = process.uptime();
       const startedAt = new Date(now - uptime * 1000).toISOString();
 
-      // Get last think loop run
-      const lastThinkLoopResult = await database.execute(
-        "SELECT created_at FROM transcripts WHERE channel = 'think-loop' ORDER BY created_at DESC LIMIT 1"
-      );
-      const lastThinkLoop = lastThinkLoopResult.rows.length > 0
-        ? Number(lastThinkLoopResult.rows[0].created_at)
-        : null;
+      // Get last think loop tick — prefer in-memory (always updated), fallback to DB
+      const schedulerStatus = getScheduler().getStatus();
+      let lastThinkLoop = schedulerStatus.lastTickAt;
+
+      if (!lastThinkLoop) {
+        // Fallback: DB transcript (only written when think loop takes action)
+        const lastThinkLoopResult = await database.execute(
+          "SELECT created_at FROM transcripts WHERE channel = 'think-loop' ORDER BY created_at DESC LIMIT 1"
+        );
+        lastThinkLoop = lastThinkLoopResult.rows.length > 0
+          ? Number(lastThinkLoopResult.rows[0].created_at)
+          : null;
+      }
 
       // Calculate think loop status
       let thinkLoopStatus = 'running';
@@ -315,6 +367,8 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
     if (content.includes('[agent]')) return 'agent';
     if (content.includes('[scheduler]')) return 'scheduler';
     if (content.includes('[telegram]')) return 'telegram';
+    if (content.includes('[slack]')) return 'slack';
+    if (content.includes('[tunnel]')) return 'tunnel';
     if (content.includes('[garmin]')) return 'garmin';
     return 'system';
   }
@@ -743,10 +797,10 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
   app.get('/api/issues', async (req, res) => {
     try {
       const database = getDb();
-      const { project, cycle, state, priority, search } = req.query;
+      const { project, cycle, state, priority, complexity, scope, search, parentId, labels } = req.query;
 
       let sql = `
-        SELECT 
+        SELECT
           i.id,
           i.identifier,
           i.title,
@@ -754,9 +808,18 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
           i.state,
           i.priority,
           i.type,
+          i.complexity,
+          i.scope,
           i.project_id,
           i.cycle_id,
+          i.parent_id,
           i.position,
+          i.due_date,
+          i.scheduled_date,
+          i.scheduled_time_start,
+          i.scheduled_time_end,
+          i.scheduled_timezone,
+          i.start_date,
           i.created_by,
           i.created_at,
           i.updated_at,
@@ -786,10 +849,33 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
         sql += ' AND i.priority = ?';
         args.push(String(priority));
       }
+      if (complexity) {
+        sql += ' AND i.complexity = ?';
+        args.push(String(complexity));
+      }
+      if (scope) {
+        sql += ' AND i.scope = ?';
+        args.push(String(scope));
+      }
+      if (parentId) {
+        sql += ' AND i.parent_id = ?';
+        args.push(Number(parentId));
+      }
       if (search) {
         sql += ' AND (i.title LIKE ? OR i.description LIKE ?)';
         const searchTerm = `%${search}%`;
         args.push(searchTerm, searchTerm);
+      }
+      if (labels) {
+        const labelIds = Array.isArray(labels) 
+          ? labels.map(Number) 
+          : [Number(labels)];
+        const placeholders = labelIds.map(() => '?').join(',');
+        sql += ` AND EXISTS (
+          SELECT 1 FROM portal_issue_labels il 
+          WHERE il.issue_id = i.id AND il.label_id IN (${placeholders})
+        )`;
+        args.push(...labelIds);
       }
 
       sql += ' ORDER BY i.state, i.position ASC, i.created_at ASC';
@@ -831,8 +917,11 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
         state: String(row.state),
         priority: String(row.priority),
         type: String(row.type),
+        complexity: row.complexity ? String(row.complexity) : 'medium',
+        scope: row.scope ? String(row.scope) : 'isolated',
         projectId: Number(row.project_id),
         cycleId: row.cycle_id ? Number(row.cycle_id) : null,
+        parentId: row.parent_id ? Number(row.parent_id) : null,
         position: row.position ? Number(row.position) : 0,
         createdBy: String(row.created_by),
         createdAt: Number(row.created_at),
@@ -895,8 +984,9 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
         sql: `
           INSERT INTO portal_issues (
             identifier, title, description, state, priority, type,
-            project_id, cycle_id, position, created_by, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            project_id, cycle_id, position, created_by, created_at, updated_at,
+            scheduled_date, scheduled_time_start, scheduled_time_end, scheduled_timezone, due_date, start_date
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         args: [
           identifier,
@@ -911,6 +1001,12 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
           'KITT',
           now,
           now,
+          null, // scheduled_date
+          null, // scheduled_time_start
+          null, // scheduled_time_end
+          'Europe/Amsterdam', // scheduled_timezone
+          null, // due_date
+          null, // start_date
         ],
       });
 
@@ -941,7 +1037,10 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
     try {
       const database = getDb();
       const issueId = Number(req.params.id);
-      const { state, priority, title, description, cycleId, position } = req.body;
+      const { 
+        state, priority, title, description, cycleId, position, complexity, scope,
+        dueDate, scheduledDate, scheduledTimeStart, scheduledTimeEnd, scheduledTimezone, startDate
+      } = req.body;
 
       const updates: string[] = [];
       const args: (string | number | null)[] = [];
@@ -969,6 +1068,38 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
       if (position !== undefined) {
         updates.push('position = ?');
         args.push(position);
+      }
+      if (complexity !== undefined) {
+        updates.push('complexity = ?');
+        args.push(complexity);
+      }
+      if (scope !== undefined) {
+        updates.push('scope = ?');
+        args.push(scope);
+      }
+      if (dueDate !== undefined) {
+        updates.push('due_date = ?');
+        args.push(dueDate ? Number(dueDate) : null);
+      }
+      if (scheduledDate !== undefined) {
+        updates.push('scheduled_date = ?');
+        args.push(scheduledDate ? Number(scheduledDate) : null);
+      }
+      if (scheduledTimeStart !== undefined) {
+        updates.push('scheduled_time_start = ?');
+        args.push(scheduledTimeStart ? Number(scheduledTimeStart) : null);
+      }
+      if (scheduledTimeEnd !== undefined) {
+        updates.push('scheduled_time_end = ?');
+        args.push(scheduledTimeEnd ? Number(scheduledTimeEnd) : null);
+      }
+      if (scheduledTimezone !== undefined) {
+        updates.push('scheduled_timezone = ?');
+        args.push(scheduledTimezone || null);
+      }
+      if (startDate !== undefined) {
+        updates.push('start_date = ?');
+        args.push(startDate ? Number(startDate) : null);
       }
 
       if (updates.length === 0) {
@@ -1241,7 +1372,9 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
       const vaultEntries = await listCredentials();
       const vaultKeys = new Set(vaultEntries.map(e => e.key));
 
-      const integrations = result.rows.map(row => {
+      const { getConfigValue } = await import('../integrations/config.js');
+
+      const integrations = await Promise.all(result.rows.map(async (row) => {
         const authConfig = row.auth_config ? JSON.parse(row.auth_config as string) : {};
         const authType = row.auth_type as string;
         const provider = row.provider as string;
@@ -1259,6 +1392,10 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
         } else if (authType === 'api_key' || authType === 'token') {
           const credKey = authConfig.credential_key;
           connected = credKey ? (vaultKeys.has(credKey) || !!process.env[credKey]) : false;
+        } else if (authType === 'oauth' && provider === 'direct') {
+          // Direct OAuth (own framework): check if token_key is in vault
+          const tokenKey = authConfig.token_key;
+          connected = tokenKey ? vaultKeys.has(tokenKey) : false;
         } else if (authType === 'oauth' && provider === 'custom') {
           // Custom OAuth (Podbean, Google OAuth app): check if all credential_keys are set
           const keys: string[] = authConfig.credential_keys || [];
@@ -1267,6 +1404,17 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
           // Username/password: check vault for integration-specific key
           const credKey = `${id.toUpperCase().replace(/-/g, '_')}_CREDENTIALS`;
           connected = vaultKeys.has(credKey);
+        }
+
+        // Load settings values from kitt_config for integrations with settings
+        let settings_values: Record<string, string> | undefined;
+        const settings = authConfig.settings as Array<{ key: string }> | undefined;
+        if (settings?.length) {
+          settings_values = {};
+          for (const s of settings) {
+            const val = await getConfigValue(s.key);
+            if (val) settings_values[s.key] = val;
+          }
         }
 
         return {
@@ -1280,8 +1428,9 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
           auth_config: authConfig,
           connected,
           connection,
+          settings_values,
         };
-      });
+      }));
 
       res.json({ integrations });
     } catch (err) {
@@ -1307,8 +1456,26 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
       }
 
       const row = result.rows[0];
-      if (row.auth_type !== 'oauth' || row.provider !== 'nango') {
-        res.status(400).json({ error: 'This integration does not use Nango OAuth' });
+      const authType = row.auth_type as string;
+      const provider = row.provider as string;
+
+      if (authType !== 'oauth') {
+        res.status(400).json({ error: 'This integration does not use OAuth' });
+        return;
+      }
+
+      if (provider === 'direct') {
+        // Direct OAuth: build authorize URL using our own framework
+        // Use config override (e.g. tunnel URL for HTTPS-only providers) or dynamic URI
+        const oauthConfig = await getOAuthConfig(integrationId);
+        const redirectUri = oauthConfig?.redirectUri || `${req.protocol}://${req.get('host')}/api/auth/callback`;
+        const url = await buildAuthorizeUrl(integrationId, redirectUri);
+        res.json({ url, provider: 'direct' });
+        return;
+      }
+
+      if (provider !== 'nango') {
+        res.status(400).json({ error: 'Unsupported OAuth provider' });
         return;
       }
 
@@ -1320,6 +1487,43 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
     } catch (err) {
       console.error('[integrations] Failed to create session:', err);
       res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to create connect session' });
+    }
+  });
+
+  // Generic OAuth callback — handles all provider="direct" integrations
+  app.get('/api/auth/callback', async (req, res) => {
+    try {
+      const { state, code, error } = req.query as Record<string, string | undefined>;
+
+      if (error) {
+        console.error(`[oauth] Callback error: ${error}`);
+        res.redirect(`/#/integrations?oauth_error=${encodeURIComponent(error)}`);
+        return;
+      }
+
+      if (!state || !code) {
+        res.redirect('/#/integrations?oauth_error=missing_params');
+        return;
+      }
+
+      const integrationId = state;
+      // Use config override (must match what was sent in authorize) or dynamic URI
+      const oauthConfig = await getOAuthConfig(integrationId);
+      const redirectUri = oauthConfig?.redirectUri || `${req.protocol}://${req.get('host')}/api/auth/callback`;
+
+      console.log(`[oauth] Callback received for ${integrationId}`);
+      const result = await exchangeCodeForTokens(integrationId, code, redirectUri);
+
+      if (result.success) {
+        console.log(`[oauth] ${integrationId} connected successfully`);
+        res.redirect(`/#/integrations?oauth_success=${encodeURIComponent(integrationId)}`);
+      } else {
+        console.error(`[oauth] ${integrationId} connection failed: ${result.error}`);
+        res.redirect(`/#/integrations?oauth_error=${encodeURIComponent(result.error || 'unknown')}`);
+      }
+    } catch (err) {
+      console.error('[oauth] Callback error:', err);
+      res.redirect(`/#/integrations?oauth_error=${encodeURIComponent(err instanceof Error ? err.message : 'callback_failed')}`);
     }
   });
 
@@ -1409,7 +1613,9 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
       const provider = row.provider as string;
       const authConfig = row.auth_config ? JSON.parse(row.auth_config as string) : {};
 
-      if (authType === 'oauth' && provider === 'nango') {
+      if (authType === 'oauth' && provider === 'direct') {
+        await disconnectOAuth(integrationId);
+      } else if (authType === 'oauth' && provider === 'nango') {
         const nangoId = authConfig.nango_id || integrationId;
         await deleteConnection(nangoId);
       } else if (authType === 'api_key' || authType === 'token') {
@@ -1454,7 +1660,24 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
       const authConfig = row.auth_config ? JSON.parse(row.auth_config as string) : {};
       const { getCredential } = await import('../credentials/index.js');
 
-      if (authType === 'oauth' && provider === 'nango') {
+      if (authType === 'oauth' && provider === 'direct') {
+        // Direct OAuth: check token exists + run provider-specific test
+        const connected = await isOAuthConnected(integrationId);
+        if (!connected) {
+          res.json({ success: false, error: 'Not connected' });
+          return;
+        }
+
+        // Provider-specific tests
+        if (integrationId === 'slack') {
+          const slackResult = await testSlackConnection();
+          res.json(slackResult);
+          return;
+        }
+
+        // Generic: just check token exists
+        res.json({ success: true });
+      } else if (authType === 'oauth' && provider === 'nango') {
         const nangoId = authConfig.nango_id || integrationId;
         const connection = await getConnection(nangoId);
         res.json({ success: !!connection, provider: connection?.provider });
@@ -1670,6 +1893,228 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
       res.json({ success: true });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to disconnect WhatsApp' });
+    }
+  });
+
+  // Get WhatsApp allowed numbers
+  app.get('/api/channels/whatsapp/allowed-numbers', async (_req, res) => {
+    try {
+      const { getMetaValue } = await import('../capabilities/index.js');
+      const value = await getMetaValue('whatsapp_allowed_numbers');
+      const numbers = value ? JSON.parse(value) : [];
+      res.json({ numbers });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to get allowed numbers' });
+    }
+  });
+
+  // Set WhatsApp allowed numbers
+  app.post('/api/channels/whatsapp/allowed-numbers', async (req, res) => {
+    try {
+      const { numbers } = req.body;
+
+      if (!Array.isArray(numbers)) {
+        res.status(400).json({ error: 'numbers must be an array' });
+        return;
+      }
+
+      // Validate and clean numbers (remove non-digits except +)
+      const cleanNumbers = numbers
+        .map((n: string) => String(n).replace(/[^\d+]/g, ''))
+        .filter((n: string) => n.length >= 8); // At least 8 digits
+
+      const { setMetaValue } = await import('../capabilities/index.js');
+      await setMetaValue('whatsapp_allowed_numbers', JSON.stringify(cleanNumbers));
+
+      res.json({ success: true, numbers: cleanNumbers });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to set allowed numbers' });
+    }
+  });
+
+  // Add a number to WhatsApp allowlist
+  app.post('/api/channels/whatsapp/allowed-numbers/add', async (req, res) => {
+    try {
+      const { number } = req.body;
+
+      if (!number || typeof number !== 'string') {
+        res.status(400).json({ error: 'number is required' });
+        return;
+      }
+
+      const cleanNumber = number.replace(/[^\d+]/g, '');
+      if (cleanNumber.length < 8) {
+        res.status(400).json({ error: 'Invalid phone number' });
+        return;
+      }
+
+      const { getMetaValue, setMetaValue } = await import('../capabilities/index.js');
+      const value = await getMetaValue('whatsapp_allowed_numbers');
+      const numbers: string[] = value ? JSON.parse(value) : [];
+
+      if (!numbers.includes(cleanNumber)) {
+        numbers.push(cleanNumber);
+        await setMetaValue('whatsapp_allowed_numbers', JSON.stringify(numbers));
+      }
+
+      res.json({ success: true, numbers });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to add number' });
+    }
+  });
+
+  // Remove a number from WhatsApp allowlist
+  app.delete('/api/channels/whatsapp/allowed-numbers/:number', async (req, res) => {
+    try {
+      const { number } = req.params;
+
+      const { getMetaValue, setMetaValue } = await import('../capabilities/index.js');
+      const value = await getMetaValue('whatsapp_allowed_numbers');
+      const numbers: string[] = value ? JSON.parse(value) : [];
+
+      const cleanNumber = number.replace(/[^\d+]/g, '');
+      const newNumbers = numbers.filter((n) => n !== cleanNumber);
+
+      await setMetaValue('whatsapp_allowed_numbers', JSON.stringify(newNumbers));
+
+      res.json({ success: true, numbers: newNumbers });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to remove number' });
+    }
+  });
+
+  // Get seen WhatsApp contacts (people who messaged but aren't in allowlist)
+  app.get('/api/channels/whatsapp/seen-contacts', async (_req, res) => {
+    try {
+      // Get connected user's name to filter out own outgoing messages
+      const router = getRouter();
+      const adapter = router.getAdapter('whatsapp') as WhatsAppAdapter | undefined;
+      const details = adapter?.getStatus()?.details as { name?: string } | undefined;
+      const connectedName: string | null = details?.name ?? null;
+
+      const db = getDb();
+      const result = await db.execute({
+        sql: `
+          WITH filtered AS (
+            SELECT
+              COALESCE(json_extract(metadata, '$.fromNumber'), REPLACE(session_id, 'whatsapp:', '')) as identifier,
+              json_extract(metadata, '$.displayName') as displayName,
+              created_at
+            FROM transcripts
+            WHERE channel = 'whatsapp'
+              AND role = 'user'
+              AND json_extract(metadata, '$.readOnly') = 1
+              AND COALESCE(json_extract(metadata, '$.fromMe'), 0) != 1
+              AND ($1 IS NULL OR json_extract(metadata, '$.displayName') != $1)
+              AND session_id NOT LIKE '%@g.us'
+          )
+          SELECT
+            identifier,
+            -- Pick displayName from most recent message
+            (SELECT f2.displayName FROM filtered f2 WHERE f2.identifier = f.identifier ORDER BY f2.created_at DESC LIMIT 1) as displayName,
+            COUNT(*) as messageCount,
+            MAX(created_at) as lastMessageAt
+          FROM filtered f
+          GROUP BY identifier
+          ORDER BY lastMessageAt DESC
+        `,
+        args: [connectedName],
+      });
+
+      const contacts = result.rows.map((row) => ({
+        identifier: String(row.identifier),
+        displayName: row.displayName ? String(row.displayName) : null,
+        messageCount: Number(row.messageCount),
+        lastMessageAt: Number(row.lastMessageAt),
+      }));
+
+      res.json({ contacts });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to get seen contacts' });
+    }
+  });
+
+  // ==========================================
+  // Slack allowed users API
+  // ==========================================
+
+  // Get Slack allowed users config
+  // Format: { "U12345": "respond", "U67890": "read-only" }
+  app.get('/api/channels/slack/allowed-users', async (_req, res) => {
+    try {
+      const { getMetaValue } = await import('../capabilities/index.js');
+      const value = await getMetaValue('slack_allowed_users');
+      const users: Record<string, string> = value ? JSON.parse(value) : {};
+      res.json({ users });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to get allowed users' });
+    }
+  });
+
+  // Set Slack allowed users config (full replace)
+  app.put('/api/channels/slack/allowed-users', async (req, res) => {
+    try {
+      const { users } = req.body;
+
+      if (users !== null && typeof users !== 'object') {
+        res.status(400).json({ error: 'users must be an object or null' });
+        return;
+      }
+
+      const { setMetaValue } = await import('../capabilities/index.js');
+
+      if (users === null || Object.keys(users).length === 0) {
+        // Clear config = allow all (backwards compatible)
+        await setMetaValue('slack_allowed_users', '');
+      } else {
+        await setMetaValue('slack_allowed_users', JSON.stringify(users));
+      }
+
+      res.json({ success: true, users: users || {} });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to set allowed users' });
+    }
+  });
+
+  // Add or update a single Slack user's permission
+  app.post('/api/channels/slack/allowed-users/:userId', async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { permission } = req.body;
+
+      if (!['respond', 'read-only', 'blocked'].includes(permission)) {
+        res.status(400).json({ error: 'permission must be "respond", "read-only", or "blocked"' });
+        return;
+      }
+
+      const { getMetaValue, setMetaValue } = await import('../capabilities/index.js');
+      const value = await getMetaValue('slack_allowed_users');
+      const users: Record<string, string> = value ? JSON.parse(value) : {};
+
+      users[userId] = permission;
+      await setMetaValue('slack_allowed_users', JSON.stringify(users));
+
+      res.json({ success: true, users });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to update user permission' });
+    }
+  });
+
+  // Remove a user from Slack allowlist
+  app.delete('/api/channels/slack/allowed-users/:userId', async (req, res) => {
+    try {
+      const { userId } = req.params;
+
+      const { getMetaValue, setMetaValue } = await import('../capabilities/index.js');
+      const value = await getMetaValue('slack_allowed_users');
+      const users: Record<string, string> = value ? JSON.parse(value) : {};
+
+      delete users[userId];
+      await setMetaValue('slack_allowed_users', JSON.stringify(users));
+
+      res.json({ success: true, users });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to remove user' });
     }
   });
 

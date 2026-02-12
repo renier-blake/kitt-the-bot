@@ -22,7 +22,7 @@ import {
   clearWakeReminder,
   clearSleep,
 } from './sleep-mode.js';
-import { isAgentProcessing } from './processing-lock.js';
+import { isAgentProcessing, isConversationActive } from './processing-lock.js';
 
 const REGISTRY_PATH = process.env.KITT_SCHEDULER_REGISTRY || './profile/data/runtime.json';
 const DEFAULT_TIMEZONE = 'Europe/Amsterdam';
@@ -34,6 +34,8 @@ export class SchedulerService {
   private registry: ScheduleRegistry | null = null;
   private timers: Map<string, NodeJS.Timeout> = new Map();
   private initialized = false;
+  private lastTickAt: number | null = null;
+  private tickRunning = false; // KITT-138: Overlap guard
 
   /**
    * Initialize the scheduler
@@ -243,10 +245,55 @@ export class SchedulerService {
   }
 
   /**
+   * Build a task-specific prompt with skill content
+   * KITT-139: Shared between sync sub-agents and background dispatch
+   */
+  private async buildTaskPrompt(task: { title: string; description: string | null; skill_refs: string[] }, currentTime: string, dayOfWeek: string): Promise<string> {
+    const skillContent = task.skill_refs.length > 0
+      ? await this.loadSkillContent(task.skill_refs[0])
+      : null;
+
+    return `Je bent KITT en je voert nu de volgende taak uit:
+
+**Taak:** ${task.title}
+**Beschrijving:** ${task.description || 'Geen beschrijving'}
+
+${skillContent ? `## Skill Instructies\n\n${skillContent}` : ''}
+
+## Context
+- Tijd: ${currentTime}
+- Dag: ${dayOfWeek}
+
+Voer de taak uit volgens de skill instructies.
+Als je klaar bent, geef een korte samenvatting van wat je hebt gedaan.`;
+  }
+
+  /**
    * Run the Think Loop
    * Called by interval timer in bridge/index.ts
    */
   async runThinkLoop(): Promise<void> {
+    // Always update lastTickAt — even if we skip or take no action
+    this.lastTickAt = Date.now();
+
+    // KITT-138: Overlap guard — prevent concurrent think loop ticks
+    if (this.tickRunning) {
+      console.log('[think-loop] ⏭️ Previous tick still running, skipping');
+      return;
+    }
+    this.tickRunning = true;
+
+    try {
+      await this._runThinkLoopInner();
+    } finally {
+      this.tickRunning = false;
+    }
+  }
+
+  /**
+   * Inner think loop logic (extracted for overlap guard try/finally)
+   */
+  private async _runThinkLoopInner(): Promise<void> {
     if (!this.registry) {
       await this.initialize();
     }
@@ -278,13 +325,24 @@ export class SchedulerService {
         const { getRouter } = await import('../bridge/router.js');
         const wakeMessage = 'Goedemorgen! ☀️ Je wilde om deze tijd gewekt worden.';
 
+        // Send to Telegram (isolated try-catch)
         if (wakeTelegramId) {
-          await getRouter().sendMessage(`telegram:${wakeTelegramId}`, wakeMessage);
-          console.log('[think-loop] 📤 Wake-up message sent to Telegram');
+          try {
+            await getRouter().sendMessage(`telegram:${wakeTelegramId}`, wakeMessage);
+            console.log('[think-loop] 📤 Wake-up message sent to Telegram');
+          } catch (err) {
+            console.warn('[think-loop] ⚠️ Telegram wake-up failed:', err instanceof Error ? err.message : err);
+          }
         }
+
+        // Send to WhatsApp (isolated try-catch)
         if (wakeWhatsappId) {
-          await getRouter().sendMessage(`whatsapp:${wakeWhatsappId}`, wakeMessage);
-          console.log('[think-loop] 📤 Wake-up message sent to WhatsApp');
+          try {
+            await getRouter().sendMessage(`whatsapp:${wakeWhatsappId}`, wakeMessage);
+            console.log('[think-loop] 📤 Wake-up message sent to WhatsApp');
+          } catch (err) {
+            console.warn('[think-loop] ⚠️ WhatsApp wake-up failed:', err instanceof Error ? err.message : err);
+          }
         }
 
         // Log to transcripts
@@ -326,6 +384,12 @@ export class SchedulerService {
       return;
     }
 
+    // Check active conversation window — don't interrupt ongoing conversations
+    if (await isConversationActive(db)) {
+      console.log('[think-loop] 💬 Active conversation window, skipping tick');
+      return;
+    }
+
     console.log('[think-loop] 🧠 Running think loop');
 
     // Get open tasks directly (no longer loading full context twice)
@@ -357,6 +421,7 @@ export class SchedulerService {
     // ========================================
     // F63: PRE-PROCESS TASKS WITH DIFFERENT MODEL
     // Tasks that require Opus/Sonnet are handled separately
+    // KITT-139: Split into sync (awaited) and background (fire-and-forget)
     // ========================================
     const thinkLoopModel = this.registry?.thinkLoop?.model || 'haiku';
     const tasksForSubAgent = tasks.filter((t) => t.model && t.model !== thinkLoopModel);
@@ -364,52 +429,111 @@ export class SchedulerService {
     if (tasksForSubAgent.length > 0) {
       console.log(`[think-loop] 🚀 Found ${tasksForSubAgent.length} task(s) requiring different model`);
 
-      const { runAgent } = await import('../bridge/agent.js');
+      // KITT-139: Split by execution mode
+      const syncTasks = tasksForSubAgent.filter((t) => t.execution !== 'background');
+      const backgroundTasks = tasksForSubAgent.filter((t) => t.execution === 'background');
 
-      for (const task of tasksForSubAgent) {
-        console.log(`[think-loop] 🤖 Spawning ${task.model} sub-agent for: "${task.title}"`);
+      if (backgroundTasks.length > 0) {
+        console.log(`[think-loop] 🔄 Dispatching ${backgroundTasks.length} background task(s)`);
+      }
+      if (syncTasks.length > 0) {
+        console.log(`[think-loop] ⏳ ${syncTasks.length} sync task(s) to await`);
+      }
 
-        // Build task-specific prompt with skill content
-        const skillContent = task.skill_refs.length > 0
-          ? await this.loadSkillContent(task.skill_refs[0])
-          : null;
+      // KITT-139: Background tasks — fire-and-forget via background runner
+      if (backgroundTasks.length > 0) {
+        const { dispatchBackgroundTask } = await import('./background-runner.js');
+        const { getRouter } = await import('../bridge/router.js');
 
-        const taskPrompt = `Je bent KITT en je voert nu de volgende taak uit:
+        const telegramId = this.registry?.telegramChatId;
+        const whatsappId = this.registry?.whatsappChatId;
+        const chatId = telegramId ? `telegram:${telegramId}` : (whatsappId ? `whatsapp:${whatsappId}` : null);
+        const channel = telegramId ? 'telegram' : (whatsappId ? 'whatsapp' : 'unknown');
 
-**Taak:** ${task.title}
-**Beschrijving:** ${task.description || 'Geen beschrijving'}
-
-${skillContent ? `## Skill Instructies\n\n${skillContent}` : ''}
-
-## Context
-- Tijd: ${currentTime}
-- Dag: ${dayOfWeek}
-
-Voer de taak uit volgens de skill instructies.
-Als je klaar bent, geef een korte samenvatting van wat je hebt gedaan.`;
-
-        try {
-          const subResponse = await runAgent(taskPrompt, {
-            model: task.model as 'haiku' | 'sonnet' | 'opus',
-            skipMemorySearch: true,
-          });
-
-          if (subResponse.result) {
-            console.log(`[think-loop] ✅ Sub-agent completed task "${task.title}"`);
-            console.log(`[think-loop] 📝 Result preview: ${subResponse.result.slice(0, 100)}...`);
-
-            // Log task as completed
-            await logTaskExecution(db, {
-              task_id: task.id,
-              task_title: task.title,
-              status: 'completed',
-              notes: `Completed by ${task.model} sub-agent`,
-            });
-          } else {
-            console.warn(`[think-loop] ⚠️ Sub-agent returned no result for "${task.title}"`);
+        for (const task of backgroundTasks) {
+          if (!chatId) {
+            console.warn(`[think-loop] ⚠️ No chat ID configured, cannot dispatch background task "${task.title}"`);
+            continue;
           }
-        } catch (err) {
-          console.error(`[think-loop] ❌ Sub-agent failed for "${task.title}":`, err);
+
+          const taskPrompt = await this.buildTaskPrompt(task, currentTime, dayOfWeek);
+
+          try {
+            const dispatchResult = await dispatchBackgroundTask({
+              chatId,
+              channel,
+              capabilityId: task.skill_refs[0] || task.title,
+              prompt: taskPrompt,
+              description: task.title,
+              onComplete: async (cid: string, message: string) => {
+                try {
+                  await getRouter().sendMessage(cid, message);
+                } catch (sendErr) {
+                  console.warn(`[think-loop] ⚠️ Failed to send background result for "${task.title}":`, sendErr);
+                }
+                // Log task completion
+                try {
+                  const { getMemoryService } = await import('../memory/index.js');
+                  const mem = getMemoryService();
+                  const memDb = mem.getDb();
+                  if (memDb) {
+                    await logTaskExecution(memDb, {
+                      task_id: task.id,
+                      task_title: task.title,
+                      status: 'completed',
+                      notes: `Completed by ${task.model} background agent`,
+                    });
+                  }
+                } catch (logErr) {
+                  console.warn(`[think-loop] ⚠️ Failed to log task completion for "${task.title}":`, logErr);
+                }
+              },
+            });
+
+            if (dispatchResult.alreadyRunning) {
+              console.log(`[think-loop] ⏭️ Background task "${task.title}" already running, skipping`);
+            } else {
+              console.log(`[think-loop] ✅ Background task dispatched: "${task.title}" (taskId: ${dispatchResult.taskId})`);
+            }
+          } catch (err) {
+            console.error(`[think-loop] ❌ Failed to dispatch background task "${task.title}":`, err);
+          }
+        }
+      }
+
+      // Sync tasks: await sequentially (existing behavior)
+      if (syncTasks.length > 0) {
+        const { runAgent } = await import('../bridge/agent.js');
+
+        for (const task of syncTasks) {
+          console.log(`[think-loop] 🤖 Spawning ${task.model} sub-agent for: "${task.title}"`);
+
+          const taskPrompt = await this.buildTaskPrompt(task, currentTime, dayOfWeek);
+
+          try {
+            const subResponse = await runAgent(taskPrompt, {
+              agentType: 'think-sub',
+              capabilityId: task.skill_refs[0] || task.title,
+              model: task.model as 'haiku' | 'sonnet' | 'opus',
+              skipMemorySearch: true,
+            });
+
+            if (subResponse.result) {
+              console.log(`[think-loop] ✅ Sub-agent completed task "${task.title}"`);
+              console.log(`[think-loop] 📝 Result preview: ${subResponse.result.slice(0, 100)}...`);
+
+              await logTaskExecution(db, {
+                task_id: task.id,
+                task_title: task.title,
+                status: 'completed',
+                notes: `Completed by ${task.model} sub-agent`,
+              });
+            } else {
+              console.warn(`[think-loop] ⚠️ Sub-agent returned no result for "${task.title}"`);
+            }
+          } catch (err) {
+            console.error(`[think-loop] ❌ Sub-agent failed for "${task.title}":`, err);
+          }
         }
       }
     }
@@ -441,7 +565,7 @@ Als je klaar bent, geef een korte samenvatting van wat je hebt gedaan.`;
     // skipMemorySearch: true because think prompt already contains all context
     // and the prompt is too large to embed (would exceed 8192 token limit)
     const { runAgent } = await import('../bridge/agent.js');
-    const response = await runAgent(thinkPrompt, { model, skipMemorySearch: true });
+    const response = await runAgent(thinkPrompt, { agentType: 'think', model, skipMemorySearch: true });
 
     if (!response.result) {
       console.log('[think-loop] ⚠️ Agent returned no response');
@@ -519,16 +643,24 @@ Als je klaar bent, geef een korte samenvatting van wat je hebt gedaan.`;
       if (canSend && (telegramChatId || whatsappChatId)) {
         const { getRouter } = await import('../bridge/router.js');
 
-        // Send to Telegram
+        // Send to Telegram (isolated try-catch so WhatsApp failure doesn't block)
         if (telegramChatId) {
-          await getRouter().sendMessage(`telegram:${telegramChatId}`, thought.message);
-          console.log(`[think-loop] ✅ Task #${thought.taskId} sent to Telegram`);
+          try {
+            await getRouter().sendMessage(`telegram:${telegramChatId}`, thought.message);
+            console.log(`[think-loop] ✅ Task #${thought.taskId} sent to Telegram`);
+          } catch (err) {
+            console.warn(`[think-loop] ⚠️ Telegram send failed:`, err instanceof Error ? err.message : err);
+          }
         }
 
-        // Send to WhatsApp
+        // Send to WhatsApp (isolated try-catch so failure doesn't block task logging)
         if (whatsappChatId) {
-          await getRouter().sendMessage(`whatsapp:${whatsappChatId}`, thought.message);
-          console.log(`[think-loop] ✅ Task #${thought.taskId} sent to WhatsApp`);
+          try {
+            await getRouter().sendMessage(`whatsapp:${whatsappChatId}`, thought.message);
+            console.log(`[think-loop] ✅ Task #${thought.taskId} sent to WhatsApp`);
+          } catch (err) {
+            console.warn(`[think-loop] ⚠️ WhatsApp send failed:`, err instanceof Error ? err.message : err);
+          }
         }
 
         // F74b: Store the actual message as type='message'
@@ -566,16 +698,24 @@ Als je klaar bent, geef een korte samenvatting van wat je hebt gedaan.`;
       if (canSend && (telegramChatId || whatsappChatId)) {
         const { getRouter } = await import('../bridge/router.js');
 
-        // Send to Telegram
+        // Send to Telegram (isolated try-catch)
         if (telegramChatId) {
-          await getRouter().sendMessage(`telegram:${telegramChatId}`, thought.message);
-          console.log('[think-loop] ✅ Message sent to Telegram');
+          try {
+            await getRouter().sendMessage(`telegram:${telegramChatId}`, thought.message);
+            console.log('[think-loop] ✅ Message sent to Telegram');
+          } catch (err) {
+            console.warn('[think-loop] ⚠️ Telegram send failed:', err instanceof Error ? err.message : err);
+          }
         }
 
-        // Send to WhatsApp
+        // Send to WhatsApp (isolated try-catch)
         if (whatsappChatId) {
-          await getRouter().sendMessage(`whatsapp:${whatsappChatId}`, thought.message);
-          console.log('[think-loop] ✅ Message sent to WhatsApp');
+          try {
+            await getRouter().sendMessage(`whatsapp:${whatsappChatId}`, thought.message);
+            console.log('[think-loop] ✅ Message sent to WhatsApp');
+          } catch (err) {
+            console.warn('[think-loop] ⚠️ WhatsApp send failed:', err instanceof Error ? err.message : err);
+          }
         }
 
         // F74b: Store the actual message as type='message'
@@ -692,6 +832,7 @@ Als je klaar bent, geef een korte samenvatting van wat je hebt gedaan.`;
     enabledCount: number;
     thinkLoopModel: string;
     thinkLoopLastRun: string | null;
+    lastTickAt: number | null;
   } {
     return {
       initialized: this.initialized,
@@ -699,6 +840,7 @@ Als je klaar bent, geef een korte samenvatting van wat je hebt gedaan.`;
       enabledCount: this.registry?.tasks.filter((t) => t.enabled).length ?? 0,
       thinkLoopModel: this.registry?.thinkLoop?.model ?? 'haiku',
       thinkLoopLastRun: this.registry?.thinkLoop?.lastRun ?? null,
+      lastTickAt: this.lastTickAt,
     };
   }
 

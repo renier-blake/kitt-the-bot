@@ -230,6 +230,7 @@ export class MemoryService {
       vectorWeight: this.config.vectorWeight,
       textWeight: this.config.textWeight,
       sources: options.sources,
+      timeRange: options.timeRange,
       vectorAvailable: this.status?.vectorAvailable ?? false,
       ftsAvailable: this.status?.ftsAvailable ?? false,
     });

@@ -92,13 +92,19 @@ export interface LoaderRegistry {
 // ==========================================
 
 export interface SkillsLoaderConfig {
-  chat?: { filter: 'all' | 'automated' };
+  chat?: { filter?: 'all' | 'automated'; format?: 'dispatch-catalog' | 'list' };
   think?: { filter: 'all' | 'automated' };
 }
 
+export interface TranscriptWindowConfig {
+  windowMinutes?: number;
+  windowMode?: 'sliding' | 'today';
+  maxMessages: number;
+}
+
 export interface TranscriptLoaderConfig {
-  chat?: { windowMinutes: number; maxMessages: number };
-  think?: { windowMinutes: number; maxMessages: number };
+  chat?: TranscriptWindowConfig;
+  think?: TranscriptWindowConfig;
 }
 
 export interface MemorySearchConfig {

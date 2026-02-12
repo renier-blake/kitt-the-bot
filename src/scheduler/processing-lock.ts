@@ -59,3 +59,28 @@ export async function isAgentProcessing(db: Client): Promise<boolean> {
 
   return true;
 }
+
+// ==========================================
+// Conversation Window
+// ==========================================
+
+const CONVERSATION_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+
+/**
+ * Check if there's been recent user activity (active conversation window).
+ * Returns true if a user sent a message within the window.
+ * Used by the Think Loop to avoid interrupting active conversations.
+ */
+export async function isConversationActive(db: Client): Promise<boolean> {
+  const result = await db.execute({
+    sql: `SELECT value FROM meta WHERE key = 'last_user_message_at'`,
+    args: [],
+  });
+
+  if (result.rows.length === 0) return false;
+
+  const lastActivity = Number(result.rows[0].value);
+  const elapsed = Date.now() - lastActivity;
+
+  return elapsed < CONVERSATION_WINDOW_MS;
+}

@@ -906,6 +906,49 @@ Klanten mogen WEL eigen skills schrijven (dat is de kracht van het systeem). Maa
 
 ---
 
+## Artifact Skill + Tijdelijke Hosting
+
+> Toegevoegd: 12 feb 2026
+> Status: Idee fase — hosting oplossing nog uitzoeken
+
+### Concept
+
+Claude's bestaande Create Artifact skill gebruiken om rapporten/visualisaties te genereren, en die dan tijdelijk te hosten met wachtwoordbeveiliging zodat gebruikers ze kunnen delen.
+
+### User flow voorbeeld
+
+1. User vraagt in Teams om een rapport van bepaalde data
+2. KITT gebruikt de Artifact skill om het rapport te maken
+3. Rapport wordt tijdelijk gehost op een URL met wachtwoordbeveiliging
+4. User deelt de URL + wachtwoord met collega's/klanten
+
+### Alternatieven
+
+| Optie | Beschrijving | Pro | Con |
+|-------|-------------|-----|-----|
+| **Tijdelijke hosted URL** | Artifact op publieke URL met password + expiry | Deelbaar, professioneel | Hosting nodig, security |
+| **PDF generatie** | Rapport als PDF direct via Teams sturen | Simpel, geen hosting | Niet interactief, geen live data |
+| **Password-protected page** | Publieke URL met wachtwoord per artifact | Makkelijk delen | Wachtwoord management |
+| **Tijdelijke link (expiry)** | URL die na X tijd automatisch verloopt | Veilig, geen cleanup nodig | User moet snel delen |
+
+### Open vragen
+
+- [ ] Waar hosten? (Render, Vercel, eigen infra?)
+- [ ] Hoe lang blijft een artifact live? (1 uur? 24 uur? configureerbaar?)
+- [ ] Wachtwoord per artifact of per user?
+- [ ] Integratie met bestaande artifact skill van Claude
+- [ ] Hoe zit het met data privacy? (rapport kan gevoelige data bevatten)
+- [ ] Kan dit als skill gebouwd worden? (SKILL.md + helper scripts)
+- [ ] Past dit beter bij de hosted variant of ook bij self-hosted? (self-hosted = localhost, niet deelbaar zonder tunneling)
+
+### Gedachten
+
+Dit is een sterke business feature — klanten willen rapporten delen met hun klanten/collega's zonder dat die toegang nodig hebben tot het hele systeem. Past goed bij de "Digital Employee" positionering waar KITT data kan verwerken en presenteerbaar maken.
+
+Voor self-hosted: zou een tunnel (ngrok/Cloudflare Tunnel) of een hosted artifact service nodig zijn. Voor hosted variant: past direct in de architectuur (publieke URL per user is er al).
+
+---
+
 ## Website Configurator (Sales Funnel)
 
 Publieke website waar potentiële klanten hun systeem samenstellen.

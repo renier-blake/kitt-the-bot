@@ -5,9 +5,8 @@
  */
 
 import type { ChannelAdapter, IncomingMessage, SendOptions, ChannelType } from './adapters/types.js';
-import { extractChannel, extractRawId } from './adapters/types.js';
-import { runAgent, type AgentModel } from './agent.js';
-import { getSessionId, updateSession, clearSession } from './sessions.js';
+import { extractChannel } from './adapters/types.js';
+import { runAgent } from './agent.js';
 import { updateChatState, saveState } from './state.js';
 import { log } from './logger.js';
 import { getMemoryService } from '../memory/index.js';
@@ -15,14 +14,42 @@ import type { Channel } from '../memory/types.js';
 import { splitMessage } from './format.js';
 import { clearAllModes } from '../scheduler/sleep-mode.js';
 import { acquireProcessingLock, releaseProcessingLock } from '../scheduler/processing-lock.js';
-import * as fs from 'fs';
-import * as path from 'path';
+import { dispatchBackgroundTask } from '../scheduler/background-runner.js';
+import { MessageQueue } from './message-queue.js';
+import { textToSpeech, analyzeContentForVoice } from './tts.js';
 
-// Default model for chat (Opus for full capability)
-const DEFAULT_MODEL: AgentModel = 'opus';
 
-// Skills directory
-const SKILLS_DIR = process.env.KITT_SKILLS_DIR || './.claude/skills';
+/**
+ * ACK messages — sent when agent takes longer than 5 seconds
+ */
+const ACK_MESSAGES = [
+  'Pondering...',
+  'Ruminating...',
+  'Cogitating...',
+  'Schlepping...',
+  'Wibbling...',
+  'Noodling...',
+  'Percolating...',
+  'Marinating...',
+  'Mulling...',
+  'Tinkering...',
+  'Rummaging...',
+  'Simmering...',
+  'Baking...',
+  'Thinking...',
+  'Cleaning...',
+  'Running...',
+  'Brewing...',
+  'Juggling...',
+  'Scribbling...',
+  'Crunching...',
+  'Vibing...',
+  'Stretching...',
+  'Daydreaming...',
+  'Untangling...',
+  'Assembling...',
+  'Composting...',
+];
 
 /**
  * Memory trigger patterns
@@ -42,6 +69,8 @@ const MEMORY_TRIGGERS = [
 export class MessageRouter {
   private adapters: Map<ChannelType, ChannelAdapter> = new Map();
   private startedAt: Date | null = null;
+  private queue: MessageQueue = new MessageQueue();
+  private processing: Set<string> = new Set();
 
   /**
    * Register an adapter for a channel
@@ -116,8 +145,9 @@ export class MessageRouter {
   }
 
   /**
-   * Handle an incoming message from any channel
-   * This is called by channel adapters when they receive a message
+   * Handle an incoming message from any channel.
+   * Uses a per-chat message queue: if Opus is already processing for this chat,
+   * the message is queued and batched after the current cycle completes.
    */
   async handleIncoming(message: IncomingMessage): Promise<void> {
     const channel = extractChannel(message.chatId);
@@ -126,26 +156,16 @@ export class MessageRouter {
       return;
     }
 
-    log.info('Processing message', {
+    log.info('Incoming message', {
       chatId: message.chatId,
       channel,
       from: message.displayName,
       isGroup: message.isGroup,
       preview: message.content.slice(0, 50),
-      model: DEFAULT_MODEL,
     });
 
-    // Wake KITT if sleeping/DND (user message = wake up)
+    // Store user message in memory (always, even if queued)
     const memory = getMemoryService();
-    const db = memory.getDb();
-    if (db) {
-      await clearAllModes(db);
-    }
-
-    // Get existing session for this chat (using prefixed chatId)
-    const sessionId = getSessionId(message.chatId);
-
-    // Store user message in memory (non-blocking)
     memory.storeMessage({
       sessionId: message.chatId,
       channel: channel as Channel,
@@ -165,74 +185,108 @@ export class MessageRouter {
       log.error('Failed to store user message in memory', { error: String(err) });
     });
 
-    // Acquire processing lock so Think Loop knows we're handling this
-    if (db) {
-      await acquireProcessingLock(db);
-    }
-
-    // Run agent with Opus
-    let response = await runAgent(message.content, { sessionId, model: DEFAULT_MODEL });
-
-    // Auto-recovery: if session seems corrupted, clear and retry with fresh session
-    if (response.sessionFailed && sessionId) {
-      log.warn('Session failure detected, clearing and retrying', {
-        chatId: message.chatId,
-        oldSessionId: sessionId,
-      });
-      console.log(`[router] Session corrupted, starting fresh...`);
-      clearSession(message.chatId);
-
-      // Retry without session (fresh start)
-      response = await runAgent(message.content, { model: DEFAULT_MODEL });
-
-      if (response.sessionFailed) {
-        log.error('Agent failed even without session', { chatId: message.chatId });
-        await this.sendMessage(
-          message.chatId,
-          `Sorry, er ging iets mis. De sessie is gereset, probeer het opnieuw.`
-        );
-        if (db) await releaseProcessingLock(db);
-        return;
-      }
-    }
-
-    if (response.error) {
-      log.error('Agent failed', { chatId: message.chatId, error: response.error });
-      await this.sendMessage(message.chatId, `Sorry, er ging iets mis. Probeer het opnieuw.`);
-      if (db) await releaseProcessingLock(db);
+    // If already processing for this chat, queue the message
+    if (this.processing.has(message.chatId)) {
+      this.queue.enqueue(message);
+      console.log(`[router] 📥 Message queued for ${message.chatId} (queue: ${this.queue.size(message.chatId)})`);
       return;
     }
 
-    // Check if agent wants to trigger a skill with a different model
-    if (response.result) {
-      const skillTrigger = this.parseSkillTrigger(response.result);
-      if (skillTrigger) {
-        const skillModel = this.getSkillModel(skillTrigger.skillName);
-        if (skillModel && skillModel !== DEFAULT_MODEL) {
-          const skillContent = this.getSkillContent(skillTrigger.skillName);
+    // Mark as processing
+    this.processing.add(message.chatId);
+    const db = memory.getDb();
 
-          log.info('Skill triggered with different model', {
-            skill: skillTrigger.skillName,
-            model: skillModel,
-            hasSkillContent: !!skillContent,
-          });
-          console.log(`[router] Routing to ${skillModel} for skill: ${skillTrigger.skillName}`);
+    // Wake KITT if sleeping/DND
+    if (db) {
+      await clearAllModes(db);
+      await acquireProcessingLock(db);
 
-          // Run skill with its preferred model + full skill context
-          const skillResponse = await runAgent(skillTrigger.prompt, {
-            model: skillModel,
-            skillContext: skillContent || undefined,
-          });
-          if (skillResponse.result) {
-            response = skillResponse;
-          }
-        }
-      }
+      // Track conversation activity for think loop suppression
+      await db.execute({
+        sql: `INSERT OR REPLACE INTO meta (key, value) VALUES ('last_user_message_at', $1)`,
+        args: [String(Date.now())],
+      }).catch(() => { /* non-critical */ });
     }
 
-    // Update session for context persistence
-    if (response.sessionId) {
-      updateSession(message.chatId, response.sessionId, message.displayName);
+    try {
+      // Process the message
+      await this.processMessage(message, channel);
+
+      // After processing, drain any queued messages
+      while (this.queue.hasMessages(message.chatId)) {
+        const batched = this.queue.drain(message.chatId);
+        if (batched) {
+          console.log(`[router] 📤 Processing queued messages for ${message.chatId}`);
+
+          // Update conversation activity timestamp
+          if (db) {
+            await db.execute({
+              sql: `INSERT OR REPLACE INTO meta (key, value) VALUES ('last_user_message_at', $1)`,
+              args: [String(Date.now())],
+            }).catch(() => { /* non-critical */ });
+          }
+
+          await this.processMessage(batched, channel);
+        }
+      }
+    } finally {
+      this.processing.delete(message.chatId);
+      if (db) {
+        await releaseProcessingLock(db).catch((err) => {
+          log.error('Failed to release processing lock', { error: String(err) });
+        });
+      }
+    }
+  }
+
+  /**
+   * Process a single message through the Opus agent.
+   * Handles response parsing, BACKGROUND_TASK dispatch, session management.
+   */
+  private async processMessage(message: IncomingMessage, channel: string): Promise<void> {
+    const memory = getMemoryService();
+    const db = memory.getDb();
+
+    log.info('Processing message', {
+      chatId: message.chatId,
+      channel,
+      from: message.displayName,
+      preview: message.content.slice(0, 50),
+    });
+
+    // ACK after 5 seconds if agent hasn't responded yet
+    const ACK_DELAY_MS = 5_000;
+    let ackSent = false;
+    const ackTimer = setTimeout(async () => {
+      ackSent = true;
+      const ack = ACK_MESSAGES[Math.floor(Math.random() * ACK_MESSAGES.length)];
+      await this.sendMessage(message.chatId, ack).catch(() => {});
+    }, ACK_DELAY_MS);
+
+    // Agent call — timeout is handled by the Agent Pool (60s for chat)
+    let response: Awaited<ReturnType<typeof runAgent>>;
+
+    try {
+      response = await runAgent(message.content, {
+        agentType: 'chat',
+        chatId: message.chatId,
+        allowedTools: [],
+        db: db ?? undefined,
+      });
+    } catch (err) {
+      clearTimeout(ackTimer);
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      log.error('Chat agent failed', { chatId: message.chatId, error: errorMsg });
+      await this.sendMessage(message.chatId, `Sorry, ik duurde te lang. Probeer het nog eens.`);
+      return;
+    }
+
+    clearTimeout(ackTimer);
+
+    if (response.error) {
+      log.error('Chat agent failed', { chatId: message.chatId, error: response.error });
+      await this.sendMessage(message.chatId, `Sorry, er ging iets mis. Probeer het opnieuw.`);
+      return;
     }
 
     // Update chat state
@@ -240,58 +294,89 @@ export class MessageRouter {
     updateChatState(message.chatId, chatName);
     await saveState();
 
-    // Store KITT response in memory
-    if (response.result) {
-      try {
-        await memory.storeMessage({
-          sessionId: message.chatId,
-          channel: channel as Channel,
-          role: 'kitt',
-          content: response.result,
-          metadata: {
-            agentSessionId: response.sessionId,
-            inResponseToVoice: message.isVoice,
-          },
-        });
-      } catch (err) {
-        log.error('Failed to store KITT message in memory', { error: String(err) });
-      }
-
-      // Check for memory triggers (non-blocking)
-      this.checkMemoryTriggers(message.content, response.result).catch((err) => {
-        log.error('Memory trigger check failed', { error: String(err) });
-      });
-    }
-
-    // Release processing lock
-    if (db) {
-      await releaseProcessingLock(db).catch((err) => {
-        log.error('Failed to release processing lock', { error: String(err) });
-      });
-    }
-
-    // Send response via the appropriate adapter
-    if (response.result) {
-      await this.sendMessage(message.chatId, response.result);
-    } else {
-      // Log why we're sending fallback message
-      log.warn('Agent returned empty result, sending fallback', {
+    if (!response.result) {
+      log.warn('Chat agent returned empty result', {
         chatId: message.chatId,
-        sessionId: response.sessionId,
-        hasError: !!response.error,
-        error: response.error,
-        sessionFailed: response.sessionFailed,
-        resultType: typeof response.result,
-        resultValue: response.result === null ? 'null' : response.result === undefined ? 'undefined' : `empty string (len=${response.result.length})`,
         userMessage: message.content.slice(0, 50),
       });
-      console.log(`[router] ⚠️ Empty agent result for ${message.chatId} - sending fallback`);
       await this.sendMessage(message.chatId, 'Ik heb je bericht verwerkt.');
+      return;
     }
+
+    // Parse response for VOICE_MODE signal (before BACKGROUND_TASK)
+    const { message: withoutVoiceSignal, voiceMode } = this.parseVoiceMode(response.result);
+
+    // Store voice mode change if signaled
+    if (voiceMode !== undefined && db) {
+      const key = `voice_mode_${message.chatId}`;
+      await db.execute({
+        sql: `INSERT OR REPLACE INTO meta (key, value) VALUES ($1, $2)`,
+        args: [key, voiceMode ? 'on' : 'off'],
+      }).catch((err) => {
+        log.error('Failed to store voice mode', { error: String(err) });
+      });
+      log.info('Voice mode changed', { chatId: message.chatId, enabled: voiceMode });
+    }
+
+    // Parse response for BACKGROUND_TASK signal
+    const { message: userMessage, task } = this.parseBackgroundTask(withoutVoiceSignal);
+
+    // Send the organic response to the user
+    if (userMessage) {
+      await this.sendMessage(message.chatId, userMessage);
+    }
+
+    // Store KITT response in memory
+    try {
+      await memory.storeMessage({
+        sessionId: message.chatId,
+        channel: channel as Channel,
+        role: 'kitt',
+        content: userMessage || response.result,
+        metadata: {
+          inResponseToVoice: message.isVoice,
+          hasBackgroundTask: !!task,
+        },
+      });
+    } catch (err) {
+      log.error('Failed to store KITT message in memory', { error: String(err) });
+    }
+
+    // If KITT requested a background task, dispatch it
+    if (task) {
+      log.info('Dispatching background task', {
+        chatId: message.chatId,
+        skill: task.skill,
+      });
+
+      const onComplete = async (chatId: string, result: string) => {
+        await this.sendMessage(chatId, result);
+      };
+
+      await dispatchBackgroundTask({
+        chatId: message.chatId,
+        channel,
+        capabilityId: task.skill,
+        prompt: task.prompt,
+        description: userMessage || `Background task: ${task.skill}`,
+        onComplete,
+      }).catch((err) => {
+        log.error('Failed to dispatch background task', {
+          skill: task.skill,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    }
+
+    // Check for memory triggers (non-blocking)
+    this.checkMemoryTriggers(message.content, response.result).catch((err) => {
+      log.error('Memory trigger check failed', { error: String(err) });
+    });
   }
 
   /**
-   * Send a message to any channel
+   * Send a message to any channel.
+   * If voice mode is enabled for this chat, routes through Kokoro TTS.
    */
   async sendMessage(chatId: string, content: string, options?: SendOptions): Promise<void> {
     const channel = extractChannel(chatId);
@@ -306,7 +391,32 @@ export class MessageRouter {
       return;
     }
 
-    // Split long messages
+    // Check if voice mode is enabled for this chat
+    const voiceModeEnabled = await this.isVoiceModeEnabled(chatId);
+
+    if (voiceModeEnabled && adapter.sendVoice) {
+      const analysis = analyzeContentForVoice(content);
+
+      if (analysis.mode === 'voice' && analysis.voicePart) {
+        // Pure conversational → all voice
+        const sent = await this.sendAsVoice(chatId, analysis.voicePart, adapter);
+        if (sent) return;
+        // Fallback to text below
+      } else if (analysis.mode === 'mixed' && analysis.textPart && analysis.voicePart) {
+        // Mixed: send structured data as text, rest as voice
+        const textChunks = splitMessage(analysis.textPart, 4000);
+        for (const chunk of textChunks) {
+          await adapter.sendMessage(chatId, chunk, options);
+        }
+        // Then send voice summary
+        await this.sendAsVoice(chatId, analysis.voicePart, adapter);
+        log.info('Mixed message sent', { chatId, channel, textLength: analysis.textPart.length, voiceLength: analysis.voicePart.length });
+        return;
+      }
+      // mode === 'text' → fall through to normal text sending
+    }
+
+    // Text mode (default)
     const chunks = splitMessage(content, 4000);
     for (const chunk of chunks) {
       await adapter.sendMessage(chatId, chunk, options);
@@ -339,48 +449,141 @@ export class MessageRouter {
   // --- Private helper methods ---
 
   /**
-   * Parse skill trigger from agent response
-   * Format: "SKILL:skill-name prompt..."
+   * Parse VOICE_MODE signal from agent response.
+   * Format: text + \nVOICE_MODE:on or \nVOICE_MODE:off
    */
-  private parseSkillTrigger(response: string): { skillName: string; prompt: string } | null {
-    const match = response.match(/^SKILL:(\S+)\s+([\s\S]+)$/);
-    if (match) {
-      return { skillName: match[1], prompt: match[2].trim() };
+  private parseVoiceMode(response: string): {
+    message: string;
+    voiceMode?: boolean;
+  } {
+    const signalPattern = /\n?VOICE_MODE:(on|off)\s*$/i;
+    const match = response.match(signalPattern);
+
+    if (!match) {
+      return { message: response };
     }
-    return null;
+
+    const voiceMode = match[1].toLowerCase() === 'on';
+    const message = response.slice(0, match.index).trim();
+
+    log.info('Voice mode signal parsed', { enabled: voiceMode });
+
+    return { message, voiceMode };
   }
 
   /**
-   * Get model for a skill from its SKILL.md metadata
+   * Check if voice mode is enabled for a chat
    */
-  private getSkillModel(skillName: string): AgentModel | null {
-    const skillPath = path.join(SKILLS_DIR, skillName, 'SKILL.md');
-    if (!fs.existsSync(skillPath)) return null;
+  private async isVoiceModeEnabled(chatId: string): Promise<boolean> {
+    try {
+      const memory = getMemoryService();
+      const db = memory.getDb();
+      if (!db) return false;
+
+      const key = `voice_mode_${chatId}`;
+      const result = await db.execute({
+        sql: `SELECT value FROM meta WHERE key = $1`,
+        args: [key],
+      });
+
+      return result.rows.length > 0 && result.rows[0].value === 'on';
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Send content as a voice message via Kokoro TTS.
+   * Returns true if voice was sent, false if failed (caller should fallback to text).
+   */
+  private async sendAsVoice(chatId: string, text: string, adapter: ChannelAdapter): Promise<boolean> {
+    if (!adapter.sendVoice) return false;
 
     try {
-      const content = fs.readFileSync(skillPath, 'utf-8');
-      const metadataMatch = content.match(/^metadata:\s*(\{[\s\S]*?\})$/m);
-      if (metadataMatch) {
-        const metadata = JSON.parse(metadataMatch[1]);
-        return metadata?.kitt?.model || null;
+      log.info('Generating voice response', { chatId, textLength: text.length });
+
+      const ttsResult = await textToSpeech(text);
+
+      if (!ttsResult.success || ttsResult.audio.length === 0) {
+        log.error('TTS failed, falling back to text', { error: ttsResult.error });
+        return false;
       }
-    } catch {
-      // Ignore parse errors
+
+      await adapter.sendVoice(chatId, ttsResult.audio);
+
+      log.info('Voice message sent', {
+        chatId,
+        textLength: text.length,
+        audioSize: ttsResult.audio.length,
+      });
+
+      return true;
+    } catch (err) {
+      log.error('Failed to send voice message', { error: String(err) });
+      return false;
     }
-    return null;
   }
 
   /**
-   * Get full skill content for injection into agent context
+   * Parse BACKGROUND_TASK signal from agent response.
+   * Format: natural text + \nBACKGROUND_TASK:{"skill":"id","prompt":"..."}
+   * Takes the LAST occurrence if multiple signals exist.
+   * Always strips signal text from the user-facing message.
    */
-  private getSkillContent(skillName: string): string | null {
-    const skillPath = path.join(SKILLS_DIR, skillName, 'SKILL.md');
-    if (!fs.existsSync(skillPath)) return null;
+  private parseBackgroundTask(response: string): {
+    message: string;
+    task?: { skill: string; prompt: string };
+  } {
+    // Find the last BACKGROUND_TASK: occurrence
+    const lastIdx = response.lastIndexOf('BACKGROUND_TASK:');
+    if (lastIdx === -1) {
+      return { message: response };
+    }
 
+    // Everything before the signal is the user message
+    const message = response.slice(0, lastIdx).trim();
+    // Everything after "BACKGROUND_TASK:" on that line is the JSON
+    const signalText = response.slice(lastIdx + 'BACKGROUND_TASK:'.length).trim();
+
+    // Extract just the first JSON object (stop at first complete })
     try {
-      return fs.readFileSync(skillPath, 'utf-8');
+      // Try parsing the whole remaining text first
+      const taskInfo = JSON.parse(signalText);
+
+      if (!taskInfo.skill || !taskInfo.prompt) {
+        log.warn('BACKGROUND_TASK signal missing skill or prompt', { taskInfo });
+        return { message };
+      }
+
+      log.info('Background task signal parsed', {
+        skill: taskInfo.skill,
+        promptLength: taskInfo.prompt.length,
+      });
+
+      return { message, task: { skill: taskInfo.skill, prompt: taskInfo.prompt } };
     } catch {
-      return null;
+      // If full text fails, try extracting just the first JSON object
+      try {
+        const jsonMatch = signalText.match(/^\{[^}]*\}/);
+        if (jsonMatch) {
+          const taskInfo = JSON.parse(jsonMatch[0]);
+          if (taskInfo.skill && taskInfo.prompt) {
+            log.info('Background task signal parsed (extracted)', {
+              skill: taskInfo.skill,
+              promptLength: taskInfo.prompt.length,
+            });
+            return { message, task: { skill: taskInfo.skill, prompt: taskInfo.prompt } };
+          }
+        }
+      } catch {
+        // Fall through
+      }
+
+      log.warn('Failed to parse BACKGROUND_TASK signal', {
+        signalPreview: signalText.slice(0, 100),
+      });
+      // Always strip the signal from user-facing message, even on parse failure
+      return { message };
     }
   }
 

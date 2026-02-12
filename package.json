@@ -27,12 +27,16 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.34",
+    "@anthropic-ai/sdk": "^0.74.0",
     "@libsql/client": "^0.17.0",
     "@nangohq/node": "^0.69.30",
+    "@slack/bolt": "^4.6.0",
+    "@slack/web-api": "^7.14.0",
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "dotenv": "^16.4.0",
     "express": "^5.2.1",
     "grammy": "^1.21.0",
+    "openai": "^6.21.0",
     "sqlite-vec": "^0.1.7-alpha.2",
     "ws": "^8.19.0"
   },

@@ -29,9 +29,11 @@
 
 De bridge draait via **pm2** zodat logs beschikbaar zijn via de KITT Portal.
 
+**BELANGRIJK:** Gebruik altijd `bridge:start` (niet `bridge`). Het `bridge` script gebruikt `tsx watch` dat constant herstart bij file changes en het proces verstoort.
+
 ```bash
-# Starten
-pm2 start npm --name kitt -- run bridge
+# Starten (ZONDER watch mode)
+pm2 start npm --name kitt -- run bridge:start
 
 # Herstarten
 pm2 restart kitt

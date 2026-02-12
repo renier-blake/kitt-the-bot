@@ -18,6 +18,7 @@ import type { Client } from '@libsql/client';
 
 export type TaskFrequency = 'once' | 'daily' | 'weekly' | 'monthly';
 export type TaskPriority = 'high' | 'medium' | 'low';
+export type TaskExecutionMode = 'sync' | 'background'; // KITT-139: sync (awaited) or background (fire-and-forget)
 // F53: task_status values in transcripts table
 export type TaskStatus = 'reminder' | 'completed' | 'skipped' | 'deferred';
 
@@ -38,6 +39,7 @@ export interface KittTask {
   active: boolean;
   created_at: number;
   model: 'haiku' | 'sonnet' | 'opus' | null; // F63: Override model for this task
+  execution: TaskExecutionMode; // KITT-139: sync (awaited think-sub) or background (fire-and-forget)
 }
 
 export interface TaskExecution {
@@ -101,6 +103,7 @@ export async function getOpenTasks(db: Client): Promise<OpenTasksResult> {
     active: Boolean(row.active),
     created_at: Number(row.created_at),
     model: row.model ? String(row.model) as 'haiku' | 'sonnet' | 'opus' : null, // F63
+    execution: (row.execution ? String(row.execution) : 'sync') as TaskExecutionMode, // KITT-139
   }));
 
   // Filter tasks
@@ -340,6 +343,21 @@ export async function logTaskExecution(
   });
 
   console.log(`[task-engine] 📝 Logged: task #${execution.task_id} "${execution.task_title}" = ${execution.status}`);
+
+  // Auto-delete once tasks after execution (any status except 'deferred')
+  if (execution.status !== 'deferred') {
+    const taskResult = await db.execute({
+      sql: `SELECT frequency FROM kitt_tasks WHERE id = ?`,
+      args: [execution.task_id],
+    });
+    if (taskResult.rows.length > 0 && String(taskResult.rows[0].frequency) === 'once') {
+      await db.execute({
+        sql: `DELETE FROM kitt_tasks WHERE id = ?`,
+        args: [execution.task_id],
+      });
+      console.log(`[task-engine] 🗑️ Deleted once-task #${execution.task_id} "${execution.task_title}"`);
+    }
+  }
 
   return id;
 }

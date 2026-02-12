@@ -1,5 +1,4 @@
 import { chromium } from 'playwright'
-import * as fs from 'fs'
 
 const PROFILE_PATH = '.claude/skills/browser/data/browser-profile'
 
@@ -13,17 +12,14 @@ async function getConsoleLogs() {
   const logs: any[] = []
   
   page.on('console', msg => {
-    const text = `[${msg.type()}] ${msg.text()}`
-    logs.push(text)
+    logs.push({ type: msg.type(), text: msg.text() })
   })
   
   page.on('pageerror', error => {
-    const text = `[pageerror] ${error.message}`
-    logs.push(text)
+    logs.push({ type: 'pageerror', text: error.message })
   })
   
-  // Navigate to page
-  await page.goto('http://localhost:3000/projects')
+  // Wait for any pending logs
   await page.waitForTimeout(3000)
   
   await browser.close()

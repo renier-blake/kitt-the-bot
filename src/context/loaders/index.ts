@@ -10,6 +10,7 @@ import { transcriptLoader } from './transcript-loader.js';
 import { memorySearchLoader } from './memory-search.js';
 import { taskEngineLoader } from './task-engine.js';
 import { conversationStateLoader } from './conversation-state.js';
+import { backgroundTasksLoader } from './background-tasks-loader.js';
 
 // Export individual loaders
 export { loadFile, readFileSafe } from './file-loader.js';
@@ -18,6 +19,7 @@ export { transcriptLoader } from './transcript-loader.js';
 export { memorySearchLoader } from './memory-search.js';
 export { taskEngineLoader } from './task-engine.js';
 export { conversationStateLoader } from './conversation-state.js';
+export { backgroundTasksLoader } from './background-tasks-loader.js';
 
 /**
  * Registry of all available dynamic loaders
@@ -29,4 +31,5 @@ export const loaderRegistry: LoaderRegistry = {
   'memory-search': memorySearchLoader,
   'task-engine': taskEngineLoader,
   'conversation-state': conversationStateLoader,
+  'background-tasks-loader': backgroundTasksLoader,
 };

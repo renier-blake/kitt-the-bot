@@ -229,23 +229,26 @@ export async function buildContext(options: BuildContextOptions): Promise<string
     db,
   };
 
-  // Load all blocks
+  // Load all blocks (with size tracking)
   const sections: string[] = [];
+  const blockSizes: { id: string; chars: number }[] = [];
   for (const block of activeBlocks) {
     try {
       const content = await loadBlockContent(block, loaderContext);
       if (content) {
         sections.push(content);
+        blockSizes.push({ id: block.id, chars: content.length });
       }
     } catch (err) {
       console.warn(`[context-builder] Failed to load block ${block.id}:`, err);
     }
   }
 
-  // Add time context for think mode
-  if (mode === 'think') {
+  // Add time context (both chat and think modes need date awareness)
+  {
     const now = new Date();
     const days = ['zondag', 'maandag', 'dinsdag', 'woensdag', 'donderdag', 'vrijdag', 'zaterdag'];
+    const months = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
     const time = now.toLocaleTimeString('nl-NL', {
       hour: '2-digit',
       minute: '2-digit',
@@ -253,14 +256,25 @@ export async function buildContext(options: BuildContextOptions): Promise<string
     });
     const dayOfWeek = days[now.getDay()];
     const dayOfMonth = now.getDate();
+    const month = months[now.getMonth()];
+    const year = now.getFullYear();
 
     // Calculate week of year
-    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    const startOfYear = new Date(year, 0, 1);
     const weekOfYear = Math.ceil(
       ((now.getTime() - startOfYear.getTime()) / 86400000 + startOfYear.getDay() + 1) / 7
     );
 
-    const timeContext = `# Context\n\n**Tijd:** ${time} op ${dayOfWeek} (dag ${dayOfMonth}, week ${weekOfYear})`;
+    // Build mini calendar: last 7 days mapped to day names
+    const recentDays: string[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      const label = i === 0 ? 'vandaag' : i === 1 ? 'gisteren' : days[d.getDay()];
+      recentDays.push(`- ${label}: ${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`);
+    }
+
+    const timeContext = `# Context\n\n**Tijd:** ${time} op ${dayOfWeek} ${dayOfMonth} ${month} ${year} (week ${weekOfYear})\n\n**Recente dagen:**\n${recentDays.join('\n')}`;
 
     // Insert time context near the beginning (after identity blocks)
     const insertIndex = sections.findIndex((s) => s.includes('# Skills') || s.includes('# Recente'));
@@ -270,6 +284,15 @@ export async function buildContext(options: BuildContextOptions): Promise<string
       sections.unshift(timeContext);
     }
   }
+
+  // Log context size per block (KITT-137: context load monitoring)
+  const totalChars = blockSizes.reduce((sum, b) => sum + b.chars, 0);
+  const topBlocks = blockSizes
+    .sort((a, b) => b.chars - a.chars)
+    .slice(0, 5)
+    .map((b) => `${b.id}:${(b.chars / 1024).toFixed(1)}K`)
+    .join(', ');
+  console.log(`[context-builder] ${mode} prompt: ${(totalChars / 1024).toFixed(1)}K chars (${blockSizes.length} blocks) — top: ${topBlocks}`);
 
   // Join sections with separators
   return sections.join('\n\n---\n\n');

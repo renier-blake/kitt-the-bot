@@ -27,7 +27,7 @@ export interface MemoryConfig {
 
 // === Message Types ===
 
-export type Channel = 'telegram' | 'whatsapp' | 'slack' | 'claude_ui' | 'sub_agent' | 'think-loop';
+export type Channel = 'telegram' | 'whatsapp' | 'slack' | 'slack-bot' | 'claude_ui' | 'sub_agent' | 'think-loop';
 export type Role = 'kitt' | 'user' | 'system'; // kitt = KITT's messages, user = Renier
 export type TranscriptType = 'message' | 'thought' | 'task' | 'reflection';
 export type TranscriptTaskStatus = 'reminder' | 'completed' | 'skipped' | 'deferred';

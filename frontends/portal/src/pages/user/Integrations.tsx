@@ -95,6 +95,26 @@ export function Integrations() {
     fetchIntegrations()
   }, [])
 
+  // Handle OAuth callback URL params (after redirect from provider)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const hash = window.location.hash
+    const hashParams = new URLSearchParams(hash.includes('?') ? hash.split('?')[1] : '')
+
+    const oauthSuccess = params.get('oauth_success') || hashParams.get('oauth_success')
+    const oauthError = params.get('oauth_error') || hashParams.get('oauth_error')
+
+    if (oauthSuccess) {
+      // Clean URL and refresh
+      window.history.replaceState({}, '', window.location.pathname + window.location.hash.split('?')[0])
+      fetchIntegrations()
+    }
+    if (oauthError) {
+      setError(`OAuth failed: ${oauthError}`)
+      window.history.replaceState({}, '', window.location.pathname + window.location.hash.split('?')[0])
+    }
+  }, [])
+
   const handleNangoConnect = async (integration: Integration) => {
     if (!Nango) {
       setError('Nango SDK not loaded — cannot connect OAuth integrations')
@@ -121,8 +141,51 @@ export function Integrations() {
     }
   }
 
+  const handleDirectOAuthConnect = async (integration: Integration) => {
+    try {
+      setConnecting(integration.id)
+      const result = await api.createConnectSession(integration.id)
+
+      if (!result.url) {
+        setError('No authorize URL returned')
+        setConnecting(null)
+        return
+      }
+
+      // Open OAuth popup
+      const width = 600
+      const height = 700
+      const left = window.screenX + (window.outerWidth - width) / 2
+      const top = window.screenY + (window.outerHeight - height) / 2
+      const popup = window.open(
+        result.url,
+        'oauth_popup',
+        `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`
+      )
+
+      // Poll for popup close (callback redirects back to portal)
+      if (popup) {
+        const timer = setInterval(() => {
+          if (popup.closed) {
+            clearInterval(timer)
+            setConnecting(null)
+            fetchIntegrations()
+          }
+        }, 500)
+      } else {
+        // Popup blocked — fallback to same-window redirect
+        window.location.href = result.url
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to connect')
+      setConnecting(null)
+    }
+  }
+
   const handleConnect = (integration: Integration) => {
-    if (integration.auth_type === 'oauth' && integration.provider === 'nango') {
+    if (integration.auth_type === 'oauth' && integration.provider === 'direct') {
+      handleDirectOAuthConnect(integration)
+    } else if (integration.auth_type === 'oauth' && integration.provider === 'nango') {
       handleNangoConnect(integration)
     } else {
       // Open auth modal for API key, token, credentials, custom OAuth
@@ -267,8 +330,8 @@ export function Integrations() {
         <div className="text-sm text-muted-foreground">
           <p className="font-medium">Security</p>
           <p>
-            OAuth tokens are managed by Nango. API keys and passwords are encrypted locally
-            with AES-256-GCM using a machine-specific key. Nothing leaves your machine unencrypted.
+            All credentials are encrypted locally with AES-256-GCM using a machine-specific key.
+            OAuth tokens are stored in the encrypted vault after authorization. Nothing leaves your machine unencrypted.
           </p>
         </div>
       </div>
@@ -429,6 +492,16 @@ function AuthModal({
   const authConfig = integration.auth_config || {}
   const credentialKeys: string[] = (authConfig.credential_keys as string[]) || []
 
+  // Settings state (for integrations with configurable settings like voice selection)
+  const settings = (authConfig.settings as Array<{ key: string; label: string; type: string; options: Array<{ value: string; label: string }>; default: string }>) || []
+  const [settingsState, setSettingsState] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {}
+    for (const s of settings) {
+      initial[s.key] = integration.settings_values?.[s.key] || s.default || ''
+    }
+    return initial
+  })
+
   const handleSave = async () => {
     try {
       setSaving(true)
@@ -456,6 +529,14 @@ function AuthModal({
           return
         }
         await api.setIntegrationAuth(integration.id, multiValues)
+      }
+
+      // Save settings to kitt_config (non-secret configuration)
+      for (const s of settings) {
+        const val = settingsState[s.key]
+        if (val) {
+          await api.updateConfig(s.key, val, `${integration.name} setting: ${s.label}`)
+        }
       }
 
       onSaved()
@@ -573,6 +654,28 @@ function AuthModal({
                       {showValues ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
+                </div>
+              ))}
+            </>
+          )}
+
+          {/* Integration settings (e.g., voice selection) */}
+          {settings.length > 0 && (
+            <>
+              {settings.map(setting => (
+                <div key={setting.key} className="space-y-2">
+                  <Label>{setting.label}</Label>
+                  {setting.type === 'select' && (
+                    <select
+                      value={settingsState[setting.key] || setting.default}
+                      onChange={(e) => setSettingsState(prev => ({ ...prev, [setting.key]: e.target.value }))}
+                      className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      {setting.options.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               ))}
             </>

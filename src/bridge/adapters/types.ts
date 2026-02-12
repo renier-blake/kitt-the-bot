@@ -6,7 +6,7 @@
 /**
  * Supported channels
  */
-export type ChannelType = 'telegram' | 'whatsapp' | 'slack';
+export type ChannelType = 'telegram' | 'whatsapp' | 'slack' | 'slack-bot';
 
 /**
  * Options for sending messages
@@ -125,9 +125,15 @@ export type MessageHandler = (message: IncomingMessage) => Promise<void>;
  * Helper to extract channel from prefixed chat ID
  * @example extractChannel('telegram:123456') => 'telegram'
  */
+const VALID_CHANNELS: ChannelType[] = ['telegram', 'whatsapp', 'slack', 'slack-bot'];
+
 export function extractChannel(chatId: string): ChannelType | null {
-  const [channel] = chatId.split(':');
-  if (['telegram', 'whatsapp', 'slack'].includes(channel)) {
+  // Handle compound channel names (e.g. 'slack-bot:C123')
+  // Find the first ':' that separates channel from ID
+  const colonIndex = chatId.indexOf(':');
+  if (colonIndex === -1) return null;
+  const channel = chatId.slice(0, colonIndex);
+  if (VALID_CHANNELS.includes(channel as ChannelType)) {
     return channel as ChannelType;
   }
   return null;

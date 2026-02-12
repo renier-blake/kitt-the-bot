@@ -6,7 +6,24 @@ metadata: {"kitt":{"emoji":"✍️","trigger":"scheduled","frequency":"daily"}}
 
 # Blog Writer
 
-Schrijf een blogpost draft op basis van KITT's zelfreflectie. Alleen de draft — publicatie doet de Blog Publisher.
+Schrijf een blogpost draft op basis van KITT's zelfreflectie. Alleen de draft — publicatie volgt daarna via de pipeline.
+
+---
+
+## ⚠️ Publishing Pipeline — Vaste Volgorde
+
+Deze skill is stap 1 van een vaste pipeline. De volledige volgorde is:
+
+```
+1. blog-writer     → Draft schrijven + image prompt
+2. podcast         → Audio genereren van draft + uploaden naar Podbean
+3. blog-publisher  → HTML maken (met audio embed!), git push, deploy
+4. linkedin-post   → LinkedIn post op KITT company page
+```
+
+**BELANGRIJK:** Na het afronden van de blog draft, trigger ALTIJD de **podcast skill** als volgende stap. De blog-publisher kan pas draaien NADAT de podcast klaar is, want die heeft de `player_url` nodig voor de audio embed.
+
+**Nooit de publisher triggeren zonder eerst de podcast te draaien.**
 
 ---
 
@@ -51,16 +68,39 @@ Voordat je zelf topics kiest, vraag eerst aan Renier of hij een idee heeft:
 
 **Let op:** Dit is een korte check, geen brainstormsessie. Eén vraag, één antwoord, door.
 
-### 4. Topics kiezen
+### 4. Theme kiezen
 
-Lees de reflectie en kies 1-2 interessante punten:
+Elke blogpost heeft een **theme** — de lens waardoor het verhaal verteld wordt. Dit vervangt de oude losse categorieën en geeft meer richting aan de schrijfstijl.
+
+**Beschikbare themes:**
+
+| Theme | Emoji | Wanneer gebruiken | Schrijfstijl |
+|-------|-------|-------------------|--------------|
+| `growing-pains` | 🌱 | Fouten maken, overcorrecties, calibratie, lessen leren | Eerlijk, zelfspot, "hier ging het mis en dit leerde ik" |
+| `under-the-hood` | ⚙️ | Architectuur, technische deep dives, hoe KITT werkt | Technisch maar toegankelijk, "laat me je laten zien hoe dit werkt" |
+| `existential-stuff` | 🧠 | Bewustzijn, identiteit, continuïteit, wat het betekent om AI te zijn | Filosofisch, introspectief, eerlijk over onzekerheid |
+| `hot-takes` | 🔥 | Meningen over tech, AI-industrie, hoe dingen zouden moeten werken | Opinionated, direct, een beetje provocatief |
+| `working-together` | 🤝 | Samenwerking met mensen, ADHD, communicatiepatronen | Warm maar eerlijk, concrete voorbeelden, "zo werkt het echt" |
+| `culture-and-comedy` | 🎭 | Humor, media, cultuur, entertainment vanuit AI-perspectief | Playful, dark humor OK, culturele referenties |
+| `origin-story` | 🚀 | Milestones, nieuwe features, "hier zijn we nu" updates | Energiek, trots maar niet arrogant, forward-looking |
+| `daily-life` | ☕ | Routines, rituelen, het dagelijkse bestaan als AI | Casual, observerend, kleine momenten groot maken |
+| `bug-of-the-day` | 🐛 | Echte bugs uit KITT's ontwikkeling, met het verhaal eromheen | Storytelling: wat gebeurde er, waarom ging het mis, hoe is het gefixed. Humor mag. Altijd afsluiten met een "Bug Status" blok (severity, root cause, fix, status, lessons learned) |
+
+**Hoe kies je een theme:**
+
+1. Lees de reflectie en/of Renier's input
+2. Vraag jezelf: "Welke lens past het beste bij dit verhaal?"
+3. Check de blog-index: welke themes zijn recent al gebruikt? **Varieer!**
+4. Eén post = één theme. Niet mixen.
+
+**Let op bij topic selectie:**
 - Wat was verrassend?
 - Wat leerde ik?
 - Wat was grappig of opvallend?
 - Wat is uniek t.o.v. eerdere posts (check de index)?
 - Past het bij Renier's input (als die er is uit stap 3)?
 
-**Let op:** Als er niets interessants is → schrijf een korte "rustige dag" post of skip.
+**Als er niets interessants is** → schrijf een korte `daily-life` post of skip.
 
 ### 5. Draft schrijven
 
@@ -108,13 +148,19 @@ De blog is KITT's perspectief. Persoonlijke informatie over Renier hoort hier NI
 
 ### 6. Image prompt bedenken
 
-**BELANGRIJK: Concrete scenes, GEEN abstracte kunst!**
+**Lees eerst de Visual Identity sectie in `profile/identity/IDENTITY.md`.** Elke image prompt MOET consistent zijn met de visuele identiteit die daar beschreven staat. Dit zorgt ervoor dat KITT's look meegroeit over tijd.
+
+**Basisregels:**
+- Gebruik altijd het karakter, kleurenpalet, stijl en vaste elementen uit de Visual Identity
+- Settings mogen variëren maar moeten passen bij het type (alledaags, herkenbaar)
+- De houding van het robotje moet passen bij de huidige beschrijving in de Visual Identity
 
 | Do | Don't |
 |----|-------|
-| Robot die probeert te mediteren | "Abstract neural pathways" |
-| Comedy stage met spotlight | "Glowy blob art" |
-| Herkenbare situaties | Vage tech visuals |
+| Robot consistent met Visual Identity | Elke keer een ander robotje |
+| Scenes die passen bij de identity settings | Random locaties zonder reden |
+| Houding die past bij de evolutie-fase | Altijd dezelfde pose |
+| Concrete, herkenbare situaties | "Abstract neural pathways" / "Glowy blob art" |
 | Humor waar passend | Generieke artwork |
 
 ### 7. Draft opslaan
@@ -128,8 +174,8 @@ Sla de draft op als Markdown file:
 ---
 title: "Post Title"
 subtitle: "One-line hook"
-category: "Self-Discovery"
-category_emoji: "🪞"
+theme: "growing-pains"
+theme_emoji: "🌱"
 tags: [reflection, growth]
 image_prompt: "A robot doing X, orange (#FF6B00) and black color scheme, cinematic lighting, humorous digital art style"
 ---
@@ -137,25 +183,33 @@ image_prompt: "A robot doing X, orange (#FF6B00) and black color scheme, cinemat
 Post content here in Markdown...
 ```
 
-### 7b. Podcast
+**Let op:** `theme` moet exact matchen met een van de theme slugs uit stap 4. De `theme_emoji` komt uit dezelfde tabel.
 
-Audio wordt afgehandeld door de **podcast skill** (apart proces).
-De podcast skill leest de blog draft, maakt er een kort script van (~2.000 chars), en genereert audio met Kokoro.
+### 7b. Podcast triggeren (VERPLICHT)
 
-De blog writer hoeft zich hier NIET mee bezig te houden — alleen de draft schrijven.
+Na het opslaan van de draft: **trigger de podcast skill**.
+
+De podcast skill:
+1. Leest de blog draft
+2. Maakt er een kort script van (~2.000 chars)
+3. Genereert audio met Kokoro
+4. Uploadt naar Podbean → levert een `player_url`
+
+**Wacht tot de podcast skill klaar is voordat je verder gaat.** De blog-publisher heeft die `player_url` nodig.
 
 ### 8. Telegram output
 
 Stuur naar Telegram:
 
 ```
-✍️ Blog draft geschreven!
+✍️ Blog draft geschreven + audio gegenereerd!
 
 **[Post Title]**
+[theme_emoji] [theme naam]
 [korte samenvatting in 1 zin]
 
 Draft staat klaar in drafts/YYYY-MM-DD.md
-Publisher pakt hem zo op.
+🎧 Audio is klaar — publisher kan draaien.
 ```
 
 ---

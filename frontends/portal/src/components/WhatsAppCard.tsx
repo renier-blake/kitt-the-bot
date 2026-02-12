@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import {
   Dialog,
   DialogContent,
@@ -19,6 +20,10 @@ import {
   Unplug,
   Smartphone,
   QrCode,
+  Plus,
+  X,
+  Users,
+  UserPlus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import QRCode from 'react-qr-code'
@@ -132,25 +137,32 @@ export function WhatsAppCard() {
               Enable WhatsApp in .env with WHATSAPP_ENABLED=true
             </div>
           ) : isConnected ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm text-green-600">
-                <CheckCircle2 className="h-4 w-4" />
-                <span>Connected as {status?.user?.name || status?.user?.id || 'Unknown'}</span>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm text-green-600">
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>Connected as {status?.user?.name || status?.user?.id || 'Unknown'}</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={handleDisconnect}
+                  disabled={disconnecting}
+                >
+                  {disconnecting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Unplug className="mr-2 h-4 w-4" />
+                  )}
+                  Disconnect
+                </Button>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full"
-                onClick={handleDisconnect}
-                disabled={disconnecting}
-              >
-                {disconnecting ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Unplug className="mr-2 h-4 w-4" />
-                )}
-                Disconnect
-              </Button>
+
+              {/* Allowlist */}
+              <div className="pt-2 border-t">
+                <AllowlistSection />
+              </div>
             </div>
           ) : (
             <Button
@@ -172,6 +184,220 @@ export function WhatsAppCard() {
         status={status}
       />
     </>
+  )
+}
+
+interface SeenContact {
+  identifier: string
+  displayName: string | null
+  messageCount: number
+  lastMessageAt: number
+}
+
+function AllowlistSection() {
+  const [numbers, setNumbers] = useState<string[]>([])
+  const [seenContacts, setSeenContacts] = useState<SeenContact[]>([])
+  const [newNumber, setNewNumber] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [adding, setAdding] = useState(false)
+  const [addingContact, setAddingContact] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetchAll()
+  }, [])
+
+  const fetchAll = async () => {
+    try {
+      setLoading(true)
+      const [numbersRes, contactsRes] = await Promise.all([
+        fetch('/api/channels/whatsapp/allowed-numbers'),
+        fetch('/api/channels/whatsapp/seen-contacts'),
+      ])
+      const numbersData = await numbersRes.json()
+      const contactsData = await contactsRes.json()
+      setNumbers(numbersData.numbers || [])
+      setSeenContacts(contactsData.contacts || [])
+    } catch {
+      // Silent fail
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAdd = async () => {
+    if (!newNumber.trim()) return
+    try {
+      setAdding(true)
+      setError(null)
+      const response = await fetch('/api/channels/whatsapp/allowed-numbers/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number: newNumber.trim() }),
+      })
+      const data = await response.json()
+      if (data.error) {
+        setError(data.error)
+      } else {
+        setNumbers(data.numbers)
+        setNewNumber('')
+        // Refetch seen contacts (the added one should disappear)
+        const contactsRes = await fetch('/api/channels/whatsapp/seen-contacts')
+        const contactsData = await contactsRes.json()
+        setSeenContacts(contactsData.contacts || [])
+      }
+    } catch {
+      setError('Failed to add')
+    } finally {
+      setAdding(false)
+    }
+  }
+
+  const handleAddContact = async (identifier: string) => {
+    try {
+      setAddingContact(identifier)
+      setError(null)
+      const number = identifier.includes('@') ? identifier.split('@')[0] : identifier
+      const response = await fetch('/api/channels/whatsapp/allowed-numbers/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ number: `+${number}` }),
+      })
+      const data = await response.json()
+      if (data.error) {
+        setError(data.error)
+      } else {
+        setNumbers(data.numbers)
+        setSeenContacts((prev) => prev.filter((c) => c.identifier !== identifier))
+      }
+    } catch {
+      setError('Failed to add')
+    } finally {
+      setAddingContact(null)
+    }
+  }
+
+  const handleRemove = async (number: string) => {
+    try {
+      const response = await fetch(`/api/channels/whatsapp/allowed-numbers/${encodeURIComponent(number)}`, {
+        method: 'DELETE',
+      })
+      const data = await response.json()
+      if (!data.error) {
+        setNumbers(data.numbers)
+        // Refetch seen contacts (removed number may reappear)
+        const contactsRes = await fetch('/api/channels/whatsapp/seen-contacts')
+        const contactsData = await contactsRes.json()
+        setSeenContacts(contactsData.contacts || [])
+      }
+    } catch {
+      // Silent fail
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        Loading allowlist...
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+        <Users className="h-3 w-3" />
+        Allowed Numbers
+      </div>
+
+      {error && (
+        <div className="text-xs text-red-400">{error}</div>
+      )}
+
+      {/* Number list */}
+      {numbers.length > 0 && (
+        <div className="space-y-1">
+          {numbers.map((number) => (
+            <div
+              key={number}
+              className="flex items-center justify-between px-2 py-1 bg-muted rounded text-xs"
+            >
+              <span className="font-mono">{number}</span>
+              <button
+                onClick={() => handleRemove(number)}
+                className="text-muted-foreground hover:text-red-400"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add number */}
+      <div className="flex gap-1">
+        <Input
+          placeholder="+31612345678"
+          value={newNumber}
+          onChange={(e) => setNewNumber(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+          className="h-7 text-xs"
+        />
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleAdd}
+          disabled={adding || !newNumber.trim()}
+          className="h-7 px-2"
+        >
+          {adding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+        </Button>
+      </div>
+
+      {/* Seen contacts */}
+      {seenContacts.length > 0 && (
+        <div className="space-y-1.5 pt-2 border-t">
+          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <UserPlus className="h-3 w-3" />
+            Recent contacts
+          </div>
+          <div className="space-y-1">
+            {seenContacts.map((contact) => (
+              <div
+                key={contact.identifier}
+                className="flex items-center justify-between px-2 py-1 bg-muted/50 rounded text-xs"
+              >
+                <div className="flex flex-col min-w-0">
+                  <span className="truncate">
+                    {contact.displayName || contact.identifier}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground font-mono truncate">
+                    {contact.identifier}
+                    {contact.messageCount > 1 && ` (${contact.messageCount} msgs)`}
+                  </span>
+                </div>
+                <button
+                  onClick={() => handleAddContact(contact.identifier)}
+                  disabled={addingContact === contact.identifier}
+                  className="text-muted-foreground hover:text-green-400 ml-2 flex-shrink-0"
+                >
+                  {addingContact === contact.identifier ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Plus className="h-3 w-3" />
+                  )}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <p className="text-[10px] text-muted-foreground">
+        Extra nummers die met KITT mogen praten (je eigen nummer is altijd toegestaan)
+      </p>
+    </div>
   )
 }
 

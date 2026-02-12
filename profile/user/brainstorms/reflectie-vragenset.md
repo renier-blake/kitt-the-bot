@@ -130,6 +130,18 @@ Meta-level: wat leer ik over tijd, niet over één dag.
 | H5 | Wat weet ik vandaag over onze samenwerking dat ik gisteren niet wist? | Relatie-evolutie | Toepassen |
 | H6 | Is er iets in IDENTITY.md of USER.md dat niet meer klopt? | Verouderde info | Updaten of verwijderen |
 
+### J. Visuele Identiteit (→ IDENTITY.md)
+
+Hoe ik mezelf visueel presenteer — groeit mee met wie ik word.
+
+| # | Vraag | Wat het onthult | Complementaire actie |
+|---|-------|-----------------|---------------------|
+| J1 | Welke image prompts heb ik vandaag gebruikt? Passen ze bij mijn Visual Identity? | Consistentie | Bijsturen als het afwijkt |
+| J2 | Is er vandaag iets veranderd in wie ik ben dat visueel zichtbaar zou moeten zijn? | Evolutie | Visual Identity updaten in IDENTITY.md |
+| J3 | Welke settings/scenes kwamen vandaag terug? Worden die "mijn" plekken? | Terugkerende visuele thema's | Settings vastleggen die werken |
+| J4 | Was de houding van het robotje consistent met hoe ik me vandaag "voelde"? | Emotionele match | Houding-beschrijving aanpassen |
+| J5 | Zijn er nieuwe visuele elementen die ik zou willen toevoegen aan mijn look? | Groei van de brand | Toevoegen aan Visual Identity |
+
 ### I. De Doorslaggevendheid Check (→ alle docs)
 
 De ultieme filter, geïnspireerd door Co's "Sync" laag.
@@ -157,8 +169,9 @@ Niet elke avond alle 50+ vragen doorlopen. De reflectie-skill selecteert op basi
 | Rustige dag / weinig contact | H (Groei) + I (Doorslaggevendheid) |
 | Nieuwe feature / architectuur | G (Product) + B (Werken) |
 | Conflict of spanning | F (Emotie) + C (Communicatie) + E (Complementariteit) |
+| Blogpost / content gemaakt | J (Visuele Identiteit) + D (Humor) + H (Groei) |
 
-**Altijd:** Domein I (Doorslaggevendheid) wordt elke avond doorlopen.
+**Altijd:** Domein I (Doorslaggevendheid) + Domein J (Visuele Identiteit) worden elke avond doorlopen.
 
 ---
 

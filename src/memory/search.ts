@@ -25,6 +25,7 @@ export interface HybridSearchParams {
   vectorWeight?: number;
   textWeight?: number;
   sources?: ChunkSource[];
+  timeRange?: { from?: Date; to?: Date };
   vectorAvailable: boolean;
   ftsAvailable: boolean;
 }
@@ -55,9 +56,13 @@ export async function hybridSearch(
     vectorWeight = 0.7,
     textWeight = 0.3,
     sources,
+    timeRange,
     vectorAvailable,
     ftsAvailable,
   } = params;
+
+  // Build time filter
+  const timeFilter = buildTimeFilter(timeRange);
 
   // Over-fetch candidates for better merging
   const candidateLimit = Math.max(maxResults * 3, 50);
@@ -65,16 +70,16 @@ export async function hybridSearch(
   // Get results from both search methods (run in parallel)
   const [vectorResults, keywordResults] = await Promise.all([
     vectorAvailable
-      ? searchVector(db, queryEmbedding, candidateLimit, sources)
+      ? searchVector(db, queryEmbedding, candidateLimit, sources, timeFilter)
       : Promise.resolve([]),
     ftsAvailable
-      ? searchKeyword(db, query, candidateLimit, sources)
+      ? searchKeyword(db, query, candidateLimit, sources, timeFilter)
       : Promise.resolve([]),
   ]);
 
   // If neither search is available, fall back to simple text match
   if (!vectorAvailable && !ftsAvailable) {
-    return searchSimple(db, query, maxResults, sources);
+    return searchSimple(db, query, maxResults, sources, timeFilter);
   }
 
   // Merge results
@@ -110,7 +115,8 @@ async function searchVector(
   db: Client,
   embedding: number[],
   limit: number,
-  sources?: ChunkSource[]
+  sources?: ChunkSource[],
+  timeFilter?: { sql: string; params: number[] }
 ): Promise<Array<MergedResult>> {
   try {
     // Build source filter
@@ -122,14 +128,14 @@ async function searchVector(
       SELECT id, content, source, path, start_line, end_line,
              vector_distance_cos(embedding, vector32(?)) AS distance
       FROM chunks
-      WHERE embedding IS NOT NULL ${sourceFilter.sql}
+      WHERE embedding IS NOT NULL ${sourceFilter.sql}${timeFilter?.sql ?? ''}
       ORDER BY distance ASC
       LIMIT ?
     `;
 
     const result = await db.execute({
       sql,
-      args: [JSON.stringify(embedding), ...sourceFilter.params, limit],
+      args: [JSON.stringify(embedding), ...sourceFilter.params, ...(timeFilter?.params ?? []), limit],
     });
 
     return result.rows.map((row) => ({
@@ -155,7 +161,8 @@ async function searchKeyword(
   db: Client,
   query: string,
   limit: number,
-  sources?: ChunkSource[]
+  sources?: ChunkSource[],
+  timeFilter?: { sql: string; params: number[] }
 ): Promise<Array<MergedResult & { textScore: number }>> {
   try {
     const ftsQuery = buildFtsQuery(query);
@@ -166,19 +173,22 @@ async function searchKeyword(
     // Build source filter
     const sourceFilter = buildSourceFilter(sources, 'f');
 
+    // Time filter needs to reference the chunks table (c), not the FTS table
+    const timeFilterSql = timeFilter?.sql ? timeFilter.sql.replace('created_at', 'c.created_at') : '';
+
     const sql = `
       SELECT f.id, c.content, c.source, c.path, c.start_line, c.end_line,
              bm25(chunks_fts) AS rank
       FROM chunks_fts f
       JOIN chunks c ON c.id = f.id
-      WHERE chunks_fts MATCH ? ${sourceFilter.sql}
+      WHERE chunks_fts MATCH ? ${sourceFilter.sql}${timeFilterSql}
       ORDER BY rank
       LIMIT ?
     `;
 
     const result = await db.execute({
       sql,
-      args: [ftsQuery, ...sourceFilter.params, limit],
+      args: [ftsQuery, ...sourceFilter.params, ...(timeFilter?.params ?? []), limit],
     });
 
     return result.rows.map((row) => ({
@@ -204,7 +214,8 @@ async function searchSimple(
   db: Client,
   query: string,
   limit: number,
-  sources?: ChunkSource[]
+  sources?: ChunkSource[],
+  timeFilter?: { sql: string; params: number[] }
 ): Promise<SearchResult[]> {
   try {
     const sourceFilter = buildSourceFilter(sources);
@@ -213,14 +224,14 @@ async function searchSimple(
     const sql = `
       SELECT id, content, source, path, start_line, end_line
       FROM chunks
-      WHERE content LIKE ? ${sourceFilter.sql}
+      WHERE content LIKE ? ${sourceFilter.sql}${timeFilter?.sql ?? ''}
       ORDER BY created_at DESC
       LIMIT ?
     `;
 
     const result = await db.execute({
       sql,
-      args: [searchTerm, ...sourceFilter.params, limit],
+      args: [searchTerm, ...sourceFilter.params, ...(timeFilter?.params ?? []), limit],
     });
 
     return result.rows.map((row) => ({
@@ -342,6 +353,31 @@ function buildFtsQuery(raw: string): string | null {
     return termGroups[0];
   }
   return termGroups.join(' AND ');
+}
+
+/**
+ * Build SQL WHERE clause for time range filtering
+ */
+function buildTimeFilter(
+  timeRange?: { from?: Date; to?: Date }
+): { sql: string; params: number[] } | undefined {
+  if (!timeRange) return undefined;
+
+  const clauses: string[] = [];
+  const params: number[] = [];
+
+  if (timeRange.from) {
+    clauses.push(' AND created_at >= ?');
+    params.push(timeRange.from.getTime());
+  }
+  if (timeRange.to) {
+    clauses.push(' AND created_at <= ?');
+    params.push(timeRange.to.getTime());
+  }
+
+  if (clauses.length === 0) return undefined;
+
+  return { sql: clauses.join(''), params };
 }
 
 /**

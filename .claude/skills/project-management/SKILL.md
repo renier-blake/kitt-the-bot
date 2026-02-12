@@ -1,36 +1,57 @@
 ---
 name: project-management
-description: KITT project management systeem - projecten, issues, workflow
+description: KITT project management systeem - projecten, issues, labels, workflow
 user_invocable: false
 ---
 
 # Project Management Systeem
 
-KITT gebruikt een database-driven project management systeem in `profile/memory/kitt.db`.
+KITT gebruikt een database-driven project management systeem in `profile/data/kitt.db`.
 
 ---
 
 ## Projecten
 
-| Identifier | Naam | Focus | Kleur |
-|------------|------|-------|-------|
-| **PAS** | Personal AI Service | OAuth integraties, channels, marketplace, distributie | Oranje |
-| **KITT** | KITT Core | Bridge, agent, memory, think loop | Rood |
-| **POR** | Portal | KITT Management Portal UI | Oranje |
-| **SKL** | Skills | Nieuwe skills en skill verbeteringen | Blauw |
-| **INF** | Infrastructure | Task engine, scheduler, logging, devops | Groen |
-| **DAT** | Data | Garmin, nutrition, workout tracking, personal insights | Paars |
+| Identifier | Naam | Focus |
+|------------|------|-------|
+| **KITT** | KITT MVP | Alles — bridge, agent, memory, portal, skills, infra, data, product |
 
-### Project Keuze
+Alle issues vallen onder het KITT MVP project. Labels worden gebruikt om domeinen te onderscheiden.
 
-| Als de issue gaat over... | Project |
-|---------------------------|---------|
-| OAuth, Nango, externe APIs, channels | PAS |
-| Bridge, telegram, memory, think loop | KITT |
-| Portal UI, dashboards | POR |
-| Nieuwe skill of skill update | SKL |
-| Task engine, logging, pm2, scheduler | INF |
-| Garmin, nutrition, workouts, health data | DAT |
+---
+
+## Labels (domein)
+
+Elke issue krijgt een domein-label voor filtering in de Portal.
+
+| Label | Kleur | Domein |
+|-------|-------|--------|
+| `bridge` | #3B82F6 | Message routing, channel adapters (Telegram, WhatsApp, Slack) |
+| `memory` | #8B5CF6 | Memory search, embeddings, transcript archivering |
+| `scheduler` | #F97316 | Think loop, task engine, background tasks, orchestrator |
+| `portal` | #10B981 | Portal frontend, UI pages en componenten |
+| `integrations` | #6366F1 | Externe services, OAuth, APIs (Nango, Gmail, etc.) |
+| `security` | #DC2626 | Auth, encryption, sanitization, secure mode |
+| `skills` | #0891B2 | Skill system, marketplace, skill management |
+| `infra` | #6B7280 | Install, deploy, distribution, DB, monitoring |
+| `data` | #EC4899 | Health data, nutrition, workouts (Garmin, etc.) |
+| `core` | #F59E0B | Agent behavior, language, context, rules |
+| `billing` | #059669 | Payment, licensing, tiers (Stripe) |
+
+### Label toekennen
+
+```bash
+# Label ID opzoeken
+sqlite3 profile/data/kitt.db "SELECT id, name FROM portal_labels"
+
+# Label aan issue koppelen
+sqlite3 profile/data/kitt.db "
+  INSERT INTO portal_issue_labels (issue_id, label_id)
+  SELECT i.id, l.id
+  FROM portal_issues i, portal_labels l
+  WHERE i.identifier = 'PAS-01' AND l.name = 'integrations'
+"
+```
 
 ---
 
@@ -41,7 +62,7 @@ KITT gebruikt een database-driven project management systeem in `profile/memory/
 | `feature` | Nieuwe functionaliteit | "Gmail integratie", "Workout dashboard" |
 | `bug` | Defect dat gefixt moet worden | "Session corruption", "Dubbele responses" |
 | `improvement` | Verbetering van bestaande feature | "Snellere queries", "Betere error handling" |
-| `chore` | Technische schuld, refactoring | "Migrate to TypeScript", "Update dependencies" |
+| `chore` | Technische schuld, refactoring | "Git history cleanen", "Update dependencies" |
 | `spike` | Onderzoek/exploratie | "Evaluate auth options", "Research TTS providers" |
 
 ---
@@ -49,16 +70,19 @@ KITT gebruikt een database-driven project management systeem in `profile/memory/
 ## Issue States
 
 ```
-backlog → todo → in_progress → testing → done
+backlog → scheduled → todo → in_progress → testing → done
+                                                    → cancelled
 ```
 
 | State | Betekenis | Actie |
 |-------|-----------|-------|
 | `backlog` | Nog niet gepland | Wacht op prioritering |
+| `scheduled` | Gepland op specifieke datum | Heeft `scheduled_date` |
 | `todo` | Gepland voor huidige cycle | Klaar om op te pakken |
 | `in_progress` | Actief aan gewerkt | Agent werkt eraan |
 | `testing` | Gebouwd, moet getest worden | Wacht op test door Renier |
 | `done` | Afgerond | Geen actie nodig |
+| `cancelled` | Geannuleerd | Niet meer relevant |
 
 ---
 
@@ -67,9 +91,25 @@ backlog → todo → in_progress → testing → done
 | Priority | Betekenis | SLA |
 |----------|-----------|-----|
 | `critical` | Blocker, systeem down | Binnen uren |
+| `urgent` | Dringend, blokkeert andere zaken | Vandaag |
 | `high` | Belangrijk voor huidige sprint | Deze week |
 | `medium` | Normaal werk | Wanneer tijd is |
 | `low` | Nice to have | Backlog |
+
+---
+
+## Complexity & Scope
+
+| Complexity | Betekenis |
+|------------|-----------|
+| `low` | Kleine change, < 1 uur |
+| `medium` | Meerdere files, paar uur |
+| `high` | Architecturele impact, dag+ |
+
+| Scope | Betekenis |
+|-------|-----------|
+| `isolated` | Alleen eigen domein raakt |
+| `cross-cutting` | Raakt meerdere domeinen |
 
 ---
 
@@ -79,27 +119,11 @@ backlog → todo → in_progress → testing → done
 {PROJECT}-{NUMBER}
 ```
 
-Voorbeelden:
-- `PAS-01` - Eerste issue in Personal AI Service
-- `KITT-105` - Issue #105 in KITT Core
-- `POR-4` - Issue #4 in Portal
+Voorbeelden: `PAS-01`, `KITT-105`, `POR-4`
 
 ---
 
 ## Database Schema
-
-### portal_projects
-
-```sql
-CREATE TABLE portal_projects (
-  id INTEGER PRIMARY KEY,
-  identifier TEXT UNIQUE NOT NULL,  -- 'PAS', 'KITT', etc.
-  name TEXT NOT NULL,
-  description TEXT,
-  color TEXT,                        -- Hex color voor UI
-  created_at INTEGER
-);
-```
 
 ### portal_issues
 
@@ -107,14 +131,55 @@ CREATE TABLE portal_projects (
 CREATE TABLE portal_issues (
   id INTEGER PRIMARY KEY,
   project_id INTEGER REFERENCES portal_projects(id),
-  identifier TEXT UNIQUE NOT NULL,  -- 'PAS-01', 'KITT-105'
+  identifier TEXT UNIQUE NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
-  type TEXT DEFAULT 'feature',      -- feature, bug, improvement, chore, spike
-  state TEXT DEFAULT 'backlog',     -- backlog, todo, in_progress, review, done
-  priority TEXT DEFAULT 'medium',   -- critical, high, medium, low
+  type TEXT DEFAULT 'feature',
+  state TEXT DEFAULT 'backlog',
+  priority TEXT DEFAULT 'medium',
+  complexity TEXT DEFAULT 'medium',
+  scope TEXT DEFAULT 'isolated',
+  cycle_id INTEGER REFERENCES portal_cycles(id),
+  parent_id INTEGER REFERENCES portal_issues(id),
+  position INTEGER DEFAULT 0,
+  due_date INTEGER,
+  scheduled_date INTEGER,
+  scheduled_time_start INTEGER,
+  scheduled_time_end INTEGER,
+  scheduled_timezone TEXT,
+  start_date INTEGER,
+  created_by TEXT DEFAULT 'renier',
   created_at INTEGER,
   updated_at INTEGER
+);
+```
+
+### portal_labels & portal_issue_labels
+
+```sql
+CREATE TABLE portal_labels (
+  id INTEGER PRIMARY KEY,
+  name TEXT UNIQUE NOT NULL,
+  color TEXT DEFAULT '#6B7280',
+  created_at INTEGER
+);
+
+CREATE TABLE portal_issue_labels (
+  issue_id INTEGER REFERENCES portal_issues(id),
+  label_id INTEGER REFERENCES portal_labels(id),
+  PRIMARY KEY (issue_id, label_id)
+);
+```
+
+### portal_cycles
+
+```sql
+CREATE TABLE portal_cycles (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  start_date INTEGER,
+  end_date INTEGER,
+  created_at INTEGER
 );
 ```
 
@@ -125,10 +190,10 @@ CREATE TABLE portal_triage (
   id INTEGER PRIMARY KEY,
   title TEXT NOT NULL,
   description TEXT,
-  source TEXT,                       -- 'codebase-health-audit', 'manual'
+  source TEXT,
   suggested_project TEXT,
   suggested_type TEXT,
-  status TEXT DEFAULT 'new',         -- new, accepted, rejected
+  status TEXT DEFAULT 'new',
   created_at INTEGER
 );
 ```
@@ -140,30 +205,38 @@ CREATE TABLE portal_triage (
 ### Alle open issues
 
 ```bash
-sqlite3 -json profile/memory/kitt.db "
-  SELECT i.identifier, i.title, i.type, i.state, i.priority, p.identifier as project
+sqlite3 -json profile/data/kitt.db "
+  SELECT i.identifier, i.title, i.type, i.state, i.priority,
+         i.complexity, i.scope,
+         p.identifier as project,
+         GROUP_CONCAT(l.name) as labels
   FROM portal_issues i
   LEFT JOIN portal_projects p ON i.project_id = p.id
-  WHERE i.state NOT IN ('done')
+  LEFT JOIN portal_issue_labels il ON i.id = il.issue_id
+  LEFT JOIN portal_labels l ON il.label_id = l.id
+  WHERE i.state NOT IN ('done', 'cancelled')
+  GROUP BY i.id
   ORDER BY
     CASE i.priority
       WHEN 'critical' THEN 1
-      WHEN 'high' THEN 2
-      WHEN 'medium' THEN 3
-      WHEN 'low' THEN 4
+      WHEN 'urgent' THEN 2
+      WHEN 'high' THEN 3
+      WHEN 'medium' THEN 4
+      WHEN 'low' THEN 5
     END,
     i.identifier
 "
 ```
 
-### Issues per project
+### Issues per label
 
 ```bash
-sqlite3 -json profile/memory/kitt.db "
+sqlite3 -json profile/data/kitt.db "
   SELECT i.identifier, i.title, i.state, i.priority
   FROM portal_issues i
-  LEFT JOIN portal_projects p ON i.project_id = p.id
-  WHERE p.identifier = 'PAS' AND i.state != 'done'
+  JOIN portal_issue_labels il ON i.id = il.issue_id
+  JOIN portal_labels l ON il.label_id = l.id
+  WHERE l.name = 'security' AND i.state NOT IN ('done', 'cancelled')
   ORDER BY i.identifier
 "
 ```
@@ -171,8 +244,8 @@ sqlite3 -json profile/memory/kitt.db "
 ### Issue aanmaken
 
 ```bash
-sqlite3 profile/memory/kitt.db "
-  INSERT INTO portal_issues (project_id, identifier, title, description, type, state, priority, created_at, updated_at)
+sqlite3 profile/data/kitt.db "
+  INSERT INTO portal_issues (project_id, identifier, title, description, type, state, priority, complexity, scope, created_at, updated_at)
   SELECT
     p.id,
     'PAS-' || (COALESCE(MAX(CAST(SUBSTR(i.identifier, 5) AS INTEGER)), 0) + 1),
@@ -181,6 +254,8 @@ sqlite3 profile/memory/kitt.db "
     'feature',
     'backlog',
     'medium',
+    'medium',
+    'isolated',
     unixepoch() * 1000,
     unixepoch() * 1000
   FROM portal_projects p
@@ -193,22 +268,10 @@ sqlite3 profile/memory/kitt.db "
 ### Issue state updaten
 
 ```bash
-sqlite3 profile/memory/kitt.db "
+sqlite3 profile/data/kitt.db "
   UPDATE portal_issues
   SET state = 'done', updated_at = unixepoch() * 1000
   WHERE identifier = 'PAS-01'
-"
-```
-
-### Issue verplaatsen naar ander project
-
-```bash
-sqlite3 profile/memory/kitt.db "
-  UPDATE portal_issues
-  SET project_id = (SELECT id FROM portal_projects WHERE identifier = 'SKL'),
-      identifier = 'SKL-' || (SELECT COALESCE(MAX(CAST(SUBSTR(identifier, 5) AS INTEGER)), 0) + 1 FROM portal_issues WHERE identifier LIKE 'SKL-%'),
-      updated_at = unixepoch() * 1000
-  WHERE identifier = 'KITT-28'
 "
 ```
 
@@ -216,22 +279,15 @@ sqlite3 profile/memory/kitt.db "
 
 ## Workflow
 
-### Voor PO (Product Owner)
-
-1. **Intake** - Luister naar user, vraag door op componenten
-2. **Issue aanmaken** - Via Portal UI of SQL
-3. **Prioriteren** - Zet priority en state
-4. **Handover** - Na completion, check state en update docs
-
 ### Voor Agent
 
-1. **Start** - `/issue PAS-01`
-2. **Lezen** - Automatisch relevante docs op basis van project
-3. **Plan** - Ga in Plan Mode
-4. **Bouwen** - Implementeer na goedkeuring
-5. **Testen** - Verificatie
-6. **State update** - Zet naar `done`
-7. **Commit** - Vraag toestemming aan Renier
+1. **Start** — `/issue PAS-01`
+2. **Lezen** — Automatisch relevante docs op basis van project
+3. **Plan** — Ga in Plan Mode (functioneel + technisch)
+4. **Bouwen** — Implementeer na goedkeuring
+5. **Testen** — Verificatie
+6. **State update** — Zet naar `done`
+7. **Commit** — Vraag toestemming aan Renier
 
 ---
 
@@ -239,41 +295,9 @@ sqlite3 profile/memory/kitt.db "
 
 De KITT Portal (`http://localhost:8000`) biedt een UI voor:
 
-- **Projects** - Overzicht van alle projecten
-- **Issues** - Kanban board per project
-- **Triage** - Review automatisch gevonden issues
-- **Logs** - Real-time KITT logs
-
-Start: `pm2 start npm --name kitt -- run bridge`
-
----
-
-## Triage Flow
-
-De `codebase-health-audit` skill vindt automatisch issues en zet ze in `portal_triage`.
-
-1. **Review** - Check triage items in Portal
-2. **Accept** - Converteer naar echte issue in juiste project
-3. **Reject** - Markeer als niet relevant
-
-```bash
-# Triage item accepteren
-sqlite3 profile/memory/kitt.db "
-  -- Insert as issue
-  INSERT INTO portal_issues (project_id, identifier, title, description, type, state, priority, created_at, updated_at)
-  SELECT
-    (SELECT id FROM portal_projects WHERE identifier = 'suggested_project'),
-    'PROJECT-##',
-    title,
-    description,
-    suggested_type,
-    'backlog',
-    'medium',
-    unixepoch() * 1000,
-    unixepoch() * 1000
-  FROM portal_triage WHERE id = 123;
-
-  -- Mark as accepted
-  UPDATE portal_triage SET status = 'accepted' WHERE id = 123;
-"
-```
+- **Projects** — Kanban board, list view, drag & drop
+- **Filters** — Project, priority, complexity, scope, labels, search
+- **Group By** — State, priority, project, labels
+- **Scheduling** — Datum/tijd toekennen aan issues
+- **Triage** — Review automatisch gevonden issues
+- **Logs** — Real-time KITT logs

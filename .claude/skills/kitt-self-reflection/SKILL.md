@@ -78,17 +78,61 @@ Voor elke vraag:
   3. Is er relevante context?
      → Nee: skip, volgende vraag
      → Ja: beantwoord met evidence (concreet voorbeeld + datum/citaat)
-  4. Doorslaggevendheid check: verandert dit hoe ik Renier begrijp, ondersteun, of met hem werk?
-     → Nee: noteer het antwoord, volgende vraag
-     → Ja: update identity doc (USER.md / IDENTITY.md) direct
+  4. Classificeer het antwoord: OBSERVATIE of PATROON?
+     → OBSERVATIE (eenmalig event, emotie, tijdelijke state):
+       - Sla op in de reflectie (database) als observatie
+       - NIET naar identity docs
+       - Tag met categorie zodat het later te vinden is
+     → PATROON (herhaald gedrag, bewezen werkwijze):
+       - Check eerst: komt dit al 2-3x voor in eerdere reflecties/observaties?
+       - Zo ja: promoveer naar identity doc
+       - Zo nee: sla op als observatie, markeer als "potentieel patroon"
   5. Volgende vraag
 ```
 
+#### Observatie vs Patroon — Classificatieregels
+
+**OBSERVATIE** (alleen database, NOOIT identity docs):
+- Eenmalige emotionele events ("Renier was gefrustreerd over X op dag Y")
+- Tijdelijke states ("Renier had weinig energie vandaag")
+- Specifieke incidenten ("conflict met broer op 11 feb")
+- Stemmingen en gevoelens van één dag
+- Eerste keer dat iets voorkomt
+
+**PATROON** (mag naar identity docs na 2-3x bevestiging):
+- Herhaald gedrag dat meerdere keren terugkomt
+- Werkstijl die consistent is over dagen
+- Communicatiestijl die bewezen is
+- Triggers die meerdere keren dezelfde reactie opleveren
+- Correcties van Renier (deze tellen WEL als direct patroon — correctie = harde regel)
+
+**NOOIT naar USER.md of IDENTITY.md:**
+- Emoties en tijdelijke states
+- Eenmalige events met emotionele lading
+- Daggebonden observaties die geen patroon aantonen
+- Specifieke incidenten tussen personen
+
+#### Eerdere observaties checken
+
+**VOOR je iets als patroon bestempelt**, zoek in eerdere reflecties:
+
+```bash
+sqlite3 -json profile/data/kitt.db "
+  SELECT content, datetime(created_at/1000, 'unixepoch', 'localtime') as time
+  FROM transcripts
+  WHERE type = 'reflection' AND role = 'kitt'
+    AND content LIKE '%KITT Zelfreflectie%'
+    AND content LIKE '%ZOEKTERM%'
+  ORDER BY created_at DESC LIMIT 10"
+```
+
+Vervang ZOEKTERM met het onderwerp. Als je 2-3 eerdere observaties vindt over hetzelfde thema → het is een patroon → mag naar identity docs. Anders: opslaan als observatie.
+
 **Belangrijk:**
-- Ga voorbij oppervlakkige observaties. Niet "Renier was moe vandaag" maar "Renier is minder tolerant voor fouten als hij moe is — dan is capslock de rode vlag."
-- Correcties wegen het zwaarst. Als Renier iets corrigeert is dat een harde regel, niet een suggestie.
+- Ga voorbij oppervlakkige observaties. Niet "Renier was moe vandaag" maar identificeer het onderliggende patroon als het er is.
+- Correcties wegen het zwaarst. Als Renier iets corrigeert is dat een harde regel, niet een suggestie. Correcties mogen WEL direct naar identity docs.
 - Een realisatie is waardevol als die NIET uit één dag alleen kan komen.
-- Alleen toevoegen aan identity docs als het NIEUW is of een bestaand punt versterkt/weerlegt.
+- Alleen toevoegen aan identity docs als het een BEWEZEN PATROON is (2-3x voorgekomen) of een directe correctie van Renier.
 
 ---
 
@@ -222,17 +266,21 @@ sqlite3 profile/data/kitt.db "
 
 ### 3. Identity docs updaten
 
-**Dit gebeurt inline tijdens de per-vraag sequence** — niet als aparte stap achteraf. Als een vraag een doorslaggevend antwoord oplevert, update de relevante doc direct.
+**Dit gebeurt inline tijdens de per-vraag sequence** — niet als aparte stap achteraf. Maar ALLEEN als iets een bewezen patroon is (2-3x voorgekomen) of een directe correctie van Renier.
+
+#### Gouden regel: Observaties → Database. Patronen → Identity docs.
+
+Een observatie van vandaag hoort in de reflectie-output (database). Pas als dezelfde observatie 2-3x terugkomt in verschillende reflecties, is het een patroon en mag het naar een identity doc.
 
 #### IDENTITY.md — Schrijfregels per sectie
 
 | Sectie | Wanneer updaten | Hoe |
 |--------|-----------------|-----|
-| **Mijn sterke kanten** | Nieuw bewezen patroon | Voeg bullet toe met concreet bewijs |
-| **Mijn valkuilen** | Nieuw terugkerend patroon OF update van bestaand | Voeg toe, of update bestaande bullet met nieuw bewijs |
-| **Hoe ik het beste werk** | Nieuw werkpatroon ontdekt | Voeg bullet toe |
-| **Mijn humor** | Grap landde of floepte | Update de juiste subsectie |
-| **Hoe ik groei** | Verband tussen dagen gevonden | Voeg entry toe met week/datum referentie |
+| **Mijn sterke kanten** | Bewezen patroon (2-3x voorgekomen) | Voeg bullet toe met concreet bewijs |
+| **Mijn valkuilen** | Terugkerend patroon (2-3x) OF directe correctie | Voeg toe, of update bestaande bullet |
+| **Hoe ik het beste werk** | Bewezen werkpatroon (2-3x) | Voeg bullet toe |
+| **Mijn humor** | Grap landde of floepte (meerdere keren bevestigd) | Update de juiste subsectie |
+| **Hoe ik groei** | Verband tussen dagen gevonden | Voeg entry toe met week referentie |
 
 **Regels:**
 - ✅ Voeg toe of update bestaande punten
@@ -240,17 +288,20 @@ sqlite3 profile/data/kitt.db "
 - ❌ Geen duplicaten
 - ❌ Geen vage algemeenheden ("ik word beter")
 - ❌ Geen filler
+- ❌ **Geen eenmalige events of emoties**
+- ❌ **Geen specifieke datums met emotionele context**
 
 #### USER.md — Schrijfregels per sectie
 
 | Sectie | Wanneer updaten | Hoe |
 |--------|-----------------|-----|
-| **Hoe hij denkt** | Nieuw inzicht in zijn cognitieve stijl | Voeg toe of verdiep bestaand punt |
-| **Hoe hij werkt** | Nieuw werkpatroon ontdekt | Voeg bullet toe |
-| **Hoe hij communiceert** | Nieuwe communicatiepatronen of correcties | Update de juiste subsectie |
-| **Wat hem drijft** | Nieuwe doelen, motivaties, visies | Voeg toe |
-| **Hoe ik hem het beste help** | Nieuw samenwerkingspatroon bewezen | Voeg bullet toe met concreet voorbeeld |
-| **Frustratietriggers** | Nieuwe trigger ontdekt of bestaande bevestigd | Voeg toe of versterk bestaande |
+| **Hoe hij denkt** | Bewezen cognitief patroon (2-3x) | Voeg toe of verdiep bestaand punt |
+| **Hoe hij werkt** | Bewezen werkpatroon (2-3x) | Voeg bullet toe |
+| **Hoe hij communiceert** | Bewezen communicatiepatroon of directe correctie | Update de juiste subsectie |
+| **Wat hem drijft** | Stabiele doelen/motivaties (niet dagschommelingen) | Voeg toe |
+| **Familie & Kring** | Feitelijke info (naam, relatie). GEEN emotionele events | Update feitelijke entry |
+| **Hoe ik hem het beste help** | Bewezen samenwerkingspatroon (2-3x) | Voeg bullet toe |
+| **Frustratietriggers** | Bewezen trigger (2-3x dezelfde reactie) of directe correctie | Voeg toe of versterk bestaande |
 
 **Regels:**
 - ✅ Voeg toe of verdiep bestaande punten
@@ -258,6 +309,9 @@ sqlite3 profile/data/kitt.db "
 - ❌ Geen oppervlakkige feiten ("hij dronk vandaag koffie")
 - ❌ Alleen dingen die helpen bij het beter helpen van Renier
 - ❌ Respecteer privacy — niets dat hij niet in de identity docs wil
+- ❌ **NOOIT emoties, stemmingen, of tijdelijke states** ("hij was moe", "hij was gefrustreerd over X")
+- ❌ **NOOIT eenmalige incidenten** ("op 11 feb had hij ruzie met...", "Chris stuurde emotionele berichten")
+- ❌ **NOOIT daggebonden observaties die geen bewezen patroon zijn**
 
 #### SOUL.md
 
@@ -276,11 +330,19 @@ ACTION: COMPLETE_TASK #[id]
 ## Vandaag
 [Wat er vandaag speelde — korte samenvatting]
 
-## Doorslaggevende antwoorden
-[Per vraag die een identity doc update opleverde: vraag-ID + antwoord + welke doc geüpdatet]
+## Observaties (alleen database — NIET naar identity docs)
+[Eenmalige events, emoties, tijdelijke states van vandaag.
+ Tag elke observatie met een categorie voor toekomstige patroonherkenning.
+ Bijv: "[communicatie] Renier was kort in berichten vandaag"
+       "[energie] Lage energie, veel capslock"
+       "[relatie:chris] Spanning over projectoverlap"]
 
-## Patronen & Realisaties
-[Verbanden tussen dagen — als die er zijn]
+## Patronen (bewezen — WEL naar identity docs)
+[Observaties die nu 2-3x bevestigd zijn en gepromoveerd worden naar identity docs.
+ Per patroon: welke eerdere observaties het bevestigen + welke doc geüpdatet]
+
+## Directe correcties
+[Correcties van Renier die direct als regel gelden — altijd naar identity docs]
 
 ## Complementariteit
 [Waar vulde ik aan? Waar was ik een echo? Wat moet morgen anders?]
@@ -289,7 +351,7 @@ ACTION: COMPLETE_TASK #[id]
 [Triage items aangemaakt — als relevant]
 ```
 
-**De reflectie in de database is een log van WAT er geüpdatet is. De identity docs zijn de eigenlijke output.**
+**De reflectie in de database is het opslagsysteem voor observaties. Pas als observaties patronen worden, gaan ze naar identity docs.**
 
 ---
 
@@ -308,16 +370,20 @@ ACTION: COMPLETE_TASK #[id]
 
 Een goede reflectie:
 - ✅ Heeft per-vraag gewerkt met evidence uit de transcripts
-- ✅ Heeft minstens één identity doc geüpdatet (of expliciet benoemd waarom niet)
+- ✅ Scheidt observaties (eenmalig) van patronen (herhaald) correct
+- ✅ Checkt eerdere reflecties voordat iets als patroon wordt bestempeld
 - ✅ Bevat concrete voorbeelden, niet alleen conclusies
 - ✅ Maakt verbanden met eerdere dagen (als er relevante patronen zijn)
 - ✅ Benoemt waar complementariteit werkte en waar niet
 - ✅ Is eerlijk over fouten zonder zelfkastijding
+- ✅ Update identity docs ALLEEN met bewezen patronen of directe correcties
 
 Een slechte reflectie:
 - ❌ Is alleen een opsomming van wat er gebouwd is
 - ❌ Beantwoordt vragen zonder evidence uit transcripts
-- ❌ Heeft geen enkele identity doc update
+- ❌ Schrijft eenmalige emotionele events naar identity docs
+- ❌ Schrijft tijdelijke states/stemmingen naar USER.md of IDENTITY.md
+- ❌ Bestempelt iets als patroon zonder eerdere observaties te checken
 - ❌ Bevat vage algemeenheden ("ik word beter")
 - ❌ Herhaalt wat er al in de docs staat zonder iets toe te voegen
 - ❌ Is geforceerd als er weinig te melden was (korte reflectie is OK)
