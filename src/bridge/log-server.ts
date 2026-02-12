@@ -797,7 +797,7 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
   app.get('/api/issues', async (req, res) => {
     try {
       const database = getDb();
-      const { project, cycle, state, priority, complexity, scope, search, parentId, labels } = req.query;
+      const { project, cycle, state, priority, complexity, scope, search, parentId, topLevel, labels } = req.query;
 
       let sql = `
         SELECT
@@ -825,7 +825,8 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
           i.updated_at,
           p.identifier as project_identifier,
           p.color as project_color,
-          c.name as cycle_name
+          c.name as cycle_name,
+          (SELECT COUNT(*) FROM portal_issues c2 WHERE c2.parent_id = i.id) as child_count
         FROM portal_issues i
         LEFT JOIN portal_projects p ON i.project_id = p.id
         LEFT JOIN portal_cycles c ON i.cycle_id = c.id
@@ -860,6 +861,9 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
       if (parentId) {
         sql += ' AND i.parent_id = ?';
         args.push(Number(parentId));
+      }
+      if (topLevel === 'true') {
+        sql += ' AND i.parent_id IS NULL';
       }
       if (search) {
         sql += ' AND (i.title LIKE ? OR i.description LIKE ?)';
@@ -922,6 +926,7 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
         projectId: Number(row.project_id),
         cycleId: row.cycle_id ? Number(row.cycle_id) : null,
         parentId: row.parent_id ? Number(row.parent_id) : null,
+        childCount: Number(row.child_count) || 0,
         position: row.position ? Number(row.position) : 0,
         createdBy: String(row.created_by),
         createdAt: Number(row.created_at),
@@ -943,7 +948,7 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
   app.post('/api/issues', async (req, res) => {
     try {
       const database = getDb();
-      const { title, description, projectId, priority = 'medium', type = 'feature', cycleId } = req.body;
+      const { title, description, projectId, priority = 'medium', type = 'feature', cycleId, parentId } = req.body;
 
       if (!title || !projectId) {
         res.status(400).json({ error: 'Title and projectId are required' });
@@ -984,9 +989,9 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
         sql: `
           INSERT INTO portal_issues (
             identifier, title, description, state, priority, type,
-            project_id, cycle_id, position, created_by, created_at, updated_at,
+            project_id, cycle_id, parent_id, position, created_by, created_at, updated_at,
             scheduled_date, scheduled_time_start, scheduled_time_end, scheduled_timezone, due_date, start_date
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         args: [
           identifier,
@@ -997,6 +1002,7 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
           type,
           projectId,
           cycleId || null,
+          parentId || null,
           newPosition,
           'KITT',
           now,
@@ -1020,6 +1026,8 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
         type,
         projectId,
         cycleId: cycleId || null,
+        parentId: parentId || null,
+        childCount: 0,
         createdBy: 'KITT',
         createdAt: now,
         updatedAt: now,
@@ -1037,9 +1045,10 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
     try {
       const database = getDb();
       const issueId = Number(req.params.id);
-      const { 
+      const {
         state, priority, title, description, cycleId, position, complexity, scope,
-        dueDate, scheduledDate, scheduledTimeStart, scheduledTimeEnd, scheduledTimezone, startDate
+        dueDate, scheduledDate, scheduledTimeStart, scheduledTimeEnd, scheduledTimezone, startDate,
+        parentId, projectId
       } = req.body;
 
       const updates: string[] = [];
@@ -1101,6 +1110,14 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
         updates.push('start_date = ?');
         args.push(startDate ? Number(startDate) : null);
       }
+      if (parentId !== undefined) {
+        updates.push('parent_id = ?');
+        args.push(parentId ? Number(parentId) : null);
+      }
+      if (projectId !== undefined) {
+        updates.push('project_id = ?');
+        args.push(Number(projectId));
+      }
 
       if (updates.length === 0) {
         res.status(400).json({ error: 'No fields to update' });
@@ -1126,6 +1143,44 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
           args: [issueId, state, Date.now(), issueId],
         });
       }
+
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // Update issue labels (replace all labels)
+  app.put('/api/issues/:id/labels', async (req, res) => {
+    try {
+      const database = getDb();
+      const issueId = Number(req.params.id);
+      const { labelIds } = req.body as { labelIds: number[] };
+
+      if (!Array.isArray(labelIds)) {
+        res.status(400).json({ error: 'labelIds must be an array' });
+        return;
+      }
+
+      // Delete existing labels
+      await database.execute({
+        sql: 'DELETE FROM portal_issue_labels WHERE issue_id = ?',
+        args: [issueId],
+      });
+
+      // Insert new labels
+      for (const labelId of labelIds) {
+        await database.execute({
+          sql: 'INSERT INTO portal_issue_labels (issue_id, label_id) VALUES (?, ?)',
+          args: [issueId, labelId],
+        });
+      }
+
+      // Update timestamp
+      await database.execute({
+        sql: 'UPDATE portal_issues SET updated_at = ? WHERE id = ?',
+        args: [Date.now(), issueId],
+      });
 
       res.json({ success: true });
     } catch (err) {
@@ -1689,7 +1744,7 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
         } else {
           res.json({
             success: true,
-            preview: value.substring(0, 4) + '...' + value.substring(value.length - 4),
+            configured: true,
           });
         }
       } else if (authType === 'oauth' && authConfig.credential_keys) {

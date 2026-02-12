@@ -20,22 +20,15 @@ import * as path from 'path';
 import { getCredential } from '../credentials/index.js';
 
 const API_BASE = 'https://api.podbean.com/v1';
-const TOKEN_CACHE = '/tmp/podbean-token.json';
 
 // ── Auth ────────────────────────────────────────────────────────────
 
-interface TokenCache {
-  access_token: string;
-  expires_at: number;
-}
+let cachedToken: { access_token: string; expires_at: number } | null = null;
 
 async function getAccessToken(): Promise<string> {
-  // Check cache
-  if (fs.existsSync(TOKEN_CACHE)) {
-    const cached: TokenCache = JSON.parse(fs.readFileSync(TOKEN_CACHE, 'utf-8'));
-    if (Date.now() < cached.expires_at - 60000) { // 1 min buffer
-      return cached.access_token;
-    }
+  // Check in-memory cache
+  if (cachedToken && Date.now() < cachedToken.expires_at - 60000) {
+    return cachedToken.access_token;
   }
 
   const clientId = await getCredential('PODBEAN_CLIENT_ID');
@@ -63,12 +56,10 @@ async function getAccessToken(): Promise<string> {
 
   const data = await response.json() as { access_token: string; expires_in: number };
 
-  // Cache token
-  const cache: TokenCache = {
+  cachedToken = {
     access_token: data.access_token,
     expires_at: Date.now() + data.expires_in * 1000,
   };
-  fs.writeFileSync(TOKEN_CACHE, JSON.stringify(cache));
 
   return data.access_token;
 }

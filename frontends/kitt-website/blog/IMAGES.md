@@ -4,21 +4,23 @@
 
 To generate images for blog posts, you need to set up the FAL_KEY:
 
-### Environment Variable (Required)
+### Credential Vault (Required)
 
+FAL_KEY wordt opgeslagen in de KITT credential vault (encrypted).
+
+**Instellen via Portal:** Portal → Integrations → fal.ai → API Key invullen
+
+**Of via CLI:**
 ```bash
-# Add to your shell profile (~/.zshrc or ~/.bash_profile)
-export FAL_KEY="35a86740-076c-4294-93e7-d2f1b0ac12dc:b1721f3deb66fc6e99c4236b2bad7892"
-
-# Reload your shell
-source ~/.zshrc
+# Key wordt automatisch geladen uit de credential vault of .env
+# Stel in via Portal of voeg toe aan .env:
+# FAL_KEY=your-fal-key-here
 ```
 
 ### Usage
 
 ```bash
-# Generate image directly
-export FAL_KEY="35a86740-076c-4294-93e7-d2f1b0ac12dc:b1721f3deb66fc6e99c4236b2bad7892"
+# Generate image directly (FAL_KEY loaded from vault/env)
 python3 ~/.clawdbot/skills/nano-banana/scripts/generate_image.py \
   --prompt "A futuristic city" \
   --resolution 1K

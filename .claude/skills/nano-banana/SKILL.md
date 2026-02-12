@@ -2,7 +2,7 @@
 name: nano-banana
 description: Generate images using fal.ai (Gemini 3 Pro Image). Use when the user wants to create images, visuals, or illustrations.
 homepage: https://fal.ai/models/fal-ai/nano-banana-pro
-metadata: {"kitt":{"emoji":"🍌","model":"haiku","requires":{"bins":["curl","jq"],"env":["FAL_KEY"]}}}
+metadata: {"kitt":{"emoji":"🍌","model":"haiku","requires":{"bins":["curl","jq"]}}}
 ---
 
 # Nano Banana - Image Generation
@@ -11,11 +11,11 @@ Generate high-quality images using Google's Gemini 3 Pro Image via fal.ai.
 
 ## Setup
 
-1. **Get API key:** https://fal.ai/dashboard/keys
-2. **Add to `.env`:**
-   ```bash
-   FAL_KEY=your-key-here
-   ```
+FAL_KEY wordt geladen uit de **credential vault** (encrypted in DB) of als fallback uit `process.env`.
+
+1. **Via Portal:** Portal → Integrations → fal.ai → API Key invullen
+2. **Of via .env:** `FAL_KEY=your-key-here`
+3. **Key aanmaken:** https://fal.ai/dashboard/keys
 
 ## Image Sizes
 

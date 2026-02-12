@@ -61,7 +61,7 @@ export function Integrations() {
   const [error, setError] = useState<string | null>(null)
   const [connecting, setConnecting] = useState<string | null>(null)
   const [authModal, setAuthModal] = useState<Integration | null>(null)
-  const [testResults, setTestResults] = useState<Record<string, { success: boolean; preview?: string; error?: string }>>({})
+  const [testResults, setTestResults] = useState<Record<string, { success: boolean; error?: string }>>({})
   const [testing, setTesting] = useState<string | null>(null)
   const [migrating, setMigrating] = useState(false)
 
@@ -363,7 +363,7 @@ function IntegrationCard({
   integration: Integration
   isLoading: boolean
   isTesting: boolean
-  testResult?: { success: boolean; preview?: string; error?: string }
+  testResult?: { success: boolean; error?: string }
   onConnect: () => void
   onDisconnect: () => void
   onTest: () => void
@@ -408,7 +408,7 @@ function IntegrationCard({
             testResult.success ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"
           )}>
             {testResult.success ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
-            {testResult.success ? `Connected${testResult.preview ? ` (${testResult.preview})` : ''}` : testResult.error || 'Failed'}
+            {testResult.success ? 'Connected' : testResult.error || 'Failed'}
           </div>
         )}
 

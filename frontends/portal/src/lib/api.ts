@@ -226,7 +226,7 @@ export const api = {
     if (!res.ok) throw new Error('Failed to remove auth')
   },
 
-  async testIntegration(integrationId: string): Promise<{ success: boolean; preview?: string; error?: string }> {
+  async testIntegration(integrationId: string): Promise<{ success: boolean; error?: string }> {
     const res = await fetch(`${API_BASE}/integrations/${integrationId}/test`, {
       method: 'POST',
     })
