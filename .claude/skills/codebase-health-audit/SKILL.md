@@ -74,7 +74,7 @@ Elk script output JSON array met findings:
 Voordat je een finding rapporteert, check of het al in triage/issues staat:
 
 ```bash
-sqlite3 -json profile/memory/kitt.db "
+sqlite3 -json profile/data/kitt.db "
   SELECT title FROM portal_triage
   WHERE source = 'audit'
     AND processed = 0
@@ -88,7 +88,7 @@ Skip findings die al gemeld zijn (voorkom spam).
 Per unieke finding:
 
 ```bash
-sqlite3 profile/memory/kitt.db "
+sqlite3 profile/data/kitt.db "
   INSERT INTO portal_triage (title, description, source, labels, created_at)
   VALUES (
     'TITLE',

@@ -56,6 +56,21 @@ export interface Task {
   createdAt: number
 }
 
+export interface Skill {
+  id: string
+  name: string
+  description: string | null
+  icon: string | null
+  skillType: 'system' | 'user'
+  execution: 'direct' | 'background'
+  model: string | null
+  path: string | null
+  triggers: string[]
+  modes: string[]
+  enabled: boolean
+  sortOrder: number
+}
+
 export interface TaskExecution {
   id: string
   taskId: number | null
@@ -191,6 +206,28 @@ export const api = {
   async getTaskStats(): Promise<TaskStats> {
     const res = await fetch(`${API_BASE}/tasks/stats`)
     if (!res.ok) throw new Error('Failed to fetch task stats')
+    return res.json()
+  },
+
+  // Skills
+  async getSkills(): Promise<{ skills: Skill[] }> {
+    const res = await fetch(`${API_BASE}/skills`)
+    if (!res.ok) throw new Error('Failed to fetch skills')
+    return res.json()
+  },
+
+  async updateSkill(id: string, updates: { enabled: boolean }): Promise<void> {
+    const res = await fetch(`${API_BASE}/skills/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    })
+    if (!res.ok) throw new Error('Failed to update skill')
+  },
+
+  async getSkillContent(id: string): Promise<{ content: string; raw: string }> {
+    const res = await fetch(`${API_BASE}/skills/${id}/content`)
+    if (!res.ok) throw new Error('Failed to fetch skill content')
     return res.json()
   },
 

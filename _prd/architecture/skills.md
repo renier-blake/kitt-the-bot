@@ -1,39 +1,160 @@
 # Skills Architecture
 
-> Hoe het KITT skill systeem werkt.
+> Hoe het KITT skill systeem werkt — discovery, classificatie, dispatch, en execution.
 
 ---
 
 ## Overview
 
-Skills zijn uitbreidingen die KITT extra capabilities geven:
-- API integraties (Garmin, Todoist, Apple Reminders)
-- Tools (Whisper transcriptie, nutrition logging)
-- Scheduled routines (daily reflection, gym coach)
+Skills zijn uitbreidingen die KITT extra capabilities geven. Elke skill is een `SKILL.md` bestand met instructies die KITT leest om te weten HOE hij de skill moet uitvoeren.
 
-Skills worden gedocumenteerd in SKILL.md files die KITT leest om te weten HOE hij de skill moet gebruiken.
+**Twee lagen:**
+1. **Filesystem** (`.claude/skills/*/SKILL.md`) — Source of truth voor instructies
+2. **Database** (`capabilities` tabel) — Metadata, classificatie, enable/disable
 
 ---
 
-## Skill Locatie
+## Skill Classificatie
+
+### System Skills (locked)
+
+Core KITT functionaliteit. Niet bewerkbaar via Portal. Altijd aanwezig.
+
+| Skill | Execution | Model | Beschrijving |
+|-------|-----------|-------|-------------|
+| `garmin` | background | haiku | Health data (sleep, HRV, steps, activities) |
+| `gmail` | background | haiku | Email via Nango OAuth |
+| `calendar` | background | haiku | Google Calendar via Nango OAuth |
+| `apple-reminders` | direct | — | macOS Reminders via osascript |
+| `memory-search` | background | haiku | Zoek in gesprekken en herinneringen |
+| `self-diagnostics` | background | haiku | KITT logs en agent history |
+| `nano-banana` | background | sonnet | Image generation via fal.ai |
+| `browser` | background | opus | Playwright + Chrome automation |
+| `project-management` | direct | — | Issue/project DB queries |
+
+### System Skills — KITT Internal
+
+Niet zichtbaar voor gebruiker. Interne KITT processen.
+
+| Skill | Execution | Model | Beschrijving |
+|-------|-----------|-------|-------------|
+| `kitt-self-reflection` | background | opus | Dagelijkse zelfreflectie |
+| `codebase-health-audit` | background | opus | Security + code quality check |
+| `issue` | background | opus | Issue workflow (Telegram) |
+| `issue-kitt` | background | opus | Issue workflow (Telegram, variant) |
+| `issue-claude` | background | opus | Issue workflow (Claude Code) |
+| `create-issue` | direct | — | PO intake flow |
+
+### User Skills (bewerkbaar)
+
+Door gebruiker aangemaakt of aangepast. Kan enabled/disabled worden via Portal.
+
+| Skill | Execution | Model | Beschrijving |
+|-------|-----------|-------|-------------|
+| `daily-reflection` | direct | — | 6 Minute Diary framework |
+| `daily-energy-balance` | background | sonnet | Dagelijkse energie balans |
+| `nutrition-log` | background | haiku | Maaltijden loggen en macro tracking |
+| `gym-race-coach` | background | opus | GYMRACE/HYROX training coach |
+| `workout-plan` | direct | — | Training schema's beheren |
+| `blog-writer` | background | opus | Blogpost drafts schrijven |
+| `blog-publisher` | background | opus | Drafts publiceren (image, HTML, git) |
+| `blog-post-archived` | background | — | Legacy blog skill (disabled) |
+| `podcast` | background | opus | Podcast episodes maken |
+| `podbean` | background | — | Podbean publishing |
+| `linkedin-post` | background | opus | LinkedIn posts via browser |
+| `brainstorm` | direct | — | Ideeen verkennen en vastleggen |
+
+---
+
+## Architectuur
 
 ```
-.claude/skills/
-├── apple-reminders/
-│   └── SKILL.md
-├── nutrition-log/
-│   └── SKILL.md
-├── daily-reflection/
-│   └── SKILL.md
-├── garmin/
-│   ├── SKILL.md
-│   └── scripts/
-│       └── garmin_api.py
-├── gym-race-coach/
-│   └── SKILL.md
-└── nano-banana/
-    └── SKILL.md
+.claude/skills/           ← Filesystem (SKILL.md instructies)
+     ↕ discovery
+src/context/loaders/skills-loader.ts  ← Loader (merged filesystem + DB)
+     ↕ enrichment
+src/capabilities/         ← Database (metadata, classificatie)
+     │
+     ├── index.ts         ← CRUD, queries, types
+     └── seed.ts          ← Seed data (alle skills + tools)
 ```
+
+### Discovery Flow
+
+```
+1. skills-loader scant .claude/skills/ voor SKILL.md bestanden
+2. Per skill: parse frontmatter metadata
+3. Enrichment: query capabilities DB voor overrides (naam, icon, enabled, skillType)
+4. Filter: check agent mode (secure/developer) en enabled status
+5. Output: LoadedSkill[] met skillType, trigger, content
+```
+
+### Capabilities Database
+
+```sql
+CREATE TABLE capabilities (
+  id TEXT PRIMARY KEY,           -- Skill ID (= directory naam)
+  name TEXT NOT NULL,
+  description TEXT,
+  icon TEXT,
+  category TEXT NOT NULL,        -- 'tool' | 'skill'
+  skill_type TEXT,               -- 'system' | 'user' | NULL (tools)
+  execution TEXT DEFAULT 'direct', -- 'direct' | 'background'
+  model TEXT,                    -- 'haiku' | 'sonnet' | 'opus'
+  path TEXT,                     -- '.claude/skills/skill-id'
+  triggers TEXT,                 -- JSON array van trigger woorden
+  modes TEXT DEFAULT '["developer"]', -- JSON array ['secure', 'developer']
+  enabled INTEGER DEFAULT 1,
+  sort_order INTEGER DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+)
+```
+
+**DB overrides SKILL.md** voor: `name`, `description`, `icon`, `enabled`, `modes`
+**SKILL.md is source of truth** voor: instructie content, frontmatter triggers
+
+### Seed
+
+```bash
+npx tsx src/capabilities/seed.ts
+```
+
+Seed data staat in `src/capabilities/seed.ts`. Upsert — bestaande records worden geüpdatet, nieuwe aangemaakt.
+
+---
+
+## Execution Model
+
+### Direct Skills
+
+Worden inline uitgevoerd tijdens chat. Geen background task, geen model override.
+
+Voorbeelden: `apple-reminders`, `brainstorm`, `daily-reflection`, `project-management`
+
+### Background Skills (Dispatch)
+
+Worden gedispatcht als background task via het `BACKGROUND_TASK` signaal:
+
+```
+BACKGROUND_TASK:{"skill":"garmin","prompt":"Haal mijn slaapdata van gisteren op"}
+```
+
+**Flow:**
+1. Chat agent genereert kort antwoord + `BACKGROUND_TASK` signaal op laatste regel
+2. Router parsed het signaal en dispatcht naar task engine
+3. Task engine spawnt sub-agent met SKILL.md als context
+4. Sub-agent voert skill uit met opgegeven model (haiku/sonnet/opus)
+5. Resultaat wordt teruggestuurd naar gebruiker
+
+### Think Loop Skills
+
+Skills met `trigger: every_time` of `trigger: scheduled` worden geladen in de Think Loop:
+
+- **every_time**: Elke tick gecheckt (bijv. `apple-reminders` fetch)
+- **scheduled**: Agent beslist zelf of het moment juist is (bijv. `daily-reflection`)
+
+Think Loop krijgt **alleen** skill beschrijvingen + fetch data. Volledige SKILL.md wordt pas geladen bij execution (Phase 3 van scheduler).
 
 ---
 
@@ -44,8 +165,8 @@ Skills worden gedocumenteerd in SKILL.md files die KITT leest om te weten HOE hi
 ```yaml
 ---
 name: skill-name
-description: Wat de skill doet (voor KITT's context)
-metadata: {"kitt":{"emoji":"🔧","requires":{"bins":["python3"],"env":["API_KEY"]}}}
+description: Wat de skill doet (voor context en dispatch catalog)
+metadata: {"kitt":{"emoji":"🔧","trigger":"on_demand","model":"haiku","requires":{"bins":["python3"]}}}
 ---
 ```
 
@@ -53,168 +174,73 @@ metadata: {"kitt":{"emoji":"🔧","requires":{"bins":["python3"],"env":["API_KEY
 
 ```typescript
 interface SkillMetadata {
-  kitt: {
-    emoji: string;           // Voor display
-    os?: string[];           // ["darwin"] = macOS only
-    model?: 'haiku' | 'sonnet' | 'opus'; // Model preference (default: haiku)
+  kitt?: {
+    emoji?: string;
+    trigger?: 'every_time' | 'on_demand' | 'scheduled';
+    model?: 'haiku' | 'sonnet' | 'opus';
+    frequency?: 'daily' | 'weekly' | 'monthly';
+    timesPerDay?: number;
+    daypart?: 'morning' | 'afternoon' | 'evening' | 'night';
+    fetch?: string;           // Shell command voor data ophalen (every_time skills)
+    os?: string[];            // ["darwin"] = macOS only
     requires?: {
-      bins?: string[];       // Vereiste binaries
-      env?: string[];        // Vereiste environment variables
-    };
-    install?: InstallStep[]; // Installatie instructies
-    schedule?: {             // Voor scheduled skills
-      frequency: 'daily' | 'weekly' | 'monthly';
-      daypart?: 'morning' | 'afternoon' | 'evening' | 'night';
+      bins?: string[];        // Vereiste binaries (python3, curl, etc.)
+      skills?: string[];      // Depends on andere skills
     };
   };
 }
 ```
 
-**Model keuze:**
-- `haiku` - Snel en goedkoop, voor simpele taken (heartbeat, simple skills)
-- `sonnet` - Balanced, voor gemiddelde complexiteit
-- `opus` - Meest capable, voor complexe taken (development, content writing)
-```
-
-**Schedule is simpel:**
-- `frequency`: hoe vaak de skill moet draaien
-- `daypart`: hint voor wanneer (niet verplicht)
-
-De agent krijgt de volledige SKILL.md en beslist zelf wanneer het juiste moment is.
-
 ### Content
 
-Na de frontmatter bevat SKILL.md:
+Na de frontmatter: vrij markdown met instructies voor KITT.
 
-**Voor scheduled skills - Priority sectie (optioneel):**
-```markdown
-## Priority
-
-**Skill priority:** High | Medium | Low
-**Flexibiliteit:** Hoog | Laag
-```
-
-De agent begrijpt zelf wat urgent is - geen uitleg nodig.
-
-**Standaard secties:**
-- **Wat doet het?** - Korte beschrijving
-- **Setup** - Installatie stappen indien nodig
-- **Gebruik** - Commands, voorbeelden, workflows
-- **Notes** - Belangrijke opmerkingen
+Standaard secties:
+- **Wat doet het?** — Korte beschrijving
+- **Setup** — Installatie/configuratie
+- **Gebruik** — Commands, voorbeelden, workflows
+- **Notes** — Belangrijke opmerkingen
 
 ---
 
-## Skill Types
-
-### 1. Tool Skills
-
-Skills die KITT tools geven om taken uit te voeren:
-
-```yaml
----
-name: apple-reminders
-description: Manage Apple Reminders via remindctl CLI
-metadata: {"kitt":{"emoji":"⏰","os":["darwin"],"requires":{"bins":["remindctl"]}}}
----
-```
-
-KITT leest de SKILL.md en weet dan:
-- Welke commands beschikbaar zijn
-- Hoe output te interpreteren
-- Wanneer de skill te gebruiken
-
-### 2. Data Skills
-
-Skills voor data logging en retrieval:
-
-```yaml
----
-name: nutrition-log
-description: Log meals and track nutrition
-metadata: {"kitt":{"emoji":"🥗","requires":{"bins":["sqlite3"]}}}
----
-```
-
-### 3. Scheduled Skills
-
-Skills die periodiek getriggerd moeten worden:
-
-```yaml
----
-name: daily-reflection
-description: Dagelijkse check-in met ochtend en avond routine
-metadata: {"kitt":{"emoji":"🌅","schedule":{"frequency":"daily","daypart":"morning"}}}
----
-```
-
-De Think Loop (heartbeat):
-1. Geeft de volledige SKILL.md aan de agent
-2. Agent leest transcripts en bepaalt zelf:
-   - Is dit al gedaan vandaag?
-   - Is het een goed moment?
-   - Is de user beschikbaar?
-3. Geen hardcoded time windows of detect patterns
-
----
-
-## Think Loop Integration
-
-De heartbeat (elke ~5 minuten) geeft de agent alle data:
+## Skill Locatie
 
 ```
-Heartbeat wakes up
-    ↓
-Collect data (geen logic):
-    - Alle transcripts van vandaag
-    - Scheduled skills met volledige SKILL.md
-    - Huidige tijd, dag, week
-    - Laatste user message
-    ↓
-Agent krijgt alles en beslist zelf:
-    - Lees transcripts: wat is er vandaag besproken?
-    - Lees SKILL.md: wat moet deze skill doen?
-    - Bepaal: is dit al gedaan? Is dit een goed moment?
-    - Kijk naar context: is user beschikbaar?
-    ↓
-Agent antwoordt:
-    - HEARTBEAT_OK (niets doen)
-    - MEMORY: (iets onthouden)
-    - Direct bericht (actie nemen)
+.claude/skills/
+├── garmin/                 # System: health data
+│   ├── SKILL.md
+│   └── scripts/
+│       └── garmin_api.py
+├── gmail/                  # System: email
+│   └── SKILL.md
+├── calendar/               # System: agenda
+│   └── SKILL.md
+├── memory-search/          # System: memory query
+│   └── SKILL.md
+├── self-diagnostics/       # System: logs/debug
+│   └── SKILL.md
+├── nano-banana/            # System: image gen
+│   └── SKILL.md
+├── browser/                # System: automation
+│   └── SKILL.md
+├── daily-reflection/       # User: routine
+│   └── SKILL.md
+├── nutrition-log/          # User: tracking
+│   └── SKILL.md
+├── blog-writer/            # User: content
+│   └── SKILL.md
+└── ...                     # 27 skills totaal
 ```
-
-**Geen hardcoded patterns, time windows, of detect logic.**
-De agent is intelligent genoeg om context te begrijpen.
-
----
-
-## Gating (Requirements Check)
-
-Skills kunnen requirements specificeren:
-
-```json
-"requires": {
-  "bins": ["remindctl", "python3"],
-  "env": ["OPENAI_API_KEY"]
-}
-```
-
-KITT checkt voor gebruik:
-1. Zijn alle binaries beschikbaar? (`which binary`)
-2. Zijn alle env vars gezet? (`process.env[VAR]`)
-
-Als niet voldaan: skill wordt overgeslagen of KITT meldt wat ontbreekt.
 
 ---
 
 ## Nieuwe Skill Maken
 
-### 1. Maak directory
+### 1. Maak directory + SKILL.md
 
 ```bash
 mkdir -p .claude/skills/my-skill
 ```
-
-### 2. Maak SKILL.md
 
 ```markdown
 ---
@@ -232,9 +258,36 @@ metadata: {"kitt":{"emoji":"🔧"}}
 [voorbeelden en commands]
 ```
 
-### 3. (Optional) Scripts
+### 2. Registreer in capabilities DB
 
-Voor complexe skills met Python/andere scripts:
+Voeg toe aan `src/capabilities/seed.ts`:
+
+```typescript
+{
+  id: 'my-skill',
+  name: 'My Skill',
+  description: 'Wat de skill doet',
+  icon: '🔧',
+  category: 'skill',
+  skillType: 'user',        // of 'system'
+  execution: 'background',  // of 'direct'
+  model: 'haiku',           // of 'sonnet' / 'opus'
+  path: '.claude/skills/my-skill',
+  triggers: ['trigger-woord-1', 'trigger-woord-2'],
+  modes: ['secure', 'developer'],
+  sortOrder: 100,
+},
+```
+
+### 3. Run seed
+
+```bash
+npx tsx src/capabilities/seed.ts
+```
+
+### 4. (Optional) Scripts
+
+Voor skills met Python/andere scripts:
 
 ```
 .claude/skills/my-skill/
@@ -246,16 +299,16 @@ Voor complexe skills met Python/andere scripts:
 
 ---
 
-## Bestaande Skills
+## Key Files
 
-| Skill | Type | Model | Description |
-|-------|------|-------|-------------|
-| `apple-reminders` | Tool | haiku | macOS Reminders via remindctl |
-| `nutrition-log` | Data | haiku | Meal logging en macro tracking |
-| `daily-reflection` | Scheduled | haiku | Ochtend en avond routines |
-| `garmin` | Data | haiku | Health data (sleep, HRV, steps) |
-| `gym-race-coach` | Scheduled | haiku | Training coach, readiness, workouts |
-| `nano-banana` | Tool | haiku | Image generation via fal.ai |
+| File | Doel |
+|------|------|
+| `.claude/skills/*/SKILL.md` | Skill instructies (source of truth) |
+| `src/capabilities/index.ts` | Capabilities DB schema + CRUD |
+| `src/capabilities/seed.ts` | Seed data (alle tools + skills) |
+| `src/context/loaders/skills-loader.ts` | Discovery, enrichment, formatting |
+| `src/context/types.ts` | `LoadedSkill`, `SkillMetadata` types |
+| `profile/context/blocks.json` | Context config (skills block) |
 
 ---
 
@@ -268,6 +321,7 @@ Bij nieuwe skills:
 - [ ] Check wat de skill kan lezen/schrijven
 - [ ] Check network calls
 - [ ] Check credential access
+- [ ] Verify `modes` — moet deze skill in `secure` mode?
 
 ### Red Flags
 
@@ -275,13 +329,3 @@ Bij nieuwe skills:
 - Toegang tot credentials buiten scope
 - Obfuscated code
 - Geen duidelijke auteur/bron
-
----
-
-## Best Practices
-
-1. **Eén SKILL.md per skill** - Alles in één file voor KITT's context
-2. **Duidelijke voorbeelden** - KITT leert door voorbeelden
-3. **Minimale dependencies** - Minder kan breken
-4. **Defensive coding** - Graceful fallbacks als iets niet werkt
-5. **Schedule alleen indien nodig** - Niet elke skill hoeft scheduled te zijn

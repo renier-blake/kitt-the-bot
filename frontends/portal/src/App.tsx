@@ -53,13 +53,13 @@ function App() {
           <Route path="/integrations" element={<Integrations />} />
           <Route path="/database" element={<Database />} />
           <Route path="/tasks" element={<Tasks />} />
+          <Route path="/skills" element={<Skills />} />
           <Route path="/health" element={<Navigate to="/" replace />} />
         </Route>
-        
+
         {/* User routes */}
         <Route element={<StandardLayout />}>
           <Route path="/user/identity" element={<Identity />} />
-          <Route path="/user/skills" element={<Skills />} />
           <Route path="/user/settings" element={<UserSettings />} />
         </Route>
         

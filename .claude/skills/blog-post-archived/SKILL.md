@@ -16,7 +16,7 @@ Schrijf en publiceer een blogpost op basis van KITT's zelfreflectie.
 
 ```bash
 # KITT's zelfreflectie van gisteren
-sqlite3 -json profile/memory/kitt.db "
+sqlite3 -json profile/data/kitt.db "
   SELECT content, created_at FROM transcripts
   WHERE type = 'reflection' AND role = 'kitt'
   ORDER BY created_at DESC LIMIT 1"

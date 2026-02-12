@@ -48,13 +48,13 @@ Haal context op om de vragen persoonlijker te maken:
 
 ```bash
 # Eerdere reflecties (laatste 10)
-sqlite3 -json profile/memory/kitt.db "
+sqlite3 -json profile/data/kitt.db "
   SELECT content, created_at FROM transcripts
   WHERE type = 'reflection'
   ORDER BY created_at DESC LIMIT 10"
 
 # Transcripts afgelopen week (Renier's berichten)
-sqlite3 -json profile/memory/kitt.db "
+sqlite3 -json profile/data/kitt.db "
   SELECT content FROM transcripts
   WHERE created_at > ((strftime('%s','now') - 604800) * 1000)
     AND type = 'message'
@@ -117,7 +117,7 @@ Verifieer met:
 
 ```bash
 # Aantal reflecties vandaag
-sqlite3 profile/memory/kitt.db "
+sqlite3 profile/data/kitt.db "
   SELECT COUNT(*) as count FROM transcripts
   WHERE type = 'reflection'
     AND date(created_at/1000, 'unixepoch', 'localtime') = date('now', 'localtime')"

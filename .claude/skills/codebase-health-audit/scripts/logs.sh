@@ -56,7 +56,7 @@ if command -v pm2 &>/dev/null; then
 fi
 
 # 2. Think loop failures (from database)
-db_file="profile/memory/kitt.db"
+db_file="profile/data/kitt.db"
 if [ -f "$db_file" ]; then
   # Check for recent think loop errors in transcripts
   error_transcripts=$(sqlite3 -json "$db_file" "

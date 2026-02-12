@@ -30,13 +30,13 @@ const systemItems: NavItem[] = [
   { to: '/integrations', icon: <Plug className="h-5 w-5" />, label: 'Integrations' },
   { to: '/database', icon: <Database className="h-5 w-5" />, label: 'Database' },
   { to: '/tasks', icon: <ListTodo className="h-5 w-5" />, label: 'Task Engine' },
+  { to: '/skills', icon: <Wrench className="h-5 w-5" />, label: 'Skills' },
   { to: '/logs', icon: <Terminal className="h-5 w-5" />, label: 'Live Logs' },
 ]
 
 // User mode items (personal)
 const userItems: NavItem[] = [
   { to: '/user/identity', icon: <User className="h-5 w-5" />, label: 'Identity' },
-  { to: '/user/skills', icon: <Wrench className="h-5 w-5" />, label: 'My Skills' },
   { to: '/user/settings', icon: <Settings className="h-5 w-5" />, label: 'Settings' },
 ]
 

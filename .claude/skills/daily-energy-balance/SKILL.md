@@ -19,7 +19,7 @@ Dagelijkse samenvatting van energiebalans: gegeten vs verbrand.
 ### Get Today's Nutrition by Meal
 
 ```bash
-sqlite3 -header -column profile/memory/kitt.db "
+sqlite3 -header -column profile/data/kitt.db "
 SELECT
     meal_type,
     ROUND(SUM(calories), 0) as kcal,
@@ -41,7 +41,7 @@ END;"
 ### Get Day Totals
 
 ```bash
-sqlite3 -json profile/memory/kitt.db "
+sqlite3 -json profile/data/kitt.db "
 SELECT
     ROUND(COALESCE(SUM(calories), 0), 0) as calories,
     ROUND(COALESCE(SUM(protein_g), 0), 0) as protein,

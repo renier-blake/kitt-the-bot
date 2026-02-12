@@ -69,7 +69,7 @@ Readiness = (Sleep × 0.40) + (HRV × 0.25) + (Body Battery × 0.20) + (Resting 
 garmin_api.py today  # Gets sleep, HRV, body battery, resting HR
 # Then calculate readiness and deliver workout
 
-sqlite3 -header -column profile/memory/kitt.db "
+sqlite3 -header -column profile/data/kitt.db "
 SELECT * FROM training_state WHERE user_id='renier';"
 ```
 
@@ -85,7 +85,7 @@ SELECT * FROM training_state WHERE user_id='renier';"
 ### Week Overview
 
 ```bash
-sqlite3 -header -column profile/memory/kitt.db "
+sqlite3 -header -column profile/data/kitt.db "
 SELECT week, COUNT(*) as workouts,
   ROUND(SUM(CASE WHEN completed=1 THEN 1 ELSE 0 END) * 100 / COUNT(*), 0) as completion
 FROM workout_log
@@ -154,7 +154,7 @@ After workout, log:
 
 ```bash
 # Example: Completed workout with 22 wall balls, RPE 8
-sqlite3 profile/memory/kitt.db "
+sqlite3 profile/data/kitt.db "
 INSERT INTO workout_log (
   user_id, workout_date, week, day, workout_name,
   completed, duration_minutes, rpe, wall_ball_reps, notes

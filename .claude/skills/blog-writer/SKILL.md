@@ -32,7 +32,7 @@ Deze skill is stap 1 van een vaste pipeline. De volledige volgorde is:
 ### 1. Reflectie ophalen
 
 ```bash
-sqlite3 -json profile/memory/kitt.db "
+sqlite3 -json profile/data/kitt.db "
   SELECT content, datetime(created_at/1000, 'unixepoch', 'localtime') as time
   FROM transcripts
   WHERE type = 'reflection' AND role = 'kitt'

@@ -10,7 +10,7 @@ Log maaltijden en track macros in de lokale SQLite database.
 
 ## Database
 
-**Locatie:** `profile/memory/kitt.db`
+**Locatie:** `profile/data/kitt.db`
 
 **Tables:**
 - `foods` - Food catalog met per-100g/ml macro waarden
@@ -36,7 +36,7 @@ Log maaltijden en track macros in de lokale SQLite database.
 Zoek in de foods catalog:
 
 ```bash
-sqlite3 -header -column profile/memory/kitt.db "
+sqlite3 -header -column profile/data/kitt.db "
 SELECT id, name, brand, calories_per_100g, protein_per_100g, carbs_per_100g, fat_per_100g
 FROM foods
 WHERE name LIKE '%ZOEKTERM%' COLLATE NOCASE
@@ -48,7 +48,7 @@ LIMIT 10;"
 ### 3) Add New Food
 
 ```bash
-sqlite3 profile/memory/kitt.db "
+sqlite3 profile/data/kitt.db "
 INSERT INTO foods (name, brand, category, calories_per_100g, protein_per_100g, carbs_per_100g, fat_per_100g, fiber_per_100g, default_serving_size, default_serving_unit)
 VALUES ('Naam', 'Merk', 'categorie', 100, 10, 20, 5, 2, 100, 'g');"
 ```
@@ -56,7 +56,7 @@ VALUES ('Naam', 'Merk', 'categorie', 100, 10, 20, 5, 2, 100, 'g');"
 ### 4) Log Food Entry
 
 ```bash
-sqlite3 profile/memory/kitt.db "
+sqlite3 profile/data/kitt.db "
 INSERT INTO food_log (logged_date, logged_time, meal_type, food_name, brand, serving_size, serving_unit, calories, protein_g, carbs_g, fat_g, fiber_g, source)
 VALUES (
     date('now', 'localtime'),
@@ -78,7 +78,7 @@ VALUES (
 ### 5) Day Totals
 
 ```bash
-sqlite3 -header -column profile/memory/kitt.db "
+sqlite3 -header -column profile/data/kitt.db "
 SELECT
     COALESCE(SUM(calories), 0) as calories,
     COALESCE(SUM(protein_g), 0) as protein,
@@ -92,7 +92,7 @@ WHERE logged_date = date('now', 'localtime');"
 ### 6) Meal Totals
 
 ```bash
-sqlite3 -header -column profile/memory/kitt.db "
+sqlite3 -header -column profile/data/kitt.db "
 SELECT
     meal_type,
     COALESCE(SUM(calories), 0) as calories,
@@ -114,7 +114,7 @@ END;"
 ### 7) Today's Log (Detail)
 
 ```bash
-sqlite3 -header -column profile/memory/kitt.db "
+sqlite3 -header -column profile/data/kitt.db "
 SELECT meal_type, food_name, serving_size || serving_unit as portion, calories, protein_g as protein
 FROM food_log
 WHERE logged_date = date('now', 'localtime')
@@ -124,7 +124,7 @@ ORDER BY logged_time;"
 ### 8) Week Summary
 
 ```bash
-sqlite3 -header -column profile/memory/kitt.db "
+sqlite3 -header -column profile/data/kitt.db "
 SELECT
     logged_date,
     COALESCE(SUM(calories), 0) as calories,

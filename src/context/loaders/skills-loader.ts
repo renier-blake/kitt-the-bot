@@ -182,6 +182,7 @@ export async function discoverSkills(filter: 'all' | 'automated' = 'all'): Promi
         emoji: capability?.icon || metadata?.kitt?.emoji || '📋',
         trigger,
         content: skillContent,
+        skillType: capability?.skillType || 'user',
         frequency: metadata?.kitt?.frequency || metadata?.kitt?.schedule?.frequency,
         timesPerDay: metadata?.kitt?.timesPerDay,
         daypart: metadata?.kitt?.daypart || metadata?.kitt?.schedule?.daypart,

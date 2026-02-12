@@ -142,6 +142,7 @@ export interface LoadedSkill {
   emoji: string;
   trigger: SkillTrigger;
   content: string;
+  skillType?: 'system' | 'user';
   // For scheduled skills
   frequency?: 'daily' | 'weekly' | 'monthly';
   timesPerDay?: number;

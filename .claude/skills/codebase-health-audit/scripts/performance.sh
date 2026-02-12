@@ -91,7 +91,7 @@ if [ -d "node_modules" ]; then
 fi
 
 # 6. SQLite database size
-db_file="profile/memory/kitt.db"
+db_file="profile/data/kitt.db"
 if [ -f "$db_file" ]; then
   db_size=$(du -sm "$db_file" 2>/dev/null | cut -f1)
   if [ "${db_size:-0}" -gt 100 ]; then

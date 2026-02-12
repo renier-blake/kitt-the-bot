@@ -135,7 +135,7 @@ Na bevestiging, maak de issue aan in de database.
 **Issue aanmaken:**
 
 ```bash
-sqlite3 profile/memory/kitt.db "
+sqlite3 profile/data/kitt.db "
   INSERT INTO portal_issues (project_id, identifier, title, description, type, state, priority, created_by, created_at, updated_at, position)
   SELECT
     p.id,

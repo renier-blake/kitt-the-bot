@@ -9,7 +9,7 @@ On-demand: "wat staat er vandaag?", "toon mijn programma", "welke workout", "tra
 ## Database
 
 ```bash
-DB_PATH="profile/memory/kitt.db"
+DB_PATH="profile/data/kitt.db"
 ```
 
 ### Tabellen
