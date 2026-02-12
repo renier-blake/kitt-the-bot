@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS integrations (
 -- Seed: AI Services
 INSERT OR IGNORE INTO integrations (id, name, description, icon, category, auth_type, provider, auth_config, sort_order) VALUES
   ('openai', 'OpenAI', 'Embeddings and transcription', '🧠', 'ai_service', 'api_key', 'custom', '{"credential_key":"OPENAI_API_KEY"}', 10),
-  ('elevenlabs', 'ElevenLabs', 'Text-to-speech generation', '🔊', 'ai_service', 'api_key', 'custom', '{"credential_key":"ELEVENLABS_API_KEY"}', 20),
+  ('google-cloud-tts', 'Google Cloud TTS', 'Voice responses via Google Cloud', '🔊', 'ai_service', 'api_key', 'custom', '{"credential_key":"GOOGLE_CLOUD_TTS_API_KEY","settings":[{"key":"google_cloud_tts_voice","label":"Voice","type":"select","options":[{"value":"nl-NL-Wavenet-G","label":"Dutch Male (WaveNet)"},{"value":"nl-NL-Wavenet-F","label":"Dutch Female (WaveNet)"},{"value":"nl-NL-Standard-G","label":"Dutch Male (Standard)"},{"value":"nl-NL-Standard-F","label":"Dutch Female (Standard)"}],"default":"nl-NL-Wavenet-G"}]}', 20),
   ('fal-ai', 'fal.ai', 'Image generation', '🎨', 'ai_service', 'api_key', 'custom', '{"credential_key":"FAL_KEY"}', 30);
 
 -- Seed: Channels

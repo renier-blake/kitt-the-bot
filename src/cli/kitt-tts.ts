@@ -64,12 +64,12 @@ async function main(): Promise<void> {
 
   // Resolve credentials from vault
   const telegramToken = await getCredential('TELEGRAM_BOT_TOKEN');
-  const elevenlabsKey = await getCredential('ELEVENLABS_API_KEY');
+  const ttsKey = await getCredential('GOOGLE_CLOUD_TTS_API_KEY');
   CHAT_ID = process.env.TELEGRAM_ALLOWED_USERS || '';
   TELEGRAM_API = `https://api.telegram.org/bot${telegramToken}`;
 
-  if (!elevenlabsKey) {
-    console.error('❌ ELEVENLABS_API_KEY not set in vault or .env');
+  if (!ttsKey) {
+    console.error('❌ GOOGLE_CLOUD_TTS_API_KEY not set in vault or .env');
     process.exit(1);
   }
   if (!telegramToken || !CHAT_ID) {
