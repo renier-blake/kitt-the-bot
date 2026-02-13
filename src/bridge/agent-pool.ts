@@ -15,6 +15,9 @@
 
 import { randomUUID } from 'crypto';
 import { createClient, type Client } from '@libsql/client';
+import { createLogger } from './logger.js';
+
+const log = createLogger('agent-pool');
 
 // ==========================================
 // Types
@@ -98,7 +101,7 @@ function persistExecution(entry: AgentEntry): void {
       entry.error || null,
     ],
   }).catch((err) => {
-    console.error('[agent-pool] Failed to persist execution:', err instanceof Error ? err.message : String(err));
+    log.error('Failed to persist execution:', { error: err instanceof Error ? err.message : String(err) });
   });
 }
 
@@ -139,7 +142,7 @@ class AgentPool {
 
     this.active.set(agentId, entry);
 
-    console.log(`[agent-pool] 🟢 START  ${agentId}  type=${type}${options?.chatId ? `  chatId=${options.chatId}` : ''}${options?.capabilityId ? `  capability=${options.capabilityId}` : ''}`);
+    log.info(`🟢 START  ${agentId}  type=${type}${options?.chatId ? `  chatId=${options.chatId}` : ''}${options?.capabilityId ? `  capability=${options.capabilityId}` : ''}`);
 
     return { agentId, abortController };
   }
@@ -170,7 +173,7 @@ class AgentPool {
     persistExecution(entry);
 
     const duration = this.formatDuration(entry.durationMs);
-    console.log(`[agent-pool] ✅ DONE   ${agentId}  type=${entry.type}  duration=${duration}  result=${resultLength || 0}chars`);
+    log.info(`✅ DONE   ${agentId}  type=${entry.type}  duration=${duration}  result=${resultLength || 0}chars`);
   }
 
   /**
@@ -189,7 +192,7 @@ class AgentPool {
     persistExecution(entry);
 
     const duration = this.formatDuration(entry.durationMs);
-    console.log(`[agent-pool] ❌ ERROR  ${agentId}  type=${entry.type}  duration=${duration}  error="${error.slice(0, 100)}"`);
+    log.error(`❌ ERROR  ${agentId}  type=${entry.type}  duration=${duration}  error="${error.slice(0, 100)}"`);
   }
 
   /**
@@ -252,7 +255,7 @@ class AgentPool {
         completedAt: row.completed_at ? Number(row.completed_at) : undefined,
       }));
     } catch (err) {
-      console.error('[agent-pool] Failed to read recent from DB:', err instanceof Error ? err.message : String(err));
+      log.error('Failed to read recent from DB:', { error: err instanceof Error ? err.message : String(err) });
       return [];
     }
   }
@@ -325,7 +328,7 @@ class AgentPool {
         }
       }
     } catch (err) {
-      console.error('[agent-pool] Failed to read stats from DB:', err instanceof Error ? err.message : String(err));
+      log.error('Failed to read stats from DB:', { error: err instanceof Error ? err.message : String(err) });
     }
 
     return {
@@ -356,7 +359,7 @@ class AgentPool {
 
     for (const [agentId, entry] of this.active) {
       entry.abortController.abort();
-      console.log(`[agent-pool] 🛑 SHUTDOWN abort ${agentId}`);
+      log.info(`🛑 SHUTDOWN abort ${agentId}`);
     }
     this.active.clear();
   }
@@ -393,7 +396,7 @@ class AgentPool {
         this.active.delete(agentId);
         persistExecution(entry);
 
-        console.log(`[agent-pool] ⚠️ TIMEOUT ${agentId}  type=${entry.type}  duration=${this.formatDuration(elapsed)}  max=${this.formatDuration(maxDuration)}`);
+        log.warn(`⚠️ TIMEOUT ${agentId}  type=${entry.type}  duration=${this.formatDuration(elapsed)}  max=${this.formatDuration(maxDuration)}`);
       }
     }
   }

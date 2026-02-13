@@ -9,6 +9,9 @@
 
 import { createClient, type Client } from '@libsql/client';
 import * as path from 'path';
+import { createLogger } from '../bridge/logger.js';
+
+const log = createLogger('capabilities');
 
 const DB_PATH = path.resolve(process.cwd(), 'profile/data/kitt.db');
 
@@ -111,7 +114,7 @@ export async function initCapabilitiesTable(): Promise<void> {
     await db.execute(indexSql);
   }
 
-  console.log('[capabilities] Table initialized');
+  log.info('Table initialized');
 }
 
 /**
@@ -240,7 +243,7 @@ export async function upsertCapability(input: CapabilityInput): Promise<Capabili
   const capability = await getCapability(input.id);
   if (!capability) throw new Error(`Failed to upsert capability: ${input.id}`);
 
-  console.log(`[capabilities] ${existing ? 'Updated' : 'Created'} capability: ${input.id}`);
+  log.info(`${existing ? 'Updated' : 'Created'} capability: ${input.id}`);
   return capability;
 }
 
@@ -255,7 +258,7 @@ export async function setCapabilityEnabled(id: string, enabled: boolean): Promis
     args: [enabled ? 1 : 0, Date.now(), id],
   });
 
-  console.log(`[capabilities] ${enabled ? 'Enabled' : 'Disabled'} capability: ${id}`);
+  log.info(`${enabled ? 'Enabled' : 'Disabled'} capability: ${id}`);
 }
 
 /**
@@ -269,7 +272,7 @@ export async function deleteCapability(id: string): Promise<void> {
     args: [id],
   });
 
-  console.log(`[capabilities] Deleted capability: ${id}`);
+  log.info(`Deleted capability: ${id}`);
 }
 
 // ==========================================
@@ -312,7 +315,7 @@ export async function setAgentMode(mode: AgentMode): Promise<void> {
     args: [mode],
   });
 
-  console.log(`[capabilities] Agent mode set to: ${mode}`);
+  log.info(`Agent mode set to: ${mode}`);
 }
 
 // ==========================================

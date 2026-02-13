@@ -25,6 +25,9 @@ import type { Channel } from '../memory/types.js';
 import { createClient, type Client } from '@libsql/client';
 import * as path from 'path';
 import * as fs from 'fs';
+import { createLogger } from '../bridge/logger.js';
+
+const log = createLogger('background-runner');
 
 const DB_PATH = path.resolve(process.cwd(), 'profile/data/kitt.db');
 
@@ -64,7 +67,7 @@ export async function dispatchBackgroundTask(
   // Check if this capability is already running for this chat
   const alreadyRunning = await hasActiveTaskForCapability(chatId, capabilityId);
   if (alreadyRunning) {
-    console.log('[background-runner] Task already running', { chatId, capabilityId });
+    log.info('Task already running', { chatId, capabilityId });
     return {
       taskId: '',
       acknowledgment: `Ik ben hier al mee bezig...`,
@@ -92,13 +95,13 @@ export async function dispatchBackgroundTask(
 
   // Start task execution (non-blocking)
   executeTask(task, model, onComplete).catch((err) => {
-    console.error('[background-runner] Unhandled task error', {
+    log.error('Unhandled task error', {
       taskId: task.id,
       error: err instanceof Error ? err.message : String(err),
     });
   });
 
-  console.log('[background-runner] Task dispatched', {
+  log.info('Task dispatched', {
     taskId: task.id,
     capabilityId,
     model,
@@ -123,7 +126,7 @@ async function executeTask(
   model: AgentModel,
   onComplete?: (chatId: string, message: string) => Promise<void>
 ): Promise<void> {
-  console.log('[background-runner] Starting task execution', { taskId: task.id });
+  log.info('Starting task execution', { taskId: task.id });
 
   // Check for inline execution (no agent spawn needed)
   const capability = await getCapability(task.capabilityId);
@@ -145,7 +148,7 @@ async function executeTask(
     if (onComplete) {
       const skillName = task.description || task.capabilityId;
       await onComplete(task.chatId, `Nog bezig met ${skillName}... (${heartbeatCount}m)`).catch(() => {});
-      console.log(`[background-runner] Heartbeat #${heartbeatCount}`, { taskId: task.id });
+      log.info(`Heartbeat #${heartbeatCount}`, { taskId: task.id });
     }
   }, HEARTBEAT_INTERVAL);
 
@@ -164,7 +167,7 @@ async function executeTask(
 
     // Determine allowed tools: per-capability override → default set
     const tools = capability?.allowedTools ?? DEFAULT_BACKGROUND_TOOLS;
-    console.log('[background-runner] Agent tools', { taskId: task.id, capabilityId: task.capabilityId, tools });
+    log.info('Agent tools', { taskId: task.id, capabilityId: task.capabilityId, tools });
 
     // Run the agent — background agents must NOT emit BACKGROUND_TASK signals
     const backgroundPrompt = `${task.prompt}\n\nBELANGRIJK: Je bent een background agent. Gebruik je tools (Bash, Read, etc.) om de taak DIRECT uit te voeren. Stuur NOOIT een BACKGROUND_TASK signaal — dat is alleen voor chat mode. Voer de opdracht zelf uit en geef het resultaat terug.`;
@@ -197,7 +200,7 @@ async function executeTask(
   } catch (err) {
     clearInterval(heartbeatTimer);
     const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error('[background-runner] Task execution failed', {
+    log.error('Task execution failed', {
       taskId: task.id,
       error: errorMessage,
     });
@@ -216,7 +219,7 @@ async function executeInlineTask(
   onComplete?: (chatId: string, message: string) => Promise<void>
 ): Promise<void> {
   const startTime = Date.now();
-  console.log('[background-runner] Inline execution', { taskId: task.id, capabilityId: capability.id });
+  log.info('Inline execution', { taskId: task.id, capabilityId: capability.id });
 
   try {
     await markTaskRunning(task.id);
@@ -230,14 +233,14 @@ async function executeInlineTask(
     }
 
     const elapsed = Date.now() - startTime;
-    console.log(`[background-runner] Inline complete: ${capability.id} in ${elapsed}ms`);
+    log.info(`Inline complete: ${capability.id} in ${elapsed}ms`);
 
     await completeTask(task.id, result);
     await storeResultInTranscripts(task, result);
     await deliverResult(task, result, onComplete);
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error('[background-runner] Inline task failed', { taskId: task.id, error: errorMessage });
+    log.error('Inline task failed', { taskId: task.id, error: errorMessage });
     await failTask(task.id, errorMessage);
     await deliverResult(task, `Sorry, er ging iets mis: ${errorMessage}`, onComplete);
   }
@@ -329,7 +332,7 @@ Vraag: "${task.prompt}"`;
   });
 
   const plannerElapsed = Date.now() - phaseStart;
-  console.log(`[background-runner] Query planner done in ${plannerElapsed}ms`);
+  log.info(`Query planner done in ${plannerElapsed}ms`);
 
   // Parse the search plan
   let searchPlan: SearchPlan = {};
@@ -338,9 +341,9 @@ Vraag: "${task.prompt}"`;
     // Strip markdown code blocks if present
     const jsonStr = raw.replace(/```(?:json)?\s*/g, '').replace(/```/g, '').trim();
     searchPlan = JSON.parse(jsonStr);
-    console.log('[background-runner] Search plan:', JSON.stringify(searchPlan));
+    log.info('Search plan', { plan: searchPlan });
   } catch (err) {
-    console.warn('[background-runner] Failed to parse search plan, falling back to vector search', {
+    log.warn('Failed to parse search plan, falling back to vector search', {
       raw: plannerResponse.result,
       error: err instanceof Error ? err.message : String(err),
     });
@@ -388,7 +391,7 @@ Vraag: "${task.prompt}"`;
 
   await Promise.all(searchPromises);
   const searchElapsed = Date.now() - searchStart;
-  console.log(`[background-runner] Searches done in ${searchElapsed}ms`, {
+  log.info(`Searches done in ${searchElapsed}ms`, {
     vectorResults: vectorResults.length,
     transcriptResults: transcriptResults.length,
   });
@@ -465,7 +468,7 @@ async function deliverResult(
   onComplete?: (chatId: string, message: string) => Promise<void>
 ): Promise<void> {
   if (!onComplete) {
-    console.log('[background-runner] No onComplete callback, result not delivered', {
+    log.info('No onComplete callback, result not delivered', {
       taskId: task.id,
     });
     return;
@@ -478,7 +481,7 @@ async function deliverResult(
 
   while (await isAgentProcessing(db)) {
     if (Date.now() - startWait > maxWait) {
-      console.warn('[background-runner] Timeout waiting for lock, delivering anyway', {
+      log.warn('Timeout waiting for lock, delivering anyway', {
         taskId: task.id,
       });
       break;
@@ -488,9 +491,9 @@ async function deliverResult(
 
   try {
     await onComplete(task.chatId, message);
-    console.log('[background-runner] Result delivered', { taskId: task.id });
+    log.info('Result delivered', { taskId: task.id });
   } catch (err) {
-    console.error('[background-runner] Failed to deliver result', {
+    log.error('Failed to deliver result', {
       taskId: task.id,
       error: err instanceof Error ? err.message : String(err),
     });
@@ -525,9 +528,9 @@ async function storeResultInTranscripts(
         isBackgroundResult: true,
       },
     });
-    console.log('[background-runner] Result stored in transcripts', { taskId: task.id });
+    log.info('Result stored in transcripts', { taskId: task.id });
   } catch (err) {
-    console.error('[background-runner] Failed to store result in transcripts', {
+    log.error('Failed to store result in transcripts', {
       taskId: task.id,
       error: err instanceof Error ? err.message : String(err),
     });

@@ -129,16 +129,13 @@ async function main(): Promise<void> {
         minute: '2-digit',
         timeZone: 'Europe/Amsterdam'
       });
-      console.log(`[think-loop] ⏰ Tick at ${now}`);
-      log.info('Think loop tick', { time: now });
+      log.info('⏰ Think loop tick', { time: now });
 
       await scheduler.runThinkLoop();
 
-      console.log(`[think-loop] ✅ Complete`);
-      log.info('Think loop completed');
+      log.info('✅ Think loop completed');
     } catch (err) {
-      console.log(`[think-loop] ❌ Error: ${err}`);
-      log.error('Think loop error', { error: String(err) });
+      log.error('❌ Think loop error', { error: String(err) });
     }
   }, THINK_LOOP_INTERVAL);
 

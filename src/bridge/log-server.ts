@@ -79,6 +79,15 @@ function broadcast(entry: LogEntry): void {
 }
 
 function detectSource(content: string): string | undefined {
+  // Structured JSON from createLogger() — parse source field
+  if (content.startsWith('{"ts":')) {
+    try {
+      const parsed = JSON.parse(content);
+      if (parsed.source) return parsed.source;
+    } catch { /* not valid JSON, fall through */ }
+    return 'structured';
+  }
+  // Legacy prefix-based tags (will be migrated over time)
   if (content.includes('[agent-pool]')) return 'agent-pool';
   if (content.includes('[think-loop]')) return 'think-loop';
   if (content.includes('[agent]')) return 'agent';
@@ -86,7 +95,6 @@ function detectSource(content: string): string | undefined {
   if (content.includes('[telegram]')) return 'telegram';
   if (content.includes('[slack]')) return 'slack';
   if (content.includes('[tunnel]')) return 'tunnel';
-  if (content.startsWith('{"ts":')) return 'structured';
   return undefined;
 }
 
