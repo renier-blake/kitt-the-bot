@@ -58,6 +58,7 @@ KITT gebruikt **Nango** als OAuth/API layer voor externe integraties (Gmail, Goo
 | `src/integrations/config.ts` | Database config, multi-account connection storage |
 | `src/integrations/oauth.ts` | Eigen OAuth2 framework — database-driven, geen code changes nodig |
 | `src/integrations/slack.ts` | Slack credential helpers (user token, signing secret) |
+| `src/integrations/asana.ts` | Asana authenticated fetch, auto-refresh, connection test |
 
 ---
 
@@ -209,6 +210,8 @@ await proxyRequest('google-calendar', {
 
 | Integration ID | Provider | Doel |
 |---------------|----------|------|
+| `asana` | Asana | Project management — OAuth login |
+| `asana-pat` | Asana | Project management — Personal Access Token |
 | `slack` | Slack | User token (xoxp-) voor Slack User adapter |
 | `slack-bot` | Slack | Bot token (xoxb-) voor Slack Bot adapter (Socket Mode) |
 

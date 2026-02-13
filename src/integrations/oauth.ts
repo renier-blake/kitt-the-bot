@@ -59,6 +59,10 @@ export interface OAuthConfig {
   extraAuthorizeParams: Record<string, string>;
   /** Override redirect URI (e.g. tunnel URL for providers that require HTTPS) */
   redirectUri: string | null;
+  /** How to send client credentials in token exchange: 'body' (default) or 'basic' (HTTP Basic Auth) */
+  tokenAuthMethod: 'body' | 'basic';
+  /** Content type for token exchange: 'form' (default) or 'json' */
+  tokenContentType: 'form' | 'json';
 }
 
 /**
@@ -95,6 +99,8 @@ export async function getOAuthConfig(integrationId: string): Promise<OAuthConfig
       tokenResponseField: config.token_response_field || 'access_token',
       extraAuthorizeParams: config.extra_authorize_params || {},
       redirectUri: config.redirect_uri || null,
+      tokenAuthMethod: config.token_auth_method || 'body',
+      tokenContentType: config.token_content_type || 'form',
     };
   } catch {
     console.error(`[oauth] Failed to parse auth_config for ${integrationId}`);
@@ -122,12 +128,16 @@ export async function buildAuthorizeUrl(
 
   const params = new URLSearchParams({
     client_id: clientId,
-    scope: config.scopes,
     redirect_uri: redirectUri,
     response_type: 'code',
     state: integrationId,
     ...config.extraAuthorizeParams,
   });
+
+  // Only include scope if it's non-empty (some providers like Asana reject empty scope)
+  if (config.scopes) {
+    params.set('scope', config.scopes);
+  }
 
   const url = `${config.authorizeUrl}?${params.toString()}`;
   console.log(`[oauth] Built authorize URL for ${integrationId}`);
@@ -157,16 +167,44 @@ export async function exchangeCodeForTokens(
   try {
     console.log(`[oauth] Exchanging code for tokens (${integrationId})`);
 
-    const response = await fetch(config.tokenUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
+    const headers: Record<string, string> = {};
+    let body: string;
+
+    if (config.tokenAuthMethod === 'basic') {
+      // HTTP Basic Auth (e.g. Notion)
+      headers['Authorization'] = `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`;
+    }
+
+    if (config.tokenContentType === 'json') {
+      headers['Content-Type'] = 'application/json';
+      const jsonBody: Record<string, string> = {
         code,
         redirect_uri: redirectUri,
         grant_type: 'authorization_code',
-      }),
+      };
+      if (config.tokenAuthMethod !== 'basic') {
+        jsonBody.client_id = clientId;
+        jsonBody.client_secret = clientSecret;
+      }
+      body = JSON.stringify(jsonBody);
+    } else {
+      headers['Content-Type'] = 'application/x-www-form-urlencoded';
+      const formBody: Record<string, string> = {
+        code,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
+      };
+      if (config.tokenAuthMethod !== 'basic') {
+        formBody.client_id = clientId;
+        formBody.client_secret = clientSecret;
+      }
+      body = new URLSearchParams(formBody).toString();
+    }
+
+    const response = await fetch(config.tokenUrl, {
+      method: 'POST',
+      headers,
+      body,
     });
 
     const data = await response.json() as Record<string, unknown>;
@@ -226,15 +264,41 @@ export async function refreshAccessToken(integrationId: string): Promise<boolean
   try {
     console.log(`[oauth] Refreshing access token for ${integrationId}`);
 
-    const response = await fetch(config.tokenUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
+    const headers: Record<string, string> = {};
+    let body: string;
+
+    if (config.tokenAuthMethod === 'basic') {
+      headers['Authorization'] = `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`;
+    }
+
+    if (config.tokenContentType === 'json') {
+      headers['Content-Type'] = 'application/json';
+      const jsonBody: Record<string, string> = {
         refresh_token: refreshToken,
         grant_type: 'refresh_token',
-      }),
+      };
+      if (config.tokenAuthMethod !== 'basic') {
+        jsonBody.client_id = clientId;
+        jsonBody.client_secret = clientSecret;
+      }
+      body = JSON.stringify(jsonBody);
+    } else {
+      headers['Content-Type'] = 'application/x-www-form-urlencoded';
+      const formBody: Record<string, string> = {
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token',
+      };
+      if (config.tokenAuthMethod !== 'basic') {
+        formBody.client_id = clientId;
+        formBody.client_secret = clientSecret;
+      }
+      body = new URLSearchParams(formBody).toString();
+    }
+
+    const response = await fetch(config.tokenUrl, {
+      method: 'POST',
+      headers,
+      body,
     });
 
     const data = await response.json() as Record<string, unknown>;

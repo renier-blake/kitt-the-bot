@@ -48,6 +48,16 @@ export const KNOWN_CREDENTIALS: Record<string, { category: CredentialCategory; d
   SLACK_USER_TOKEN: { category: 'token', description: 'Slack User Token (xoxp-...) for sending as user' },
   SLACK_SIGNING_SECRET: { category: 'api_key', description: 'Slack Signing Secret for Events API verification' },
   CLOUDFLARE_TUNNEL_TOKEN: { category: 'token', description: 'Cloudflare Tunnel token for Slack Events API webhook' },
+  ASANA_CLIENT_ID: { category: 'oauth', description: 'Asana OAuth Client ID' },
+  ASANA_CLIENT_SECRET: { category: 'oauth', description: 'Asana OAuth Client Secret' },
+  ASANA_ACCESS_TOKEN: { category: 'oauth', description: 'Asana OAuth access token (auto-managed)' },
+  ASANA_REFRESH_TOKEN: { category: 'oauth', description: 'Asana OAuth refresh token (auto-managed)' },
+  ASANA_PAT: { category: 'token', description: 'Asana Personal Access Token' },
+  NOTION_CLIENT_ID: { category: 'oauth', description: 'Notion OAuth Client ID' },
+  NOTION_CLIENT_SECRET: { category: 'oauth', description: 'Notion OAuth Client Secret' },
+  NOTION_ACCESS_TOKEN: { category: 'oauth', description: 'Notion OAuth access token (auto-managed)' },
+  NOTION_REFRESH_TOKEN: { category: 'oauth', description: 'Notion OAuth refresh token (auto-managed)' },
+  NOTION_INTERNAL_TOKEN: { category: 'token', description: 'Notion Internal Integration Token' },
 };
 
 /** Keys that are secrets (should go in vault). Everything else is config. */
