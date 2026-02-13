@@ -183,7 +183,42 @@ sqlite3 -json profile/data/kitt.db "SELECT identifier, name FROM portal_projects
 
 Suggest sensible defaults. If making a sub-issue, ask for the parent identifier.
 
-**Step 3 — Confirm.** Present summary and wait for explicit confirmation:
+**Step 3 — Documentation.** Add relevant docs to the issue description so the building agent has full context.
+
+**Always include:**
+- `_prd/architecture/logging.md` — how to log (structured logger, source tags)
+- `_prd/workflows/AGENT.md` — agent build workflow
+
+**Include based on domain:**
+
+| Issue raakt aan... | Doc |
+|---|---|
+| Bridge / adapters / router | `_prd/architecture/bridge.md` |
+| Portal frontend (React) | `_prd/architecture/portal.md` |
+| Think loop / scheduler | `_prd/architecture/think-loop.md` |
+| Memory / search / embeddings | `_prd/architecture/memory.md` |
+| Skills | `_prd/architecture/skills.md` |
+| Integrations / OAuth / Nango | `_prd/architecture/integrations.md` |
+| Agent pool / concurrency | `_prd/architecture/agent-pool.md` |
+| Context system / blocks | `_prd/architecture/context.md` |
+| Architecture overview | `_prd/architecture/overview.md` |
+
+Also mention **key files** that will likely need changes (source paths).
+
+Format in the description:
+
+```
+Docs:
+- _prd/architecture/logging.md
+- _prd/architecture/bridge.md
+- _prd/workflows/AGENT.md
+
+Key files:
+- src/bridge/agent-pool.ts
+- src/bridge/routes/health.ts
+```
+
+**Step 4 — Confirm.** Present summary and wait for explicit confirmation:
 
 ```
 Title: [title]
@@ -194,6 +229,14 @@ Parent: [parent identifier or none]
 Description:
 [1-3 sentences]
 
+Docs:
+- _prd/architecture/logging.md
+- [domain-specific docs]
+- _prd/workflows/AGENT.md
+
+Key files:
+- [relevant source files]
+
 Acceptance criteria:
 - [ ] [criterion 1]
 - [ ] [criterion 2]
@@ -201,7 +244,7 @@ Acceptance criteria:
 Correct?
 ```
 
-**Step 4 — Create.** After confirmation, insert:
+**Step 5 — Create.** After confirmation, insert:
 
 ```sql
 sqlite3 profile/data/kitt.db "
@@ -392,10 +435,12 @@ sqlite3 -json profile/data/kitt.db "
 ## Rules
 
 1. **Never create an issue without the intake flow** — always confirm before inserting
-2. **Log state changes** to portal_issue_history (INSERT before UPDATE)
-3. **Dynamic lookups only** — query projects/labels from DB, never assume they exist
-4. **Timestamps** are unix milliseconds: `unixepoch() * 1000`
-5. **Identifier format** is `{PROJECT}-{N}` where N auto-increments per project
+2. **Always include relevant docs** — logging.md + AGENT.md are mandatory, add domain-specific docs
+3. **Always list key files** — source paths that will likely need changes
+4. **Log state changes** to portal_issue_history (INSERT before UPDATE)
+5. **Dynamic lookups only** — query projects/labels from DB, never assume they exist
+6. **Timestamps** are unix milliseconds: `unixepoch() * 1000`
+7. **Identifier format** is `{PROJECT}-{N}` where N auto-increments per project
 
 ## Fallbacks
 
