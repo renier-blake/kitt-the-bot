@@ -15,6 +15,7 @@ import { getAgentPool } from './agent-pool.js';
 import { getScheduler } from '../scheduler/index.js';
 import type { SlackAdapter } from './adapters/slack.js';
 import { registerSlackEventsRoute } from './slack-events.js';
+import { log } from './logger.js';
 
 // Route modules
 import { registerHealthRoutes } from './routes/health.js';
@@ -26,6 +27,10 @@ import { registerContentRoutes } from './routes/content.js';
 import { registerTriageRoutes } from './routes/triage.js';
 import { registerIntegrationsRoutes } from './routes/integrations.js';
 import { registerChannelsRoutes } from './routes/channels.js';
+
+// Middleware
+import { requestId } from './middleware/request-id.js';
+import { requestLogger } from './middleware/request-logger.js';
 
 const DB_PATH = process.env.KITT_DB_PATH || './profile/data/kitt.db';
 let db: Client | null = null;
@@ -164,6 +169,10 @@ export function startLogServer(port = 8000): { server: Server; wss: WebSocketSer
       (req as unknown as { rawBody: string }).rawBody = buf.toString();
     },
   }));
+
+  // Observability middleware
+  app.use(requestId());
+  app.use(requestLogger());
 
   // Register Slack Events API route
   registerSlackEventsRoute(app, () => {
