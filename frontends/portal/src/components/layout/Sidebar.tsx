@@ -12,6 +12,7 @@ import {
   Settings,
   Wrench,
   Cpu,
+  FileText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -37,6 +38,7 @@ const systemItems: NavItem[] = [
 // User mode items (personal)
 const userItems: NavItem[] = [
   { to: '/user/identity', icon: <User className="h-5 w-5" />, label: 'Identity' },
+  { to: '/user/content', icon: <FileText className="h-5 w-5" />, label: 'Content' },
   { to: '/user/settings', icon: <Settings className="h-5 w-5" />, label: 'Settings' },
 ]
 

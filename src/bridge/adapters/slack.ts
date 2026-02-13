@@ -38,6 +38,15 @@ function stripMentions(text: string): string {
   return text.replace(/<@[A-Z0-9]+>/g, '').replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * Check if an error is a Slack auth/token error.
+ */
+function isSlackAuthError(err: unknown): boolean {
+  const msg = String(err);
+  return msg.includes('token_expired') || msg.includes('token_revoked')
+    || msg.includes('invalid_auth') || msg.includes('account_inactive');
+}
+
 // --- Permission system (database-backed, like WhatsApp) ---
 
 export type SlackPermission = 'respond' | 'read-only' | 'blocked';
@@ -120,14 +129,21 @@ export class SlackAdapter implements ChannelAdapter {
     this.client = new WebClient(userToken);
 
     // Verify connection and get own identity
-    const authResult = await this.client.auth.test();
-    if (!authResult.ok) {
-      throw new Error(`Slack auth.test failed: ${authResult.error}`);
+    try {
+      const authResult = await this.client.auth.test();
+      if (!authResult.ok) {
+        throw new Error(`Slack auth.test failed: ${authResult.error}`);
+      }
+
+      this.userId = authResult.user_id as string;
+      this.teamName = authResult.team as string;
+      this.userName = authResult.user as string;
+    } catch (err) {
+      this.client = null;
+      this.lastError = String(err);
+      throw new Error(`Slack auth failed: ${err instanceof Error ? err.message : String(err)}`);
     }
 
-    this.userId = authResult.user_id as string;
-    this.teamName = authResult.team as string;
-    this.userName = authResult.user as string;
     this.startedAt = new Date();
 
     log.info('Slack adapter started', {
@@ -152,16 +168,32 @@ export class SlackAdapter implements ChannelAdapter {
       throw new Error('Slack client not initialized');
     }
 
+    try {
+      await this.doSend(chatId, content, options);
+    } catch (err) {
+      if (isSlackAuthError(err)) {
+        const refreshed = await this.handleAuthError(err);
+        if (refreshed) {
+          // Token refreshed — retry once
+          await this.doSend(chatId, content, options);
+          return;
+        }
+        // Adapter disabled, swallow the error
+        return;
+      }
+      throw err;
+    }
+  }
+
+  private async doSend(chatId: string, content: string, options?: SendOptions): Promise<void> {
+    if (!this.client) throw new Error('Slack client not initialized');
+
     const rawChannelId = extractRawId(chatId);
     const formatted = formatForSlack(content);
-
-    // Split long messages (Slack limit is ~40000, but 4000 is best practice)
     const chunks = splitMessage(formatted, 4000);
 
     for (const chunk of chunks) {
-      // Reply in thread if we have a thread_ts for this channel (keeps channels clean)
       const threadTs = options?.replyToMessageId || this.threadMap.get(rawChannelId);
-
       await this.client.chat.postMessage({
         channel: rawChannelId,
         text: chunk,
@@ -302,6 +334,39 @@ export class SlackAdapter implements ChannelAdapter {
 
   // --- Private methods ---
 
+  /**
+   * Handle a Slack auth error: attempt token refresh, re-init client.
+   * Returns true if refresh succeeded (caller should retry).
+   * Returns false if refresh failed (adapter is now disabled).
+   */
+  private async handleAuthError(err: unknown): Promise<boolean> {
+    const errorMsg = String(err);
+    log.warn('Slack token expired, attempting refresh', { error: errorMsg });
+
+    try {
+      const { refreshAccessToken } = await import('../../integrations/oauth.js');
+      const refreshed = await refreshAccessToken('slack');
+      if (refreshed) {
+        const newToken = await getCredential('SLACK_USER_TOKEN');
+        if (newToken) {
+          this.client = new WebClient(newToken);
+          log.info('Slack token refreshed successfully');
+          return true;
+        }
+      }
+    } catch (refreshErr) {
+      log.warn('Slack token refresh failed', { error: String(refreshErr) });
+    }
+
+    // Refresh failed — disable adapter
+    log.warn('Slack adapter disabled: token expired and refresh failed');
+    this.client = null;
+    this.startedAt = null;
+    this.lastError = errorMsg;
+    getRouter().unregisterAdapter('slack');
+    return false;
+  }
+
   private async getUserInfo(
     userId: string
   ): Promise<{ displayName: string; username?: string }> {
@@ -324,7 +389,10 @@ export class SlackAdapter implements ChannelAdapter {
           return { displayName, username };
         }
       }
-    } catch {
+    } catch (err) {
+      if (isSlackAuthError(err)) {
+        await this.handleAuthError(err);
+      }
       // Non-critical: fall back to user ID
     }
 

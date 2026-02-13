@@ -10,7 +10,7 @@ import type { Client } from '@libsql/client';
 // Context Modes
 // ==========================================
 
-export type ContextMode = 'chat' | 'think';
+export type ContextMode = 'chat' | 'think' | 'background';
 
 // ==========================================
 // Block Configuration (blocks.json)

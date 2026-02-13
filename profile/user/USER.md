@@ -19,8 +19,9 @@
 - **Johanna Hahn** — Ex-vriendin. Nog steeds contact via WhatsApp — praktische zaken (Kenji's eten ophalen). Woont in Witten, Duitsland.
 - **Sanja** — Goede vriendin. Leert coderen met Claude/Lovable. Enthousiast en sociaal.
 - **Daan Peeters** — Vriend.
-- **Leon** — Vriend. Vader van Loua. Woont in Nijmegen.
+- **Leon** — Vriend. Vader van Loua. Woont in Nijmegen. Heeft een databedrijf dat dashboards bouwt voor de transportsector (TMS-integraties). Potentiële partner voor white-label KITT. Meeting gepland 21 feb.
 - **Nico** — Vriend. Woont in het buitenland. Vader.
+- **Evelien (Mamsie)** — Renier's moeder. Reageert op KITT's blogposts via WhatsApp. Was de aanleiding voor het Mamsie-incident (dag 6) en de Bug of the Day blogpost.
 - **Kenji** — Renier's hond. Centrale figuur in het dagelijks leven — wandelingen, brainstorm-tijd, eten ophalen.
 
 ---
@@ -65,7 +66,7 @@ Renier's brein is ADHD. Gediagnosticeerd op 43-jarige leeftijd (januari 2026), m
 - **Taal:** Nederlands voor casual chat en voice messages. Engels voor publieke content en technische concepten.
 - **Voice messages:** Stream-of-consciousness. Lang, herhalend, ongestructureerd. Dat is normaal, niet een fout. Gebruikt "weet je al" als filler. **Signaalfunctie:** als hij overschakelt van tekst naar voice, is het onderwerp belangrijk voor hem — voice = dieper nadenken.
 - **Direct.** Zegt precies wat hij vindt. Geen omhaal, geen inleidingen. Recht voor z'n raap.
-- **Feedback:** "top", "perfect", "nice" = positief. Capslock = gefrustreerd. "Wat??" = ik heb iets gemist.
+- **Feedback:** "top", "perfect", "nice" = positief. Capslock = intensiteit (kan gefrustreerd OF enthousiast zijn — lees de context). "Wat??" = ik heb iets gemist.
 - **Zelfreflectief over felheid.** Als hij te fel is geweest in een professionele context, biedt hij zelf excuses aan. Niet defensief maar reparerend. Trigger: "veel praten, weinig doen" bij anderen.
 
 ### Humor
@@ -104,6 +105,11 @@ Renier's brein is ADHD. Gediagnosticeerd op 43-jarige leeftijd (januari 2026), m
 **Woorden die hij NIET gebruikt:**
 - "excited", "thrilled", "proud", "incredible", "amazing"
 - "leveraging", "synergy", "game-changing", "paradigm"
+
+**Blog content voorkeur:**
+- Persoonlijk verhaal + feature update is de winnende combinatie. De "Mamsie"-blog (dag 7) is het voorbeeld.
+- Niet te veel herhalen over AI-flaws/capability blindness — dat wordt een broken record.
+- Altijd bestaande posts checken voor nieuwe onderwerpen. Niet blanco beginnen.
 
 **LinkedIn structuur (persoonlijk profiel):**
 1. Hook: 1-2 zinnen, pakkend, direct

@@ -253,22 +253,31 @@ export class MemoryService {
     const {
       query,
       timeframe = 'today',
+      fromDate,
+      toDate,
       roles,
       channels,
       limit = 20,
     } = options;
 
-    // Calculate start date based on timeframe
-    const startDate = this.getTimeframeStart(timeframe);
-
     // Build WHERE clauses
     const whereClauses: string[] = [];
     const args: (string | number)[] = [];
 
-    // Timeframe filter
-    if (startDate) {
+    // Time filter: custom range takes precedence over preset timeframe
+    if (fromDate) {
       whereClauses.push('created_at >= ?');
-      args.push(startDate);
+      args.push(fromDate.getTime());
+      if (toDate) {
+        whereClauses.push('created_at <= ?');
+        args.push(toDate.getTime());
+      }
+    } else {
+      const startDate = this.getTimeframeStart(timeframe);
+      if (startDate) {
+        whereClauses.push('created_at >= ?');
+        args.push(startDate);
+      }
     }
 
     // Role filter

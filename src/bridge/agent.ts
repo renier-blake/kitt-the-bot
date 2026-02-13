@@ -1,26 +1,19 @@
 /**
  * KITT Agent
  *
- * Two modes:
- * - chatCompletion(): Direct Anthropic Messages API for chat (fast, no tools, no sessions)
- * - runAgent(): Claude Agent SDK for background tasks & think loop (tools, sessions)
+ * All agent calls go through the Agent SDK (Claude Code session auth).
+ * No separate API keys needed — uses the same auth as Claude Code.
  */
 
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import Anthropic from '@anthropic-ai/sdk';
 import type { Client } from '@libsql/client';
 import { log } from './logger.js';
-import { getKITTSystemPrompt } from './context.js';
+import { getKITTSystemPrompt, getBackgroundSystemPrompt } from './context.js';
 import { getAgentPool, type AgentType } from './agent-pool.js';
 
 // ==========================================
 // Types
 // ==========================================
-
-export interface ChatCompletionResponse {
-  result: string | null;
-  error?: string;
-}
 
 export interface AgentResponse {
   result: string | null;
@@ -46,77 +39,8 @@ export interface AgentOptions {
 
 const KITT_WORKSPACE = process.env.KITT_WORKSPACE || process.cwd();
 
-// Lazy-initialized Anthropic client (singleton)
-let anthropicClient: Anthropic | null = null;
-function getAnthropicClient(): Anthropic {
-  if (!anthropicClient) {
-    anthropicClient = new Anthropic();
-  }
-  return anthropicClient;
-}
-
 // ==========================================
-// Chat Completion (Direct Messages API)
-// ==========================================
-
-/**
- * Direct Anthropic Messages API call for chat.
- * No tools, no sessions, no Agent SDK overhead.
- * System prompt includes identity, transcripts, memory search, skills, instructions.
- */
-export async function chatCompletion(
-  prompt: string,
-  options?: { db?: Client; skillContext?: string }
-): Promise<ChatCompletionResponse> {
-  const startTime = Date.now();
-
-  log.info('Chat completion start', { promptLength: prompt.length });
-
-  try {
-    // Build system prompt WITH db (loads transcripts + memory search)
-    let systemPrompt = await getKITTSystemPrompt(prompt, options?.db);
-
-    if (options?.skillContext) {
-      systemPrompt += `\n\n---\n\n# Active Skill Context\n\n${options.skillContext}`;
-    }
-
-    log.debug('System prompt built', { length: systemPrompt.length });
-
-    const client = getAnthropicClient();
-    const response = await client.messages.create({
-      model: 'claude-opus-4-6',
-      max_tokens: 4096,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    const result = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-      .map((b) => b.text)
-      .join('\n') || null;
-
-    const elapsed = Date.now() - startTime;
-
-    log.info('Chat completion done', {
-      hasResult: !!result,
-      resultLength: result?.length,
-      elapsed,
-      inputTokens: response.usage.input_tokens,
-      outputTokens: response.usage.output_tokens,
-    });
-    console.log(`[agent] Chat ${result?.length || 0} chars in ${elapsed}ms (${response.usage.input_tokens}→${response.usage.output_tokens} tokens)`);
-
-    return { result };
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    const elapsed = Date.now() - startTime;
-    log.error('Chat completion error', { error: errorMessage, elapsed });
-    return { result: null, error: errorMessage };
-  }
-}
-
-// ==========================================
-// Agent SDK (Background Tasks & Think Loop)
+// Agent SDK
 // ==========================================
 
 // Full tools: for background tasks and think loop
@@ -164,9 +88,14 @@ export async function runAgent(
   const isResumingSession = !!opts.sessionId;
 
   try {
-    // Load KITT personality and context
-    // Skip memory search for think loop (already has all context, and prompt is too large to embed)
-    let systemPrompt = await getKITTSystemPrompt(opts.skipMemorySearch ? undefined : prompt, opts.db);
+    // Load system prompt — background agents get a lightweight prompt (~5-10K vs ~40K)
+    let systemPrompt: string;
+    if (agentType === 'background') {
+      systemPrompt = await getBackgroundSystemPrompt();
+    } else {
+      // Chat/think: full prompt with memory search (skip for think loop — already has context)
+      systemPrompt = await getKITTSystemPrompt(opts.skipMemorySearch ? undefined : prompt, opts.db);
+    }
 
     // Inject skill context if provided (for skill routing)
     if (opts.skillContext) {
@@ -212,14 +141,17 @@ export async function runAgent(
       }
     })();
 
-    // Timeout promise — rejects after timeoutMs
+    // Timeout promise — rejects after timeoutMs or on external abort
     const timeoutPromise = new Promise<never>((_, reject) => {
       const timer = setTimeout(() => {
         reject(new Error(`Agent timeout after ${timeoutMs}ms`));
       }, timeoutMs);
 
-      // Clear timeout if agent finishes or is aborted
-      abortController.signal.addEventListener('abort', () => clearTimeout(timer));
+      // On external abort (watchdog): also reject to ensure Promise.race resolves
+      abortController.signal.addEventListener('abort', () => {
+        clearTimeout(timer);
+        reject(new Error(`Agent aborted by watchdog after ${Date.now() - startTime}ms`));
+      });
 
       // Don't prevent Node from exiting
       if (timer.unref) timer.unref();

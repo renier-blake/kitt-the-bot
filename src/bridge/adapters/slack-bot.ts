@@ -48,6 +48,15 @@ async function getUserPermission(userId: string, ownBotId: string | null): Promi
   return permissionCache[userId] || 'blocked';
 }
 
+/**
+ * Check if an error is a Slack auth/token error.
+ */
+function isSlackAuthError(err: unknown): boolean {
+  const msg = String(err);
+  return msg.includes('token_expired') || msg.includes('token_revoked')
+    || msg.includes('invalid_auth') || msg.includes('account_inactive');
+}
+
 export class SlackBotAdapter implements ChannelAdapter {
   readonly channel = 'slack-bot' as const;
   readonly displayName = 'Slack Bot';
@@ -75,6 +84,19 @@ export class SlackBotAdapter implements ChannelAdapter {
     }
     if (!appToken) {
       throw new Error('SLACK_APP_TOKEN is not set in vault');
+    }
+
+    // Pre-validate bot token before starting Bolt (Bolt throws uncatchable errors on bad tokens)
+    const { WebClient } = await import('@slack/web-api');
+    const testClient = new WebClient(botToken);
+    try {
+      const authResult = await testClient.auth.test();
+      if (!authResult.ok) {
+        throw new Error(`auth.test failed: ${authResult.error}`);
+      }
+    } catch (err) {
+      this.lastError = String(err);
+      throw new Error(`Slack Bot token invalid: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     this.app = new App({
@@ -130,13 +152,20 @@ export class SlackBotAdapter implements ChannelAdapter {
     });
 
     // Start the app (connects via WebSocket)
-    await this.app.start();
+    try {
+      await this.app.start();
 
-    // Get bot identity
-    const authResult = await this.app.client.auth.test();
-    this.botUserId = authResult.user_id as string;
-    this.teamName = authResult.team as string;
-    this.botName = authResult.user as string;
+      // Get bot identity
+      const authResult = await this.app.client.auth.test();
+      this.botUserId = authResult.user_id as string;
+      this.teamName = authResult.team as string;
+      this.botName = authResult.user as string;
+    } catch (err) {
+      this.app = null;
+      this.lastError = String(err);
+      throw new Error(`Slack Bot auth failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
     this.startedAt = new Date();
 
     log.info('Slack Bot adapter started', {
@@ -168,14 +197,22 @@ export class SlackBotAdapter implements ChannelAdapter {
     const formatted = formatForSlack(content);
     const chunks = splitMessage(formatted, 4000);
 
-    for (const chunk of chunks) {
-      const threadTs = options?.replyToMessageId || this.threadMap.get(rawChannelId);
+    try {
+      for (const chunk of chunks) {
+        const threadTs = options?.replyToMessageId || this.threadMap.get(rawChannelId);
 
-      await this.app.client.chat.postMessage({
-        channel: rawChannelId,
-        text: chunk,
-        ...(threadTs ? { thread_ts: String(threadTs) } : {}),
-      });
+        await this.app.client.chat.postMessage({
+          channel: rawChannelId,
+          text: chunk,
+          ...(threadTs ? { thread_ts: String(threadTs) } : {}),
+        });
+      }
+    } catch (err) {
+      if (isSlackAuthError(err)) {
+        await this.disableOnAuthError(err);
+        return;
+      }
+      throw err;
     }
 
     log.info('Sent Slack Bot message', { chatId, length: content.length });
@@ -296,6 +333,28 @@ export class SlackBotAdapter implements ChannelAdapter {
     await getRouter().handleIncoming(message);
   }
 
+  /**
+   * Disable adapter on auth error. Bolt App can't be re-initialized,
+   * so we just stop and unregister.
+   */
+  private async disableOnAuthError(err: unknown): Promise<void> {
+    const errorMsg = String(err);
+    log.warn('Slack Bot token expired at runtime, disabling adapter', { error: errorMsg });
+    this.lastError = errorMsg;
+
+    try {
+      if (this.app) {
+        await this.app.stop();
+      }
+    } catch {
+      // Best effort stop
+    }
+
+    this.app = null;
+    this.startedAt = null;
+    getRouter().unregisterAdapter('slack-bot');
+  }
+
   private async getUserInfo(
     userId: string
   ): Promise<{ displayName: string; username?: string }> {
@@ -318,7 +377,10 @@ export class SlackBotAdapter implements ChannelAdapter {
           return { displayName, username };
         }
       }
-    } catch {
+    } catch (err) {
+      if (isSlackAuthError(err)) {
+        await this.disableOnAuthError(err);
+      }
       // Non-critical: fall back to user ID
     }
 

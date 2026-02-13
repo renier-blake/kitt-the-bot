@@ -11,7 +11,7 @@ import { createClient, type Client } from '@libsql/client';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const SCHEMA_VERSION = 19; // Task execution mode (sync/background)
+const SCHEMA_VERSION = 20; // Content Calendar (KITT-168)
 
 // Core schema SQL
 const CORE_SCHEMA = `
@@ -628,6 +628,7 @@ export async function initializeDatabase(
       await db.execute('CREATE INDEX IF NOT EXISTS idx_issues_state ON portal_issues(state)');
       await db.execute('CREATE INDEX IF NOT EXISTS idx_issues_cycle ON portal_issues(cycle_id)');
       await db.execute('CREATE INDEX IF NOT EXISTS idx_issues_scheduled ON portal_issues(scheduled_date)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_issues_parent ON portal_issues(parent_id)');
       console.log('[schema] Created portal_issues table');
 
       // Create portal_issue_history table
@@ -925,6 +926,109 @@ export async function initializeDatabase(
       await db.execute(`UPDATE kitt_tasks SET execution = 'background' WHERE title LIKE '%codebase%' OR title LIKE '%audit%'`);
 
       console.log('[schema] Migration v18 -> v19 complete: task execution mode');
+    }
+
+    // Migration: v19 -> v20: Content Calendar (KITT-168)
+    if (currentVersion < 20) {
+      console.log('[schema] Running migration v19 -> v20 (Content Calendar)...');
+
+      // Content projects/themes
+      await db.execute(`
+        CREATE TABLE IF NOT EXISTS content_projects (
+          id INTEGER PRIMARY KEY,
+          identifier TEXT UNIQUE NOT NULL,
+          name TEXT NOT NULL,
+          description TEXT,
+          color TEXT DEFAULT '#FF9900',
+          created_at INTEGER DEFAULT (unixepoch() * 1000)
+        )
+      `);
+
+      // Content items
+      await db.execute(`
+        CREATE TABLE IF NOT EXISTS content_items (
+          id INTEGER PRIMARY KEY,
+          identifier TEXT UNIQUE NOT NULL,
+          title TEXT NOT NULL,
+          description TEXT,
+          content_type TEXT DEFAULT 'blogpost',
+          topic TEXT,
+          angle TEXT,
+          hook TEXT,
+          script TEXT,
+          image_urls TEXT,
+          state TEXT DEFAULT 'backlog',
+          priority TEXT DEFAULT 'medium',
+          project_id INTEGER REFERENCES content_projects(id),
+          position INTEGER DEFAULT 0,
+          due_date INTEGER,
+          scheduled_date INTEGER,
+          publish_date INTEGER,
+          published_url TEXT,
+          created_by TEXT DEFAULT 'renier',
+          created_at INTEGER DEFAULT (unixepoch() * 1000),
+          updated_at INTEGER DEFAULT (unixepoch() * 1000)
+        )
+      `);
+
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_content_items_project ON content_items(project_id)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_content_items_state ON content_items(state)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_content_items_scheduled ON content_items(scheduled_date)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_content_items_type ON content_items(content_type)');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_content_items_position ON content_items(state, position)');
+
+      // Content labels
+      await db.execute(`
+        CREATE TABLE IF NOT EXISTS content_labels (
+          id INTEGER PRIMARY KEY,
+          name TEXT UNIQUE NOT NULL,
+          color TEXT DEFAULT '#6b7280',
+          created_at INTEGER DEFAULT (unixepoch() * 1000)
+        )
+      `);
+
+      // Content item <-> label junction
+      await db.execute(`
+        CREATE TABLE IF NOT EXISTS content_item_labels (
+          item_id INTEGER REFERENCES content_items(id),
+          label_id INTEGER REFERENCES content_labels(id),
+          PRIMARY KEY (item_id, label_id)
+        )
+      `);
+
+      // Seed content projects
+      const existingContentProjects = await db.execute('SELECT COUNT(*) as count FROM content_projects');
+      if (Number(existingContentProjects.rows[0].count) === 0) {
+        await db.execute(`
+          INSERT INTO content_projects (identifier, name, description, color) VALUES
+          ('OC', 'OpenClaw', 'OpenClaw blog & content', '#10B981'),
+          ('KITT', 'KITT', 'KITT project updates & thought leadership', '#FF9900'),
+          ('PER', 'Personal', 'Personal brand content', '#8B5CF6'),
+          ('GEN', 'General', 'Uncategorized content', '#6B7280')
+        `);
+        console.log('[schema] Seeded initial content projects');
+      }
+
+      // Seed content labels
+      const existingContentLabels = await db.execute('SELECT COUNT(*) as count FROM content_labels');
+      if (Number(existingContentLabels.rows[0].count) === 0) {
+        await db.execute(`
+          INSERT INTO content_labels (name, color) VALUES
+          ('SEO', '#F59E0B'),
+          ('thought-leadership', '#8B5CF6'),
+          ('product-update', '#3B82F6'),
+          ('tutorial', '#10B981'),
+          ('case-study', '#EC4899'),
+          ('announcement', '#EF4444'),
+          ('technical', '#6366F1'),
+          ('personal', '#F97316'),
+          ('AI', '#0EA5E9'),
+          ('dev-tools', '#14B8A6')
+        `);
+        console.log('[schema] Seeded initial content labels');
+      }
+
+      console.log('[schema] Migration v19 -> v20 complete: Content Calendar');
     }
 
     // Update schema version

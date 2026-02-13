@@ -59,7 +59,7 @@ const DEFAULT_TIMEOUTS: Record<AgentType, number> = {
   'chat': 90_000,        // 90s — text generation, no tools (bumped from 60s: SDK subprocess init overhead)
   'think': 2 * 60_000,   // 2 min — reasoning + response format
   'think-sub': 5 * 60_000, // 5 min — skill execution with tools
-  'background': 30 * 60_000, // 30 min — long-running tasks (blog, etc.)
+  'background': 15 * 60_000, // 15 min — long-running tasks (reduced from 30 min)
 };
 
 // ==========================================

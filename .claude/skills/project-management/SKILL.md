@@ -1,156 +1,67 @@
 ---
 name: project-management
-description: KITT project management systeem - projecten, issues, labels, workflow
-user_invocable: false
+description: Project management — issues, projects, labels, triage. Use when the user wants to create, list, update, or manage issues.
+user_invocable: true
+args: command (list | create | view | update | triage | projects | labels)
 ---
 
-# Project Management Systeem
+# Project Management
 
-KITT gebruikt een database-driven project management systeem in `profile/data/kitt.db`.
+Manage issues, projects, and labels in `profile/data/kitt.db` (SQLite).
 
----
-
-## Projecten
-
-| Identifier | Naam | Focus |
-|------------|------|-------|
-| **KITT** | KITT MVP | Alles — bridge, agent, memory, portal, skills, infra, data, product |
-
-Alle issues vallen onder het KITT MVP project. Labels worden gebruikt om domeinen te onderscheiden.
-
----
-
-## Labels (domein)
-
-Elke issue krijgt een domein-label voor filtering in de Portal.
-
-| Label | Kleur | Domein |
-|-------|-------|--------|
-| `bridge` | #3B82F6 | Message routing, channel adapters (Telegram, WhatsApp, Slack) |
-| `memory` | #8B5CF6 | Memory search, embeddings, transcript archivering |
-| `scheduler` | #F97316 | Think loop, task engine, background tasks, orchestrator |
-| `portal` | #10B981 | Portal frontend, UI pages en componenten |
-| `integrations` | #6366F1 | Externe services, OAuth, APIs (Nango, Gmail, etc.) |
-| `security` | #DC2626 | Auth, encryption, sanitization, secure mode |
-| `skills` | #0891B2 | Skill system, marketplace, skill management |
-| `infra` | #6B7280 | Install, deploy, distribution, DB, monitoring |
-| `data` | #EC4899 | Health data, nutrition, workouts (Garmin, etc.) |
-| `core` | #F59E0B | Agent behavior, language, context, rules |
-| `billing` | #059669 | Payment, licensing, tiers (Stripe) |
-
-### Label toekennen
-
-```bash
-# Label ID opzoeken
-sqlite3 profile/data/kitt.db "SELECT id, name FROM portal_labels"
-
-# Label aan issue koppelen
-sqlite3 profile/data/kitt.db "
-  INSERT INTO portal_issue_labels (issue_id, label_id)
-  SELECT i.id, l.id
-  FROM portal_issues i, portal_labels l
-  WHERE i.identifier = 'PAS-01' AND l.name = 'integrations'
-"
-```
-
----
-
-## Issue Types
-
-| Type | Beschrijving | Voorbeelden |
-|------|--------------|-------------|
-| `feature` | Nieuwe functionaliteit | "Gmail integratie", "Workout dashboard" |
-| `bug` | Defect dat gefixt moet worden | "Session corruption", "Dubbele responses" |
-| `improvement` | Verbetering van bestaande feature | "Snellere queries", "Betere error handling" |
-| `chore` | Technische schuld, refactoring | "Git history cleanen", "Update dependencies" |
-| `spike` | Onderzoek/exploratie | "Evaluate auth options", "Research TTS providers" |
-
----
-
-## Issue States
+## Usage
 
 ```
-backlog → scheduled → todo → in_progress → testing → done
-                                                    → cancelled
+/project-management list                          — open issues (default)
+/project-management list project=KITT priority=high
+/project-management create                        — intake flow
+/project-management view KITT-01                  — details + sub-issues
+/project-management update KITT-01 state=done
+/project-management triage                        — review triage items
+/project-management projects                      — list all projects
+/project-management labels                        — list all labels
 ```
 
-| State | Betekenis | Actie |
-|-------|-----------|-------|
-| `backlog` | Nog niet gepland | Wacht op prioritering |
-| `scheduled` | Gepland op specifieke datum | Heeft `scheduled_date` |
-| `todo` | Gepland voor huidige cycle | Klaar om op te pakken |
-| `in_progress` | Actief aan gewerkt | Agent werkt eraan |
-| `testing` | Gebouwd, moet getest worden | Wacht op test door Renier |
-| `done` | Afgerond | Geen actie nodig |
-| `cancelled` | Geannuleerd | Niet meer relevant |
+No argument defaults to `list`.
 
 ---
 
-## Priority Levels
+## Schema
 
-| Priority | Betekenis | SLA |
-|----------|-----------|-----|
-| `critical` | Blocker, systeem down | Binnen uren |
-| `urgent` | Dringend, blokkeert andere zaken | Vandaag |
-| `high` | Belangrijk voor huidige sprint | Deze week |
-| `medium` | Normaal werk | Wanneer tijd is |
-| `low` | Nice to have | Backlog |
+### portal_projects
 
----
-
-## Complexity & Scope
-
-| Complexity | Betekenis |
-|------------|-----------|
-| `low` | Kleine change, < 1 uur |
-| `medium` | Meerdere files, paar uur |
-| `high` | Architecturele impact, dag+ |
-
-| Scope | Betekenis |
-|-------|-----------|
-| `isolated` | Alleen eigen domein raakt |
-| `cross-cutting` | Raakt meerdere domeinen |
-
----
-
-## Issue Identifier Format
-
+```sql
+CREATE TABLE portal_projects (
+  id INTEGER PRIMARY KEY,
+  identifier TEXT UNIQUE NOT NULL,    -- e.g. "KITT"
+  name TEXT NOT NULL,
+  description TEXT,
+  color TEXT DEFAULT '#FF9900',
+  created_at INTEGER                  -- unix ms
+);
 ```
-{PROJECT}-{NUMBER}
-```
-
-Voorbeelden: `PAS-01`, `KITT-105`, `POR-4`
-
----
-
-## Database Schema
 
 ### portal_issues
 
 ```sql
 CREATE TABLE portal_issues (
   id INTEGER PRIMARY KEY,
-  project_id INTEGER REFERENCES portal_projects(id),
-  identifier TEXT UNIQUE NOT NULL,
+  identifier TEXT UNIQUE NOT NULL,    -- e.g. "KITT-163"
   title TEXT NOT NULL,
   description TEXT,
-  type TEXT DEFAULT 'feature',
-  state TEXT DEFAULT 'backlog',
-  priority TEXT DEFAULT 'medium',
-  complexity TEXT DEFAULT 'medium',
-  scope TEXT DEFAULT 'isolated',
-  cycle_id INTEGER REFERENCES portal_cycles(id),
-  parent_id INTEGER REFERENCES portal_issues(id),
+  type TEXT DEFAULT 'feature',        -- feature|bug|improvement|chore|spike
+  project_id INTEGER REFERENCES portal_projects(id),
+  state TEXT DEFAULT 'backlog',       -- see States below
+  priority TEXT DEFAULT 'medium',     -- critical|urgent|high|medium|low
+  parent_id INTEGER REFERENCES portal_issues(id),  -- sub-issue support
   position INTEGER DEFAULT 0,
-  due_date INTEGER,
-  scheduled_date INTEGER,
-  scheduled_time_start INTEGER,
-  scheduled_time_end INTEGER,
-  scheduled_timezone TEXT,
-  start_date INTEGER,
-  created_by TEXT DEFAULT 'renier',
-  created_at INTEGER,
-  updated_at INTEGER
+  estimate INTEGER,
+  due_date INTEGER,                   -- unix ms
+  scheduled_date INTEGER,             -- unix ms
+  start_date INTEGER,                 -- unix ms
+  created_by TEXT DEFAULT 'user',
+  created_at INTEGER,                 -- unix ms
+  updated_at INTEGER                  -- unix ms
 );
 ```
 
@@ -160,7 +71,7 @@ CREATE TABLE portal_issues (
 CREATE TABLE portal_labels (
   id INTEGER PRIMARY KEY,
   name TEXT UNIQUE NOT NULL,
-  color TEXT DEFAULT '#6B7280',
+  color TEXT DEFAULT '#6b7280',
   created_at INTEGER
 );
 
@@ -171,15 +82,18 @@ CREATE TABLE portal_issue_labels (
 );
 ```
 
-### portal_cycles
+### portal_issue_history
 
 ```sql
-CREATE TABLE portal_cycles (
+CREATE TABLE portal_issue_history (
   id INTEGER PRIMARY KEY,
-  name TEXT NOT NULL,
-  start_date INTEGER,
-  end_date INTEGER,
-  created_at INTEGER
+  issue_id INTEGER REFERENCES portal_issues(id),
+  type TEXT NOT NULL,                 -- e.g. 'state_change'
+  old_value TEXT,
+  new_value TEXT,
+  comment TEXT,
+  created_by TEXT DEFAULT 'user',
+  created_at INTEGER DEFAULT (unixepoch() * 1000)
 );
 ```
 
@@ -191,113 +105,303 @@ CREATE TABLE portal_triage (
   title TEXT NOT NULL,
   description TEXT,
   source TEXT,
-  suggested_project TEXT,
-  suggested_type TEXT,
-  status TEXT DEFAULT 'new',
-  created_at INTEGER
+  processed INTEGER DEFAULT 0,
+  issue_id INTEGER REFERENCES portal_issues(id),
+  created_at INTEGER,
+  snoozed_until INTEGER,             -- unix ms, null = not snoozed
+  labels TEXT DEFAULT '[]'           -- JSON array
 );
 ```
 
 ---
 
-## Queries
+## States
 
-### Alle open issues
+```
+backlog → scheduled → todo → in_progress → testing → done
+                                                    → cancelled
+```
 
-```bash
+## Priorities
+
+`critical` > `urgent` > `high` > `medium` (default) > `low`
+
+## Types
+
+`feature` (default) | `bug` | `improvement` | `chore` | `spike`
+
+---
+
+## Commands
+
+### list
+
+List/filter issues. Build WHERE clause dynamically based on user request.
+
+```sql
 sqlite3 -json profile/data/kitt.db "
   SELECT i.identifier, i.title, i.type, i.state, i.priority,
-         i.complexity, i.scope,
          p.identifier as project,
-         GROUP_CONCAT(l.name) as labels
+         GROUP_CONCAT(DISTINCT l.name) as labels,
+         (SELECT COUNT(*) FROM portal_issues c WHERE c.parent_id = i.id) as sub_count
   FROM portal_issues i
   LEFT JOIN portal_projects p ON i.project_id = p.id
   LEFT JOIN portal_issue_labels il ON i.id = il.issue_id
   LEFT JOIN portal_labels l ON il.label_id = l.id
   WHERE i.state NOT IN ('done', 'cancelled')
+  -- Add filters: AND p.identifier = 'X', AND i.priority = 'X', etc.
   GROUP BY i.id
-  ORDER BY
-    CASE i.priority
-      WHEN 'critical' THEN 1
-      WHEN 'urgent' THEN 2
-      WHEN 'high' THEN 3
-      WHEN 'medium' THEN 4
-      WHEN 'low' THEN 5
-    END,
+  ORDER BY CASE i.priority
+    WHEN 'critical' THEN 1 WHEN 'urgent' THEN 2 WHEN 'high' THEN 3
+    WHEN 'medium' THEN 4 WHEN 'low' THEN 5 END,
     i.identifier
 "
 ```
 
-### Issues per label
+For sub-issues of a parent:
 
-```bash
+```sql
 sqlite3 -json profile/data/kitt.db "
-  SELECT i.identifier, i.title, i.state, i.priority
-  FROM portal_issues i
-  JOIN portal_issue_labels il ON i.id = il.issue_id
-  JOIN portal_labels l ON il.label_id = l.id
-  WHERE l.name = 'security' AND i.state NOT IN ('done', 'cancelled')
-  ORDER BY i.identifier
+  SELECT identifier, title, state, priority
+  FROM portal_issues
+  WHERE parent_id = (SELECT id FROM portal_issues WHERE identifier = 'PARENT_ID')
+  ORDER BY position
 "
 ```
 
-### Issue aanmaken
+### create
 
-```bash
+**Always follow this intake flow. Never skip steps.**
+
+**Step 1 — Listen.** Let the user describe what they want. Summarize in 1-2 sentences.
+
+**Step 2 — Clarify.** Ask about project, type, and priority. Look up available projects:
+
+```sql
+sqlite3 -json profile/data/kitt.db "SELECT identifier, name FROM portal_projects ORDER BY identifier"
+```
+
+Suggest sensible defaults. If making a sub-issue, ask for the parent identifier.
+
+**Step 3 — Confirm.** Present summary and wait for explicit confirmation:
+
+```
+Title: [title]
+Project: [PROJECT]
+Type: [type] | Priority: [priority]
+Parent: [parent identifier or none]
+
+Description:
+[1-3 sentences]
+
+Acceptance criteria:
+- [ ] [criterion 1]
+- [ ] [criterion 2]
+
+Correct?
+```
+
+**Step 4 — Create.** After confirmation, insert:
+
+```sql
 sqlite3 profile/data/kitt.db "
-  INSERT INTO portal_issues (project_id, identifier, title, description, type, state, priority, complexity, scope, created_at, updated_at)
+  INSERT INTO portal_issues (
+    project_id, identifier, title, description, type, state, priority,
+    parent_id, created_by, created_at, updated_at, position
+  )
   SELECT
     p.id,
-    'PAS-' || (COALESCE(MAX(CAST(SUBSTR(i.identifier, 5) AS INTEGER)), 0) + 1),
-    'Issue titel hier',
-    'Beschrijving hier',
-    'feature',
+    p.identifier || '-' || (
+      SELECT COALESCE(MAX(CAST(SUBSTR(i2.identifier, LENGTH(p.identifier)+2) AS INTEGER)), 0) + 1
+      FROM portal_issues i2 WHERE i2.identifier LIKE p.identifier || '-%'
+    ),
+    'TITLE',
+    'DESCRIPTION',
+    'TYPE',
     'backlog',
-    'medium',
-    'medium',
-    'isolated',
+    'PRIORITY',
+    PARENT_ID_OR_NULL,
+    'user',
     unixepoch() * 1000,
-    unixepoch() * 1000
+    unixepoch() * 1000,
+    (SELECT COALESCE(MAX(position), 0) + 1000 FROM portal_issues WHERE state = 'backlog')
   FROM portal_projects p
-  LEFT JOIN portal_issues i ON i.project_id = p.id AND i.identifier LIKE 'PAS-%'
-  WHERE p.identifier = 'PAS'
-  GROUP BY p.id
+  WHERE p.identifier = 'PROJECT'
 "
 ```
 
-### Issue state updaten
+Add labels if applicable:
 
-```bash
+```sql
+sqlite3 profile/data/kitt.db "
+  INSERT INTO portal_issue_labels (issue_id, label_id)
+  SELECT i.id, l.id FROM portal_issues i, portal_labels l
+  WHERE i.identifier = 'NEW_ID' AND l.name = 'LABEL'
+"
+```
+
+Confirm creation with the new identifier.
+
+### view
+
+```sql
+-- Issue details
+sqlite3 -json profile/data/kitt.db "
+  SELECT i.identifier, i.title, i.description, i.type, i.state, i.priority,
+         i.due_date, i.scheduled_date, i.start_date, i.estimate,
+         p.identifier as project, p.name as project_name,
+         pi.identifier as parent
+  FROM portal_issues i
+  LEFT JOIN portal_projects p ON i.project_id = p.id
+  LEFT JOIN portal_issues pi ON i.parent_id = pi.id
+  WHERE i.identifier = 'ISSUE_ID'
+"
+
+-- Labels
+sqlite3 -json profile/data/kitt.db "
+  SELECT l.name, l.color FROM portal_labels l
+  JOIN portal_issue_labels il ON l.id = il.label_id
+  JOIN portal_issues i ON il.issue_id = i.id
+  WHERE i.identifier = 'ISSUE_ID'
+"
+
+-- Sub-issues
+sqlite3 -json profile/data/kitt.db "
+  SELECT identifier, title, state, priority
+  FROM portal_issues WHERE parent_id = (
+    SELECT id FROM portal_issues WHERE identifier = 'ISSUE_ID'
+  ) ORDER BY position
+"
+
+-- History
+sqlite3 -json profile/data/kitt.db "
+  SELECT type, old_value, new_value, comment,
+         datetime(created_at/1000, 'unixepoch', 'localtime') as date
+  FROM portal_issue_history
+  WHERE issue_id = (SELECT id FROM portal_issues WHERE identifier = 'ISSUE_ID')
+  ORDER BY created_at DESC
+"
+```
+
+### update
+
+Update fields on an issue. Supports: state, priority, type, title, description, labels, parent_id, due_date, scheduled_date.
+
+```sql
 sqlite3 profile/data/kitt.db "
   UPDATE portal_issues
-  SET state = 'done', updated_at = unixepoch() * 1000
-  WHERE identifier = 'PAS-01'
+  SET state = 'NEW_STATE', updated_at = unixepoch() * 1000
+  WHERE identifier = 'ISSUE_ID'
+"
+```
+
+**Always log state changes to history:**
+
+```sql
+sqlite3 profile/data/kitt.db "
+  INSERT INTO portal_issue_history (issue_id, type, old_value, new_value, created_at)
+  SELECT id, 'state_change', state, 'NEW_STATE', unixepoch() * 1000
+  FROM portal_issues WHERE identifier = 'ISSUE_ID'
+"
+```
+
+Run the history INSERT before the UPDATE so `state` still has the old value.
+
+**Labels:**
+
+```sql
+-- Add
+sqlite3 profile/data/kitt.db "
+  INSERT INTO portal_issue_labels (issue_id, label_id)
+  SELECT i.id, l.id FROM portal_issues i, portal_labels l
+  WHERE i.identifier = 'ISSUE_ID' AND l.name = 'LABEL'
+"
+
+-- Remove
+sqlite3 profile/data/kitt.db "
+  DELETE FROM portal_issue_labels
+  WHERE issue_id = (SELECT id FROM portal_issues WHERE identifier = 'ISSUE_ID')
+  AND label_id = (SELECT id FROM portal_labels WHERE name = 'LABEL')
+"
+```
+
+**Set parent (make sub-issue):**
+
+```sql
+sqlite3 profile/data/kitt.db "
+  UPDATE portal_issues
+  SET parent_id = (SELECT id FROM portal_issues WHERE identifier = 'PARENT_ID'),
+      updated_at = unixepoch() * 1000
+  WHERE identifier = 'CHILD_ID'
+"
+```
+
+### triage
+
+List unprocessed triage items:
+
+```sql
+sqlite3 -json profile/data/kitt.db "
+  SELECT id, title, description, source, labels,
+         datetime(created_at/1000, 'unixepoch', 'localtime') as date
+  FROM portal_triage
+  WHERE processed = 0
+    AND (snoozed_until IS NULL OR snoozed_until < unixepoch() * 1000)
+  ORDER BY created_at DESC
+"
+```
+
+Actions per item: **accept** (create issue via intake flow), **dismiss**, or **snooze**.
+
+```sql
+-- Dismiss
+sqlite3 profile/data/kitt.db "UPDATE portal_triage SET processed = 1 WHERE id = ID"
+
+-- Snooze (7 days)
+sqlite3 profile/data/kitt.db "
+  UPDATE portal_triage SET snoozed_until = (unixepoch() + 7*86400) * 1000 WHERE id = ID
+"
+```
+
+### projects
+
+```sql
+sqlite3 -json profile/data/kitt.db "
+  SELECT p.identifier, p.name, p.description,
+         COUNT(i.id) as total,
+         SUM(CASE WHEN i.state NOT IN ('done','cancelled') THEN 1 ELSE 0 END) as open
+  FROM portal_projects p
+  LEFT JOIN portal_issues i ON p.id = i.project_id
+  GROUP BY p.id ORDER BY p.identifier
+"
+```
+
+### labels
+
+```sql
+sqlite3 -json profile/data/kitt.db "
+  SELECT l.name, l.color, COUNT(il.issue_id) as usage
+  FROM portal_labels l
+  LEFT JOIN portal_issue_labels il ON l.id = il.label_id
+  GROUP BY l.id ORDER BY usage DESC
 "
 ```
 
 ---
 
-## Workflow
+## Rules
 
-### Voor Agent
+1. **Never create an issue without the intake flow** — always confirm before inserting
+2. **Log state changes** to portal_issue_history (INSERT before UPDATE)
+3. **Dynamic lookups only** — query projects/labels from DB, never assume they exist
+4. **Timestamps** are unix milliseconds: `unixepoch() * 1000`
+5. **Identifier format** is `{PROJECT}-{N}` where N auto-increments per project
 
-1. **Start** — `/issue PAS-01`
-2. **Lezen** — Automatisch relevante docs op basis van project
-3. **Plan** — Ga in Plan Mode (functioneel + technisch)
-4. **Bouwen** — Implementeer na goedkeuring
-5. **Testen** — Verificatie
-6. **State update** — Zet naar `done`
-7. **Commit** — Vraag toestemming aan Renier
+## Fallbacks
 
----
-
-## KITT Portal
-
-De KITT Portal (`http://localhost:8000`) biedt een UI voor:
-
-- **Projects** — Kanban board, list view, drag & drop
-- **Filters** — Project, priority, complexity, scope, labels, search
-- **Group By** — State, priority, project, labels
-- **Scheduling** — Datum/tijd toekennen aan issues
-- **Triage** — Review automatisch gevonden issues
-- **Logs** — Real-time KITT logs
+| Situation | Action |
+|-----------|--------|
+| No args / ambiguous | Default to `list` with open issues |
+| Issue not found | Report, suggest search |
+| Project not found | Show available projects |
+| Duplicate suspected | Check before creating, report if found |

@@ -11,6 +11,7 @@ import { Integrations } from '@/pages/user/Integrations'
 import { Identity } from '@/pages/user/Identity'
 import { Skills } from '@/pages/user/Skills'
 import { UserSettings } from '@/pages/user/Settings'
+import { ContentCalendar } from '@/pages/user/ContentCalendar'
 
 
 // Standard layout with padding and proper height
@@ -60,6 +61,7 @@ function App() {
         {/* User routes */}
         <Route element={<StandardLayout />}>
           <Route path="/user/identity" element={<Identity />} />
+          <Route path="/user/content" element={<ContentCalendar />} />
           <Route path="/user/settings" element={<UserSettings />} />
         </Route>
         

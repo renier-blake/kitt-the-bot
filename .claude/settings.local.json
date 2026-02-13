@@ -69,7 +69,25 @@
       "WebFetch(domain:speechactors.com)",
       "WebFetch(domain:www.videosdk.live)",
       "Bash(awk:*)",
-      "Bash(cloudflared:*)"
+      "Bash(cloudflared:*)",
+      "Bash(gh api:*)",
+      "Bash(npm audit:*)",
+      "Bash(npm view:*)",
+      "Bash(gcloud --version:*)",
+      "Bash(brew install:*)",
+      "Bash(export PATH=\"/opt/homebrew/share/google-cloud-sdk/bin:$PATH\")",
+      "Bash(gcloud auth login:*)",
+      "Bash(gcloud organizations list:*)",
+      "Bash(gcloud org-policies reset:*)",
+      "Bash(gcloud organizations add-iam-policy-binding:*)",
+      "Bash(gcloud projects list:*)",
+      "Bash(gcloud services list:*)",
+      "Bash(gcloud services api-keys create:*)",
+      "Bash(echo:*)",
+      "WebFetch(domain:developers.asana.com)",
+      "WebFetch(domain:developers.notion.com)",
+      "Bash(git status:*)",
+      "Bash(pm2 env:*)"
     ]
   }
 }

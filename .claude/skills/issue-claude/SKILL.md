@@ -12,34 +12,31 @@ Start het bouwen van een issue uit het project management systeem.
 ## Gebruik
 
 ```
-/issue PAS-01
-/issue KITT-05
-/issue POR-3
+/issue-claude KITT-05
+/issue-claude PER-12
 ```
 
 ## Stappen
 
 1. **Haal issue op uit database**
-2. **Lees relevante architecture docs** (op basis van project)
+2. **Lees relevante code/docs** op basis van issue beschrijving en labels
 3. **Ga in Plan Mode** en maak een implementatieplan
 4. **Wacht op goedkeuring** van het plan
 5. **Bouw, test, documenteer**
 6. **Update issue state** naar `done` na completion
-7. **Vraag commit toestemming** aan Renier
+7. **Vraag commit toestemming**
 
 ## Issue Ophalen
 
-Query de database voor issue details:
-
 ```bash
 sqlite3 -json profile/data/kitt.db "
-  SELECT
-    i.identifier, i.title, i.description, i.type, i.state, i.priority,
-    i.complexity, i.scope,
-    p.identifier as project, p.name as project_name,
-    GROUP_CONCAT(l.name) as labels
+  SELECT i.identifier, i.title, i.description, i.type, i.state, i.priority,
+         p.identifier as project, p.name as project_name,
+         pi.identifier as parent,
+         GROUP_CONCAT(DISTINCT l.name) as labels
   FROM portal_issues i
   LEFT JOIN portal_projects p ON i.project_id = p.id
+  LEFT JOIN portal_issues pi ON i.parent_id = pi.id
   LEFT JOIN portal_issue_labels il ON i.id = il.issue_id
   LEFT JOIN portal_labels l ON il.label_id = l.id
   WHERE i.identifier = 'ISSUE_ID'
@@ -47,80 +44,41 @@ sqlite3 -json profile/data/kitt.db "
 "
 ```
 
-## Verplichte Docs (ALTIJD lezen)
-
-**Ongeacht het project, lees EERST:**
-
-1. `_prd/architecture/ARCHITECTURE.md` — Architectuur principes
-2. `_prd/workflows/AGENT.md` — Agent workflow (inclusief Plan Mode format)
-
-## Project → Aanvullende Docs
-
-| Project | Extra docs om te lezen |
-|---------|------------------------|
-| PAS | `src/integrations/` |
-| KITT | `_prd/architecture/overview.md`, `CLAUDE.md` |
-| POR | `frontends/portal/`, `src/bridge/log-server.ts` |
-| SKL | `.claude/skills/`, bestaande skills als reference |
-| INF | `src/bridge/`, `src/scheduler/`, `src/memory/` |
-| DAT | `profile/`, Garmin/nutrition skills |
-
-## Issue State Updates
-
-Na completion, update de state:
+Also fetch sub-issues if the issue is a parent:
 
 ```bash
-sqlite3 profile/data/kitt.db "
-  UPDATE portal_issues
-  SET state = 'done', updated_at = unixepoch() * 1000
-  WHERE identifier = 'ISSUE_ID'
+sqlite3 -json profile/data/kitt.db "
+  SELECT identifier, title, state, priority
+  FROM portal_issues WHERE parent_id = (
+    SELECT id FROM portal_issues WHERE identifier = 'ISSUE_ID'
+  ) ORDER BY position
 "
 ```
 
-## States
+## Context Lezen
 
-| State | Betekenis |
-|-------|-----------|
-| `backlog` | Nog niet gestart |
-| `scheduled` | Gepland op specifieke datum |
-| `todo` | Gepland voor huidige cycle |
-| `in_progress` | Actief aan gewerkt |
-| `testing` | Klaar voor review/test |
-| `done` | Afgerond |
-| `cancelled` | Geannuleerd |
+**Altijd lezen:** `CLAUDE.md`
 
-## Labels (domein)
+**Daarna:** Bepaal op basis van de issue beschrijving en labels welke code en docs relevant zijn. Lees de relevante directories en bestanden voordat je een plan maakt.
 
-Issues hebben een domein-label voor filtering:
+## Issue State Updates
 
-| Label | Domein |
-|-------|--------|
-| bridge | Message routing, channel adapters |
-| memory | Memory search, embeddings, transcripts |
-| scheduler | Think loop, task engine, background tasks |
-| portal | Portal frontend UI |
-| integrations | Externe services, OAuth, APIs |
-| security | Auth, encryption, sanitization |
-| skills | Skill system, marketplace |
-| infra | Install, deploy, distribution, DB |
-| data | Health data, nutrition, workouts |
-| core | Agent behavior, language, context |
-| billing | Payment, licensing, tiers |
+Log state changes to history, then update:
 
-## Voorbeeld Flow
+```bash
+# History eerst (zodat old_value correct is)
+sqlite3 profile/data/kitt.db "
+  INSERT INTO portal_issue_history (issue_id, type, old_value, new_value, created_at)
+  SELECT id, 'state_change', state, 'NEW_STATE', unixepoch() * 1000
+  FROM portal_issues WHERE identifier = 'ISSUE_ID'
+"
 
-```
-User: /issue PAS-01
-
-Agent:
-1. Query: SELECT * FROM portal_issues WHERE identifier = 'PAS-01'
-2. Leest issue: PAS-01 "Nango OAuth Integration" - feature - priority high - label: integrations
-3. Leest ALTIJD: _prd/architecture/ARCHITECTURE.md, _prd/workflows/AGENT.md
-4. Leest project-specifiek: src/integrations/
-5. Gaat in Plan Mode (functioneel + technisch)
-6. Bouwt na goedkeuring
-7. Update state naar done
-8. Vraagt commit toestemming
+# Dan update
+sqlite3 profile/data/kitt.db "
+  UPDATE portal_issues
+  SET state = 'NEW_STATE', updated_at = unixepoch() * 1000
+  WHERE identifier = 'ISSUE_ID'
+"
 ```
 
 ## Fallbacks

@@ -266,11 +266,27 @@ export async function failTask(id: string, error: string): Promise<void> {
 
 /**
  * Clean up old completed/failed tasks (keep last 7 days)
+ * Also marks stale running tasks (> 1 hour) as failed
  */
 export async function cleanupOldTasks(): Promise<number> {
   const db = getDb();
   const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000; // 7 days ago
+  const staleCutoff = Date.now() - 60 * 60 * 1000; // 1 hour ago
 
+  // Mark stale running/pending tasks as failed
+  const staleResult = await db.execute({
+    sql: `UPDATE background_tasks
+          SET status = 'failed', error = 'Stale task: running for over 1 hour', completed_at = ?
+          WHERE status IN ('pending', 'running')
+          AND created_at < ?`,
+    args: [Date.now(), staleCutoff],
+  });
+
+  if (staleResult.rowsAffected > 0) {
+    console.log('[task-registry] Marked stale tasks as failed', { count: staleResult.rowsAffected });
+  }
+
+  // Delete old completed/failed tasks
   const result = await db.execute({
     sql: `DELETE FROM background_tasks
           WHERE status IN ('completed', 'failed')
@@ -283,7 +299,7 @@ export async function cleanupOldTasks(): Promise<number> {
     console.log('[task-registry] Cleaned up old tasks', { deleted });
   }
 
-  return deleted;
+  return deleted + staleResult.rowsAffected;
 }
 
 /**

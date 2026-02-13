@@ -245,6 +245,61 @@ Bij self-hosted draait alles achter de voordeur van de user. Bij hosted staat di
 
 ---
 
+## Tunnel-per-Klant Architectuur
+
+> Sessie: 13 feb 2026
+
+### Probleem
+
+Bij een multi-tenant hosted setup heb je een manier nodig om van het centrale portaal (kitabot.nl) naar de individuele KITT-instanties te communiceren. Eén gedeelde tunnel = single point of failure + security risico. Als die tunnel gecompromitteerd wordt, liggen alle klantmachines open.
+
+### Oplossing: Tunnel per klant
+
+Elke klant krijgt een eigen tunnel met een unieke ID. De routing layer op het portaal bepaalt op basis van klant-ID welke tunnel wordt aangesproken.
+
+```
+[Portal kitabot.nl]
+    ↓
+[Routing layer]
+    ↓ (op basis van klant-ID)
+[Tunnel: acme-001]  →  Mac Mini klant A
+[Tunnel: corp-042]  →  VPS klant B
+[Tunnel: home-007]  →  Mac Mini klant C
+```
+
+### Installatie-scenario's
+
+| Scenario | Beschrijving | Tunnel setup |
+|----------|-------------|-------------|
+| **Wij installeren** | We zetten KITT op bij de klant (remote of on-site) | Wij genereren tunnel ID, configureren alles |
+| **Klant installeert zelf** | Klant volgt installer/script | Script genereert tunnel ID, registreert bij portal |
+| **Wij hosten (VPS)** | KITT draait op onze infra (Render etc.) | Tunnel ID = container ID, automatisch |
+
+### Technische opzet
+
+- **Tunnel technologie:** Cloudflare Tunnel (cloudflared), of Tailscale, of WireGuard
+- **Tunnel ID:** Uniek per klant, gekoppeld aan klant-record in portal DB
+- **Provisioning:** Bij installatie wordt een tunnel aangemaakt en de ID geregistreerd bij het portaal
+- **Routing:** Portal stuurt requests naar de juiste tunnel op basis van klant-ID in de auth session
+- **Health checks:** Portal pingt elke tunnel periodiek — als een tunnel down is, krijgt de klant een melding
+
+### Voordelen
+
+- **Isolatie:** Compromitteren van tunnel A raakt klant B niet
+- **Flexibiliteit:** Klant kan op eigen hardware draaien (Mac, VPS, NAS) of bij ons
+- **Schaalbaarheid:** Nieuwe klant = nieuwe tunnel, geen impact op bestaande
+- **Audit:** Per-tunnel logging en monitoring
+
+### Open vragen (tunnel)
+
+- [ ] Cloudflare Tunnel vs Tailscale vs WireGuard — wat is het makkelijkst te automatiseren?
+- [ ] Hoe handelen we tunnel-herconnects bij netwerkstoringen?
+- [ ] Kosten per tunnel bij Cloudflare (gratis tier vs betaald)?
+- [ ] Kan de klant zelf de tunnel herstarten zonder ons?
+- [ ] Hoe koppelen we tunnel ID aan het facturatie/subscription systeem?
+
+---
+
 ## Open Vragen
 
 - [ ] Render persistent disk: hoe werkt backup/restore bij crashes?

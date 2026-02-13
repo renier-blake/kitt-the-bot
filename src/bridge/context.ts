@@ -20,3 +20,14 @@ import type { Client } from '@libsql/client';
 export async function getKITTSystemPrompt(userQuery?: string, db?: Client): Promise<string> {
   return buildContext({ mode: 'chat', userQuery, db });
 }
+
+/**
+ * Get a lightweight system prompt for background agents.
+ *
+ * Loads only: user-info + core-instructions + time context.
+ * Skill context is injected separately by the background runner.
+ * ~5-10K chars instead of ~40K for chat mode.
+ */
+export async function getBackgroundSystemPrompt(): Promise<string> {
+  return buildContext({ mode: 'background' });
+}

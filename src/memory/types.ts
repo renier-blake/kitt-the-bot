@@ -234,8 +234,12 @@ export type TranscriptTimeframe = 'today' | 'week' | 'month' | 'all';
 export interface TranscriptSearchOptions {
   /** Search query (optional - if empty, returns all in timeframe) */
   query?: string;
-  /** Time range to search */
+  /** Preset time range to search (ignored if fromDate is set) */
   timeframe?: TranscriptTimeframe;
+  /** Custom start date (overrides timeframe) */
+  fromDate?: Date;
+  /** Custom end date (optional, defaults to now) */
+  toDate?: Date;
   /** Filter by role types */
   roles?: Role[];
   /** Filter by channels */

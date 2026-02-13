@@ -1,8 +1,8 @@
 /**
  * KITT Message Classifier
  *
- * Uses OpenAI GPT-4o-mini for fast routing decisions (~300ms).
- * Reuses the same OpenAI auth as embeddings - no extra config needed.
+ * Uses Claude Haiku via Agent SDK for fast routing decisions.
+ * Reuses the same Claude Code session auth as all other agents — no extra API key needed.
  *
  * Determines whether a message should be handled:
  * - Direct: Main agent (Opus) handles immediately
@@ -13,13 +13,12 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import OpenAI from 'openai';
+import { query } from '@anthropic-ai/claude-agent-sdk';
 import {
   getBackgroundSkills,
   getAgentMode,
   type Capability,
 } from '../capabilities/index.js';
-import { getCredential } from '../credentials/index.js';
 import { log } from './logger.js';
 
 // ==========================================
@@ -42,12 +41,11 @@ const CLASSIFIER_PROMPT_PATH = path.resolve(
   'profile/context/instructions/classifier.md'
 );
 
+const KITT_WORKSPACE = process.env.KITT_WORKSPACE || process.cwd();
+
 // Cache for classifier prompt (reload on file change)
 let cachedPrompt: string | null = null;
 let promptMtime: number = 0;
-
-// OpenAI client (lazy init)
-let openaiClient: OpenAI | null = null;
 
 // ==========================================
 // Prompt Loading
@@ -93,28 +91,14 @@ function formatCapabilitiesForPrompt(capabilities: Capability[]): string {
     .join('\n');
 }
 
-/**
- * Get or create OpenAI client
- */
-async function getOpenAI(): Promise<OpenAI | null> {
-  if (openaiClient) return openaiClient;
-
-  const apiKey = await getCredential('OPENAI_API_KEY') || process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    log.error('No OpenAI API key available for classifier');
-    return null;
-  }
-
-  openaiClient = new OpenAI({ apiKey });
-  return openaiClient;
-}
-
 // ==========================================
 // Classification
 // ==========================================
 
 /**
  * Classify a user message
+ *
+ * Uses Agent SDK with Haiku model and no tools — same auth as all other agents.
  *
  * @param message - User message to classify
  * @returns Classification result with type and optional capability
@@ -135,12 +119,6 @@ export async function classifyMessage(
       return { type: 'direct', confidence: 1.0 };
     }
 
-    // Get OpenAI client
-    const client = await getOpenAI();
-    if (!client) {
-      return { type: 'direct', confidence: 0 };
-    }
-
     // Load and prepare prompt
     const promptTemplate = loadClassifierPrompt();
     const capabilitiesList = formatCapabilitiesForPrompt(backgroundSkills);
@@ -149,21 +127,27 @@ export async function classifyMessage(
       .replace('{{CAPABILITIES}}', capabilitiesList)
       .replace('{{MODE}}', mode);
 
-    // Call GPT-4o-mini (fast and cheap)
-    const response = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
-      max_tokens: 150,
-      temperature: 0,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: message },
-      ],
-    });
+    // Call Haiku via Agent SDK — uses Claude Code session auth, no separate API key
+    let content = '';
+
+    for await (const msg of query({
+      prompt: message,
+      options: {
+        cwd: KITT_WORKSPACE,
+        systemPrompt,
+        model: 'haiku',
+        allowedTools: [],
+        permissionMode: 'bypassPermissions',
+        allowDangerouslySkipPermissions: true,
+      },
+    })) {
+      if ('result' in msg && msg.result) {
+        content = msg.result as string;
+      }
+    }
 
     const elapsed = Date.now() - startTime;
 
-    // Parse response
-    const content = response.choices[0]?.message?.content;
     if (!content) {
       log.warn('Classifier got empty response', { elapsed });
       return { type: 'direct', confidence: 0 };

@@ -29,7 +29,7 @@ function getDb(): Client {
 
 export type CapabilityCategory = 'tool' | 'skill';
 export type SkillType = 'system' | 'user';
-export type ExecutionMode = 'direct' | 'background';
+export type ExecutionMode = 'direct' | 'background' | 'inline';
 export type AgentMode = 'secure' | 'developer';
 
 export interface Capability {
@@ -44,6 +44,7 @@ export interface Capability {
   path: string | null;
   triggers: string[];
   modes: AgentMode[];
+  allowedTools: string[] | null;
   enabled: boolean;
   sortOrder: number;
   createdAt: number;
@@ -129,6 +130,7 @@ function rowToCapability(row: Record<string, unknown>): Capability {
     path: row.path as string | null,
     triggers: row.triggers ? JSON.parse(row.triggers as string) : [],
     modes: row.modes ? JSON.parse(row.modes as string) : ['developer'],
+    allowedTools: row.allowed_tools ? JSON.parse(row.allowed_tools as string) : null,
     enabled: Boolean(row.enabled),
     sortOrder: (row.sort_order as number) || 0,
     createdAt: row.created_at as number,
@@ -405,5 +407,5 @@ export async function isCapabilityAvailable(
 export async function getBackgroundSkills(mode?: AgentMode): Promise<Capability[]> {
   const currentMode = mode || (await getAgentMode());
   const capabilities = await getCapabilitiesForMode(currentMode);
-  return capabilities.filter((c) => c.category === 'skill' && c.execution === 'background');
+  return capabilities.filter((c) => c.category === 'skill' && (c.execution === 'background' || c.execution === 'inline'));
 }

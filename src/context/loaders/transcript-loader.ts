@@ -2,13 +2,13 @@
  * Transcript Loader
  *
  * Loads recent conversation transcripts from the database.
- * - Chat mode: configurable window (default 15 min, 10 messages)
- * - Think mode: configurable window (default full day, 50 messages)
+ * - Chat mode: configurable window (default 60 min, 30 messages)
+ * - Think mode: configurable window (default full day, 200 messages)
  */
 
 import type { LoaderContext, TranscriptLoaderConfig, TranscriptWindowConfig } from '../types.js';
 
-const DEFAULT_CHAT_CONFIG: TranscriptWindowConfig = { windowMinutes: 15, maxMessages: 10 };
+const DEFAULT_CHAT_CONFIG: TranscriptWindowConfig = { windowMinutes: 60, maxMessages: 30 };
 const DEFAULT_THINK_CONFIG: TranscriptWindowConfig = { windowMode: 'today', maxMessages: 200 };
 
 /**
@@ -82,7 +82,7 @@ export async function transcriptLoader(
                 : 'KITT';
         const content = String(row.content);
         // Truncate for readability
-        const maxLen = mode === 'chat' ? 400 : 200;
+        const maxLen = mode === 'chat' ? 800 : 200;
         const preview = content.length > maxLen ? content.slice(0, maxLen) + '...' : content;
         return `[${time}] ${role}: ${preview}`;
       })

@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { 
-  Plus, 
-  LayoutGrid, 
-  List, 
-  Search, 
-  Filter, 
+import {
+  Plus,
+  LayoutGrid,
+  List,
+  Search,
+  Filter,
   Calendar,
   AlertCircle,
   ArrowUpCircle,
   ArrowDownCircle,
   MinusCircle,
+  ChevronRight,
+  ChevronDown,
   X
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -70,15 +72,6 @@ interface Project {
   updatedAt: number
 }
 
-interface Cycle {
-  id: number
-  name: string
-  status: string
-  startDate: number
-  endDate: number
-  createdAt: number
-}
-
 interface Label {
   id: number
   name: string
@@ -98,6 +91,7 @@ interface Issue {
   projectId: number
   cycleId: number | null
   parentId: number | null
+  childCount: number
   position: number
   dueDate: number | null
   scheduledDate: number | null
@@ -117,7 +111,7 @@ type IssueState = 'backlog' | 'scheduled' | 'todo' | 'in_progress' | 'testing' |
 type IssuePriority = 'critical' | 'urgent' | 'high' | 'medium' | 'low'
 type IssueComplexity = 'low' | 'medium' | 'high'
 type IssueScope = 'isolated' | 'cross-cutting'
-type ViewMode = 'board' | 'list'
+type ViewMode = 'board' | 'list' | 'calendar'
 
 const STATE_COLUMNS: { id: IssueState; label: string }[] = [
   { id: 'backlog', label: 'Backlog' },
@@ -144,17 +138,6 @@ const TYPE_CONFIG: Record<string, { label: string; color: string }> = {
   docs: { label: 'Docs', color: '#8B5CF6' },
 }
 
-const COMPLEXITY_CONFIG: Record<IssueComplexity, { label: string; color: string; icon: string }> = {
-  low: { label: 'Low', color: '#22C55E', icon: '●' },
-  medium: { label: 'Medium', color: '#EAB308', icon: '●●' },
-  high: { label: 'High', color: '#EF4444', icon: '●●●' },
-}
-
-const SCOPE_CONFIG: Record<IssueScope, { label: string; color: string }> = {
-  isolated: { label: 'Isolated', color: '#3B82F6' },
-  'cross-cutting': { label: 'Cross-cutting', color: '#A855F7' },
-}
-
 // Hooks
 function useProjects() {
   const [projects, setProjects] = useState<Project[]>([])
@@ -171,23 +154,6 @@ function useProjects() {
   }, [])
 
   return { projects, loading }
-}
-
-function useCycles() {
-  const [cycles, setCycles] = useState<Cycle[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    fetch('/api/cycles')
-      .then((res) => res.json())
-      .then((data) => {
-        setCycles(data.cycles || [])
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
-  }, [])
-
-  return { cycles, loading }
 }
 
 function useLabels() {
@@ -294,13 +260,12 @@ function LabelFilterDropdown({
 
 function useIssues(filters: {
   project?: number
-  cycle?: number
   state?: IssueState
   priority?: IssuePriority
-  complexity?: IssueComplexity
-  scope?: IssueScope
   search?: string
   labels?: number[]
+  topLevel?: boolean
+  parentId?: number
 }) {
   const [issues, setIssues] = useState<Issue[]>([])
   const [loading, setLoading] = useState(true)
@@ -309,15 +274,14 @@ function useIssues(filters: {
     setLoading(true)
     const params = new URLSearchParams()
     if (filters.project) params.set('project', String(filters.project))
-    if (filters.cycle) params.set('cycle', String(filters.cycle))
     if (filters.state) params.set('state', filters.state)
     if (filters.priority) params.set('priority', filters.priority)
-    if (filters.complexity) params.set('complexity', filters.complexity)
-    if (filters.scope) params.set('scope', filters.scope)
     if (filters.search) params.set('search', filters.search)
     if (filters.labels && filters.labels.length > 0) {
       filters.labels.forEach(labelId => params.append('labels', String(labelId)))
     }
+    if (filters.topLevel) params.set('topLevel', 'true')
+    if (filters.parentId) params.set('parentId', String(filters.parentId))
 
     fetch(`/api/issues?${params.toString()}`)
       .then((res) => res.json())
@@ -330,7 +294,7 @@ function useIssues(filters: {
 
   useEffect(() => {
     fetchIssues()
-  }, [filters.project, filters.cycle, filters.state, filters.priority, filters.complexity, filters.scope, filters.search, filters.labels])
+  }, [filters.project, filters.state, filters.priority, filters.search, filters.labels, filters.topLevel, filters.parentId])
 
   const updateIssue = async (id: number, updates: Partial<Issue>) => {
     // Convert camelCase to snake_case for API
@@ -349,7 +313,9 @@ function useIssues(filters: {
     if (updates.scheduledTimeEnd !== undefined) apiUpdates.scheduledTimeEnd = updates.scheduledTimeEnd
     if (updates.scheduledTimezone !== undefined) apiUpdates.scheduledTimezone = updates.scheduledTimezone
     if (updates.startDate !== undefined) apiUpdates.startDate = updates.startDate
-    
+    if (updates.parentId !== undefined) apiUpdates.parentId = updates.parentId
+    if ((updates as Record<string, unknown>).projectId !== undefined) apiUpdates.projectId = (updates as Record<string, unknown>).projectId
+
     const res = await fetch(`/api/issues/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -374,6 +340,7 @@ function useIssues(filters: {
     priority: IssuePriority
     type: string
     cycleId?: number
+    parentId?: number
   }) => {
     const res = await fetch('/api/issues', {
       method: 'POST',
@@ -442,32 +409,6 @@ function LabelBadge({ name, color }: { name: string; color: string }) {
   )
 }
 
-function ComplexityBadge({ complexity }: { complexity: IssueComplexity }) {
-  const config = COMPLEXITY_CONFIG[complexity] || COMPLEXITY_CONFIG.medium
-  return (
-    <span
-      className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium rounded"
-      style={{ backgroundColor: `${config.color}20`, color: config.color }}
-      title={`Complexity: ${config.label}`}
-    >
-      <span className="text-[8px]">{config.icon}</span>
-    </span>
-  )
-}
-
-function ScopeBadge({ scope }: { scope: IssueScope }) {
-  const config = SCOPE_CONFIG[scope] || SCOPE_CONFIG.isolated
-  return (
-    <span
-      className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium rounded"
-      style={{ backgroundColor: `${config.color}20`, color: config.color }}
-      title={`Scope: ${config.label}`}
-    >
-      {scope === 'cross-cutting' ? '⟷' : '○'}
-    </span>
-  )
-}
-
 // Sortable Issue Card
 function SortableIssueCard({
   issue,
@@ -526,8 +467,6 @@ function SortableIssueCard({
           <h4 className="text-sm font-medium mt-1 line-clamp-2">{issue.title}</h4>
           <div className="flex flex-wrap items-center gap-1.5 mt-2">
             <PriorityBadge priority={issue.priority} />
-            <ComplexityBadge complexity={issue.complexity} />
-            <ScopeBadge scope={issue.scope} />
             {issue.project && (
               <ProjectBadge
                 identifier={issue.project.identifier}
@@ -540,35 +479,41 @@ function SortableIssueCard({
             <div className="flex items-center gap-1 mt-2 text-xs text-[#FF9900]">
               <Calendar className="w-3 h-3" />
               <span>
-                {new Date(issue.scheduledDate).toLocaleDateString('nl-NL', { 
-                  day: 'numeric', 
-                  month: 'short' 
+                {new Date(issue.scheduledDate).toLocaleDateString('nl-NL', {
+                  day: 'numeric',
+                  month: 'short'
                 })}
                 {issue.scheduledTimeStart && (
-                  ` ${new Date(issue.scheduledTimeStart).toLocaleTimeString('nl-NL', { 
-                    hour: '2-digit', 
-                    minute: '2-digit' 
+                  ` ${new Date(issue.scheduledTimeStart).toLocaleTimeString('nl-NL', {
+                    hour: '2-digit',
+                    minute: '2-digit'
                   })}`
                 )}
               </span>
             </div>
           )}
-          
-          {/* Show due date if set and approaching */}
+
+          {/* Show due date */}
           {issue.dueDate && (
             <div className={`flex items-center gap-1 mt-1 text-xs ${
               new Date(issue.dueDate) < new Date() ? 'text-red-400' : 'text-muted-foreground'
             }`}>
-              <span>⏰</span>
+              <Calendar className="w-3 h-3" />
               <span>
-                {new Date(issue.dueDate).toLocaleDateString('nl-NL', { 
-                  day: 'numeric', 
-                  month: 'short' 
+                {new Date(issue.dueDate).toLocaleDateString('nl-NL', {
+                  day: 'numeric',
+                  month: 'short'
                 })}
               </span>
             </div>
           )}
-          
+
+          {issue.childCount > 0 && (
+            <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
+              <LayoutGrid className="w-3 h-3" />
+              <span>{issue.childCount} sub-issue{issue.childCount !== 1 ? 's' : ''}</span>
+            </div>
+          )}
           {issue.labels.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">
               {issue.labels.slice(0, 3).map((label) => (
@@ -600,8 +545,6 @@ function IssueCard({
         <h4 className="text-sm font-medium mt-1 line-clamp-2">{issue.title}</h4>
         <div className="flex flex-wrap items-center gap-1.5 mt-2">
           <PriorityBadge priority={issue.priority} />
-          <ComplexityBadge complexity={issue.complexity} />
-          <ScopeBadge scope={issue.scope} />
           {issue.project && (
             <ProjectBadge
               identifier={issue.project.identifier}
@@ -711,14 +654,45 @@ function IssueDetailPanel({
   issue,
   onClose,
   onUpdate,
-  cycles,
+  projects,
+  allLabels,
+  onCreateSubIssue,
+  onSelectIssue,
+  onUpdateLabels,
 }: {
   issue: Issue | null
   onClose: () => void
   onUpdate: (id: number, updates: Partial<Issue>) => void
-  cycles: Cycle[]
+  projects: Project[]
+  allLabels: Label[]
+  onCreateSubIssue: (issue: {
+    title: string
+    description: string
+    projectId: number
+    priority: IssuePriority
+    type: string
+    parentId?: number
+  }) => Promise<boolean>
+  onSelectIssue: (issue: Issue) => void
+  onUpdateLabels: (issueId: number, labelIds: number[]) => Promise<void>
 }) {
-  const [editedIssue, setEditedIssue] = useState<Partial<Issue>>({})
+  const [editedIssue, setEditedIssue] = useState<Partial<Issue> & { projectId?: number }>({})
+  const [subIssues, setSubIssues] = useState<Issue[]>([])
+  const [parentIssue, setParentIssue] = useState<Issue | null>(null)
+  const [loadingSubIssues, setLoadingSubIssues] = useState(false)
+  const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>([])
+  const [showLabelPicker, setShowLabelPicker] = useState(false)
+  const labelPickerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (labelPickerRef.current && !labelPickerRef.current.contains(event.target as Node)) {
+        setShowLabelPicker(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   useEffect(() => {
     if (issue) {
@@ -726,10 +700,8 @@ function IssueDetailPanel({
         title: issue.title,
         description: issue.description,
         priority: issue.priority,
-        complexity: issue.complexity,
-        scope: issue.scope,
         state: issue.state,
-        cycleId: issue.cycleId,
+        projectId: issue.projectId,
         dueDate: issue.dueDate,
         scheduledDate: issue.scheduledDate,
         scheduledTimeStart: issue.scheduledTimeStart,
@@ -737,13 +709,43 @@ function IssueDetailPanel({
         scheduledTimezone: issue.scheduledTimezone,
         startDate: issue.startDate,
       })
+      setSelectedLabelIds(issue.labels.map(l => l.id))
+
+      // Load sub-issues if this is a parent
+      if (issue.childCount > 0) {
+        setLoadingSubIssues(true)
+        fetch(`/api/issues?parentId=${issue.id}`)
+          .then((res) => res.json())
+          .then((data) => {
+            setSubIssues(data.issues || [])
+            setLoadingSubIssues(false)
+          })
+          .catch(() => setLoadingSubIssues(false))
+      } else {
+        setSubIssues([])
+      }
+
+      // Load parent if this is a child
+      if (issue.parentId) {
+        fetch(`/api/issues?search=`)
+          .then((res) => res.json())
+          .then((data) => {
+            const parent = (data.issues || []).find((i: Issue) => i.id === issue.parentId)
+            setParentIssue(parent || null)
+          })
+          .catch(() => setParentIssue(null))
+      } else {
+        setParentIssue(null)
+      }
     }
   }, [issue])
 
   if (!issue) return null
 
   const handleSave = () => {
-    onUpdate(issue.id, editedIssue)
+    // Include projectId in updates if changed
+    const updates: Partial<Issue> & { projectId?: number } = { ...editedIssue }
+    onUpdate(issue.id, updates)
     onClose()
   }
 
@@ -758,6 +760,9 @@ function IssueDetailPanel({
         <div className="flex items-center justify-between p-4 border-b border-border">
           <div className="flex items-center gap-2">
             <span className="text-sm text-muted-foreground font-mono">{issue.identifier}</span>
+            {issue.project && (
+              <ProjectBadge identifier={issue.project.identifier} color={issue.project.color} />
+            )}
           </div>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="w-4 h-4" />
@@ -765,6 +770,18 @@ function IssueDetailPanel({
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {/* Parent link */}
+          {parentIssue && (
+            <div
+              className="flex items-center gap-2 p-2 bg-muted/30 rounded-lg cursor-pointer hover:bg-muted/50"
+              onClick={() => onSelectIssue(parentIssue)}
+            >
+              <span className="text-xs text-muted-foreground">Parent:</span>
+              <span className="text-xs font-mono">{parentIssue.identifier}</span>
+              <span className="text-xs truncate">{parentIssue.title}</span>
+            </div>
+          )}
+
           <div>
             <Label className="text-xs text-muted-foreground">Title</Label>
             <Input
@@ -824,72 +841,25 @@ function IssueDetailPanel({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs text-muted-foreground">Complexity</Label>
-              <Select
-                value={editedIssue.complexity}
-                onValueChange={(v) => setEditedIssue({ ...editedIssue, complexity: v as IssueComplexity })}
-              >
-                <SelectTrigger className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(['low', 'medium', 'high'] as IssueComplexity[]).map((c) => (
-                    <SelectItem key={c} value={c}>
-                      <span className="flex items-center gap-2">
-                        <span style={{ color: COMPLEXITY_CONFIG[c].color }}>{COMPLEXITY_CONFIG[c].icon}</span>
-                        {COMPLEXITY_CONFIG[c].label}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-xs text-muted-foreground">Scope</Label>
-              <Select
-                value={editedIssue.scope}
-                onValueChange={(v) => setEditedIssue({ ...editedIssue, scope: v as IssueScope })}
-              >
-                <SelectTrigger className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="isolated">
-                    <span className="flex items-center gap-2">
-                      <span style={{ color: SCOPE_CONFIG.isolated.color }}>○</span>
-                      Isolated
-                    </span>
-                  </SelectItem>
-                  <SelectItem value="cross-cutting">
-                    <span className="flex items-center gap-2">
-                      <span style={{ color: SCOPE_CONFIG['cross-cutting'].color }}>⟷</span>
-                      Cross-cutting
-                    </span>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
           <div>
-            <Label className="text-xs text-muted-foreground">Cycle</Label>
+            <Label className="text-xs text-muted-foreground">Project</Label>
             <Select
-              value={editedIssue.cycleId?.toString() || 'none'}
-              onValueChange={(v) =>
-                setEditedIssue({ ...editedIssue, cycleId: v === 'none' ? null : Number(v) })
-              }
+              value={editedIssue.projectId?.toString() || ''}
+              onValueChange={(v) => setEditedIssue({ ...editedIssue, projectId: Number(v) })}
             >
               <SelectTrigger className="mt-1">
-                <SelectValue placeholder="No cycle" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">No cycle</SelectItem>
-                {cycles.map((cycle) => (
-                  <SelectItem key={cycle.id} value={cycle.id.toString()}>
-                    {cycle.name}
+                {projects.map((project) => (
+                  <SelectItem key={project.id} value={project.id.toString()}>
+                    <span className="flex items-center gap-2">
+                      <span
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: project.color }}
+                      />
+                      {project.name}
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -899,7 +869,7 @@ function IssueDetailPanel({
           {/* Scheduled Date - only show if state is 'scheduled' */}
           {editedIssue.state === 'scheduled' && (
             <div className="p-3 bg-[#FF9900]/10 rounded-lg border border-[#FF9900]/20">
-              <Label className="text-xs text-[#FF9900] font-medium">📅 Gepland voor</Label>
+              <Label className="text-xs text-[#FF9900] font-medium">Gepland voor</Label>
               <div className="grid grid-cols-2 gap-2 mt-2">
                 <div>
                   <Label className="text-xs text-muted-foreground">Datum</Label>
@@ -912,7 +882,6 @@ function IssueDetailPanel({
                         setEditedIssue({ ...editedIssue, scheduledDate: null, scheduledTimeStart: null })
                         return
                       }
-                      // Create date at noon to avoid timezone issues
                       const [year, month, day] = dateValue.split('-').map(Number)
                       const date = new Date(year, month - 1, day, 12, 0, 0)
                       setEditedIssue({ ...editedIssue, scheduledDate: date.getTime() })
@@ -950,7 +919,7 @@ function IssueDetailPanel({
 
           {/* Due Date */}
           <div>
-            <Label className="text-xs text-muted-foreground">⏰ Deadline (optioneel)</Label>
+            <Label className="text-xs text-muted-foreground">Deadline (optioneel)</Label>
             <Input
               type="date"
               value={editedIssue.dueDate ? new Date(editedIssue.dueDate).toISOString().split('T')[0] : ''}
@@ -960,7 +929,6 @@ function IssueDetailPanel({
                   setEditedIssue({ ...editedIssue, dueDate: null })
                   return
                 }
-                // Create date at noon to avoid timezone issues
                 const [year, month, day] = dateValue.split('-').map(Number)
                 const date = new Date(year, month - 1, day, 12, 0, 0)
                 setEditedIssue({ ...editedIssue, dueDate: date.getTime() })
@@ -969,17 +937,102 @@ function IssueDetailPanel({
             />
           </div>
 
-          <div>
+          <div ref={labelPickerRef} className="relative">
             <Label className="text-xs text-muted-foreground">Labels</Label>
-            <div className="flex flex-wrap gap-1 mt-1">
-              {issue.labels.map((label) => (
-                <LabelBadge key={label.id} name={label.name} color={label.color} />
-              ))}
-              {issue.labels.length === 0 && (
-                <span className="text-sm text-muted-foreground">No labels</span>
+            <div
+              className="flex flex-wrap gap-1 mt-1 min-h-[32px] p-1.5 border border-border rounded-md cursor-pointer hover:border-muted-foreground/50"
+              onClick={() => setShowLabelPicker(!showLabelPicker)}
+            >
+              {selectedLabelIds.length > 0 ? (
+                allLabels
+                  .filter(l => selectedLabelIds.includes(l.id))
+                  .map((label) => (
+                    <LabelBadge key={label.id} name={label.name} color={label.color} />
+                  ))
+              ) : (
+                <span className="text-sm text-muted-foreground">Click to add labels</span>
               )}
             </div>
+            {showLabelPicker && (
+              <div className="absolute top-full left-0 mt-1 w-full bg-[#1A1A1A] border border-border rounded-lg shadow-lg z-50 p-2 max-h-48 overflow-y-auto">
+                {allLabels.map((label) => (
+                  <div
+                    key={label.id}
+                    className="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-[#2A2A2A]"
+                    onClick={() => {
+                      const newIds = selectedLabelIds.includes(label.id)
+                        ? selectedLabelIds.filter(id => id !== label.id)
+                        : [...selectedLabelIds, label.id]
+                      setSelectedLabelIds(newIds)
+                      onUpdateLabels(issue.id, newIds)
+                    }}
+                  >
+                    <div
+                      className={cn(
+                        "w-4 h-4 rounded border flex items-center justify-center shrink-0",
+                        selectedLabelIds.includes(label.id) ? "bg-[#FF9900] border-[#FF9900]" : "border-muted-foreground"
+                      )}
+                    >
+                      {selectedLabelIds.includes(label.id) && <span className="text-black text-xs">✓</span>}
+                    </div>
+                    <span
+                      className="px-1.5 py-0.5 text-xs rounded-full"
+                      style={{ backgroundColor: `${label.color}20`, color: label.color }}
+                    >
+                      {label.name}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
+
+          {/* Sub-issues section */}
+          {(issue.childCount > 0 || !issue.parentId) && (
+            <>
+              <Separator />
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-xs text-muted-foreground">
+                    Sub-issues {issue.childCount > 0 && `(${issue.childCount})`}
+                  </Label>
+                  <CreateIssueDialog
+                    projects={projects}
+                    onCreate={onCreateSubIssue}
+                    defaultProjectId={issue.projectId}
+                    defaultParentId={issue.id}
+                  />
+                </div>
+                {loadingSubIssues ? (
+                  <div className="text-xs text-muted-foreground">Loading...</div>
+                ) : subIssues.length > 0 ? (
+                  <div className="space-y-1">
+                    {subIssues.map((sub) => {
+                      const stateStyle = getStateStyle(sub.state)
+                      return (
+                        <div
+                          key={sub.id}
+                          className="flex items-center gap-2 p-2 rounded hover:bg-muted/30 cursor-pointer"
+                          onClick={() => onSelectIssue(sub)}
+                        >
+                          <span className="text-xs font-mono text-muted-foreground">{sub.identifier}</span>
+                          <span className="text-xs truncate flex-1">{sub.title}</span>
+                          <span
+                            className="inline-flex items-center px-1.5 py-0.5 text-[10px] rounded"
+                            style={{ backgroundColor: stateStyle.bg, color: stateStyle.color }}
+                          >
+                            {sub.state.replace('_', ' ')}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-xs text-muted-foreground">No sub-issues yet</div>
+                )}
+              </div>
+            </>
+          )}
 
           <Separator />
 
@@ -1001,28 +1054,33 @@ function IssueDetailPanel({
 
 function CreateIssueDialog({
   projects,
-  cycles,
   onCreate,
+  defaultProjectId,
+  defaultParentId,
 }: {
   projects: Project[]
-  cycles: Cycle[]
   onCreate: (issue: {
     title: string
     description: string
     projectId: number
     priority: IssuePriority
     type: string
-    cycleId?: number
+    parentId?: number
   }) => Promise<boolean>
+  defaultProjectId?: number
+  defaultParentId?: number
 }) {
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [projectId, setProjectId] = useState<number>(projects[0]?.id || 0)
+  const [projectId, setProjectId] = useState<number>(defaultProjectId || projects[0]?.id || 0)
   const [priority, setPriority] = useState<IssuePriority>('medium')
   const [type, setType] = useState('feature')
-  const [cycleId, setCycleId] = useState<number | undefined>()
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (defaultProjectId) setProjectId(defaultProjectId)
+  }, [defaultProjectId])
 
   const handleSubmit = async () => {
     if (!title || !projectId) return
@@ -1033,7 +1091,7 @@ function CreateIssueDialog({
       projectId,
       priority,
       type,
-      cycleId,
+      parentId: defaultParentId,
     })
     setLoading(false)
     if (success) {
@@ -1046,15 +1104,17 @@ function CreateIssueDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="bg-[#FF9900] hover:bg-[#FF9900]/90 text-black">
-          <Plus className="w-4 h-4 mr-2" />
-          New Issue
+        <Button size={defaultParentId ? 'sm' : 'default'} className="bg-[#FF9900] hover:bg-[#FF9900]/90 text-black">
+          <Plus className="w-4 h-4 mr-1" />
+          {defaultParentId ? 'Add Sub-issue' : 'New Issue'}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[525px] bg-[#1A1A1A] border-border">
         <DialogHeader>
-          <DialogTitle>Create New Issue</DialogTitle>
-          <DialogDescription>Add a new issue to track your work.</DialogDescription>
+          <DialogTitle>{defaultParentId ? 'Create Sub-issue' : 'Create New Issue'}</DialogTitle>
+          <DialogDescription>
+            {defaultParentId ? 'Add a sub-issue to this parent issue.' : 'Add a new issue to track your work.'}
+          </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
@@ -1082,6 +1142,7 @@ function CreateIssueDialog({
               <Select
                 value={projectId.toString()}
                 onValueChange={(v) => setProjectId(Number(v))}
+                disabled={!!defaultParentId}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -1116,46 +1177,23 @@ function CreateIssueDialog({
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label>Priority</Label>
-              <Select
-                value={priority}
-                onValueChange={(v) => setPriority(v as IssuePriority)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(['critical', 'urgent', 'high', 'medium', 'low'] as IssuePriority[]).map((p) => (
-                    <SelectItem key={p} value={p}>
-                      {PRIORITY_CONFIG[p].label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label>Cycle</Label>
-              <Select
-                value={cycleId?.toString() || 'none'}
-                onValueChange={(v) =>
-                  setCycleId(v === 'none' ? undefined : Number(v))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="No cycle" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No cycle</SelectItem>
-                  {cycles.map((cycle) => (
-                    <SelectItem key={cycle.id} value={cycle.id.toString()}>
-                      {cycle.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="grid gap-2">
+            <Label>Priority</Label>
+            <Select
+              value={priority}
+              onValueChange={(v) => setPriority(v as IssuePriority)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(['critical', 'urgent', 'high', 'medium', 'low'] as IssuePriority[]).map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {PRIORITY_CONFIG[p].label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
         <DialogFooter>
@@ -1175,45 +1213,287 @@ function CreateIssueDialog({
   )
 }
 
+// State color helper
+function getStateStyle(state: IssueState) {
+  const map: Record<IssueState, { bg: string; color: string }> = {
+    done: { bg: '#10B98120', color: '#10B981' },
+    in_progress: { bg: '#3B82F620', color: '#3B82F6' },
+    testing: { bg: '#A855F720', color: '#A855F7' },
+    cancelled: { bg: '#6B728020', color: '#6B7280' },
+    backlog: { bg: '#EAB30820', color: '#EAB308' },
+    scheduled: { bg: '#FF990020', color: '#FF9900' },
+    todo: { bg: '#EAB30820', color: '#EAB308' },
+  }
+  return map[state] || map.backlog
+}
+
+// Expandable list row for parent/child hierarchy
+function ExpandableIssueRow({
+  issue,
+  onClick,
+  isChild,
+}: {
+  issue: Issue
+  onClick: (issue: Issue) => void
+  isChild?: boolean
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const [children, setChildren] = useState<Issue[]>([])
+  const [loadingChildren, setLoadingChildren] = useState(false)
+
+  const handleExpand = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!expanded && children.length === 0) {
+      setLoadingChildren(true)
+      fetch(`/api/issues?parentId=${issue.id}`)
+        .then((res) => res.json())
+        .then((data) => {
+          setChildren(data.issues || [])
+          setLoadingChildren(false)
+        })
+        .catch(() => setLoadingChildren(false))
+    }
+    setExpanded(!expanded)
+  }
+
+  const stateStyle = getStateStyle(issue.state)
+
+  return (
+    <>
+      <tr
+        className="hover:bg-[#1A1A1A]/50 cursor-pointer"
+        onClick={() => onClick(issue)}
+      >
+        <td className="p-3 font-mono text-muted-foreground">
+          <div className={cn('flex items-center gap-1', isChild && 'pl-6')}>
+            {!isChild && issue.childCount > 0 && (
+              <button
+                onClick={handleExpand}
+                className="p-0.5 hover:bg-muted rounded"
+              >
+                {expanded ? (
+                  <ChevronDown className="w-3.5 h-3.5" />
+                ) : (
+                  <ChevronRight className="w-3.5 h-3.5" />
+                )}
+              </button>
+            )}
+            {isChild && <span className="text-muted-foreground/40 pl-1">└</span>}
+            {issue.identifier}
+          </div>
+        </td>
+        <td className="p-3">
+          <div className="flex items-center gap-2">
+            <span className="font-medium">{issue.title}</span>
+            {!isChild && issue.childCount > 0 && (
+              <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                {issue.childCount}
+              </span>
+            )}
+          </div>
+          {issue.labels.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1">
+              {issue.labels.map((label) => (
+                <LabelBadge key={label.id} name={label.name} color={label.color} />
+              ))}
+            </div>
+          )}
+        </td>
+        <td className="p-3">
+          <span
+            className="inline-flex items-center px-2 py-0.5 text-xs rounded"
+            style={{ backgroundColor: stateStyle.bg, color: stateStyle.color }}
+          >
+            {issue.state.replace('_', ' ')}
+          </span>
+        </td>
+        <td className="p-3">
+          <PriorityBadge priority={issue.priority} />
+        </td>
+        <td className="p-3">
+          <TypeBadge type={issue.type} />
+        </td>
+        <td className="p-3">
+          {issue.project && (
+            <ProjectBadge identifier={issue.project.identifier} color={issue.project.color} />
+          )}
+        </td>
+      </tr>
+      {expanded && (
+        loadingChildren ? (
+          <tr>
+            <td colSpan={6} className="p-3 pl-12 text-sm text-muted-foreground">
+              Loading...
+            </td>
+          </tr>
+        ) : (
+          children.map((child) => (
+            <ExpandableIssueRow
+              key={child.id}
+              issue={child}
+              onClick={onClick}
+              isChild
+            />
+          ))
+        )
+      )}
+    </>
+  )
+}
+
+// Calendar View
+function CalendarView({
+  issues,
+  onIssueClick,
+}: {
+  issues: Issue[]
+  onIssueClick: (issue: Issue) => void
+}) {
+  const [currentDate, setCurrentDate] = useState(new Date())
+
+  const year = currentDate.getFullYear()
+  const month = currentDate.getMonth()
+
+  const firstDay = new Date(year, month, 1)
+  const lastDay = new Date(year, month + 1, 0)
+  const startOffset = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1 // Monday start
+
+  const daysInMonth = lastDay.getDate()
+  const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7
+
+  // Group issues by due date (day of month)
+  const issuesByDay = useMemo(() => {
+    const map: Record<string, Issue[]> = {}
+    for (const issue of issues) {
+      if (!issue.dueDate) continue
+      const d = new Date(issue.dueDate)
+      if (d.getFullYear() === year && d.getMonth() === month) {
+        const key = d.getDate().toString()
+        if (!map[key]) map[key] = []
+        map[key].push(issue)
+      }
+    }
+    return map
+  }, [issues, year, month])
+
+  const today = new Date()
+  const isToday = (day: number) =>
+    today.getFullYear() === year && today.getMonth() === month && today.getDate() === day
+
+  const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1))
+  const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1))
+  const goToday = () => setCurrentDate(new Date())
+
+  const monthName = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+  return (
+    <div className="h-full overflow-auto p-4">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={prevMonth}>←</Button>
+          <h2 className="text-lg font-semibold min-w-[200px] text-center">{monthName}</h2>
+          <Button variant="outline" size="sm" onClick={nextMonth}>→</Button>
+        </div>
+        <Button variant="outline" size="sm" onClick={goToday}>Today</Button>
+      </div>
+
+      <div className="grid grid-cols-7 border border-border rounded-lg overflow-hidden">
+        {/* Week day headers */}
+        {weekDays.map(day => (
+          <div key={day} className="p-2 text-xs font-medium text-muted-foreground text-center bg-[#1A1A1A] border-b border-border">
+            {day}
+          </div>
+        ))}
+
+        {/* Calendar cells */}
+        {Array.from({ length: totalCells }, (_, i) => {
+          const dayNum = i - startOffset + 1
+          const isCurrentMonth = dayNum >= 1 && dayNum <= daysInMonth
+          const dayIssues = isCurrentMonth ? (issuesByDay[dayNum.toString()] || []) : []
+          const isPast = isCurrentMonth && new Date(year, month, dayNum) < new Date(today.getFullYear(), today.getMonth(), today.getDate())
+
+          return (
+            <div
+              key={i}
+              className={cn(
+                "min-h-[100px] p-1 border-b border-r border-border",
+                !isCurrentMonth && "bg-[#0A0A0A]/50",
+                isCurrentMonth && isToday(dayNum) && "bg-[#FF9900]/5 ring-1 ring-inset ring-[#FF9900]/30"
+              )}
+            >
+              {isCurrentMonth && (
+                <>
+                  <div className={cn(
+                    "text-xs font-medium mb-1 px-1",
+                    isToday(dayNum) ? "text-[#FF9900]" : isPast ? "text-muted-foreground/50" : "text-muted-foreground"
+                  )}>
+                    {dayNum}
+                  </div>
+                  <div className="space-y-0.5">
+                    {dayIssues.slice(0, 3).map(issue => {
+                      const stateStyle = getStateStyle(issue.state)
+                      return (
+                        <div
+                          key={issue.id}
+                          className="px-1 py-0.5 text-[10px] rounded cursor-pointer hover:brightness-125 truncate"
+                          style={{ backgroundColor: stateStyle.bg, color: stateStyle.color }}
+                          onClick={() => onIssueClick(issue)}
+                          title={`${issue.identifier}: ${issue.title}`}
+                        >
+                          <span className="font-mono">{issue.identifier}</span>{' '}
+                          {issue.title}
+                        </div>
+                      )
+                    })}
+                    {dayIssues.length > 3 && (
+                      <div className="text-[10px] text-muted-foreground px-1">
+                        +{dayIssues.length - 3} more
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // Main Page Component
 export function Projects() {
   const [viewMode, setViewMode] = useState<ViewMode>('board')
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null)
   const [activeDragIssue, setActiveDragIssue] = useState<Issue | null>(null)
 
-  // Filters
-  const [projectFilter, setProjectFilter] = useState<number | null>(null)
-  const [cycleFilter, setCycleFilter] = useState<number | null>(null)
+  // Project tabs
+  const [selectedProject, setSelectedProject] = useState<number | null>(null)
+
+  // Filters (simplified)
   const [stateFilter, setStateFilter] = useState<IssueState | null>(null)
   const [priorityFilter, setPriorityFilter] = useState<IssuePriority | null>(null)
-  const [complexityFilter, setComplexityFilter] = useState<IssueComplexity | null>(null)
-  
-  // Group By
-  type GroupBy = 'state' | 'priority' | 'project' | 'labels' | 'none'
-  const [groupBy, setGroupBy] = useState<GroupBy>('state')
-  const [scopeFilter, setScopeFilter] = useState<IssueScope | null>(null)
   const [labelFilter, setLabelFilter] = useState<number[]>([])
   const [searchQuery, setSearchQuery] = useState('')
 
   const { projects, loading: projectsLoading } = useProjects()
-  const { cycles, loading: cyclesLoading } = useCycles()
   const { labels: allLabels } = useLabels()
   const { issues, loading: issuesLoading, updateIssue, createIssue, setIssues } = useIssues({
-    project: projectFilter || undefined,
-    cycle: cycleFilter || undefined,
+    project: selectedProject || undefined,
     state: stateFilter || undefined,
     priority: priorityFilter || undefined,
-    complexity: complexityFilter || undefined,
-    scope: scopeFilter || undefined,
     search: searchQuery || undefined,
     labels: labelFilter.length > 0 ? labelFilter : undefined,
+    topLevel: viewMode === 'board' || viewMode === 'list' ? true : undefined,
+    // Calendar shows all issues (including children) that have due dates
   })
 
   // DnD sensors
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 5, // Start dragging after 5px movement
+        distance: 5,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -1232,7 +1512,6 @@ export function Projects() {
       done: [],
       cancelled: [],
     }
-    // Sort all issues by position first, then createdAt as fallback
     const sortedIssues = [...issues].sort((a, b) => {
       if (a.position !== b.position) {
         return a.position - b.position
@@ -1245,6 +1524,15 @@ export function Projects() {
     return grouped
   }, [issues])
 
+  // Count issues per project (for tab badges)
+  const projectIssueCounts = useMemo(() => {
+    const counts: Record<number, number> = {}
+    for (const issue of issues) {
+      counts[issue.projectId] = (counts[issue.projectId] || 0) + 1
+    }
+    return counts
+  }, [issues])
+
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event
     const issue = issues.find((i) => i.id === active.id)
@@ -1253,38 +1541,29 @@ export function Projects() {
     }
   }
 
-  // Calculate new position based on issues in target column
   const calculateNewPosition = (
     targetIssues: Issue[],
     overIssueId: number | null,
     activeIssueId: number
   ): number => {
-    // Filter out the active issue from the list
     const otherIssues = targetIssues.filter((i) => i.id !== activeIssueId)
 
-    if (otherIssues.length === 0) {
-      // Empty column - start at 0
-      return 0
-    }
+    if (otherIssues.length === 0) return 0
 
     if (overIssueId === null) {
-      // Dropped at end - position after last issue
       const lastIssue = otherIssues[otherIssues.length - 1]
       return lastIssue.position + 1000
     }
 
-    // Find position of issue we're dropping over
     const overIndex = otherIssues.findIndex((i) => i.id === overIssueId)
     if (overIndex === -1) {
       return otherIssues[otherIssues.length - 1]?.position + 1000 || 0
     }
 
     if (overIndex === 0) {
-      // Dropped at top - position before first issue
       return otherIssues[0].position - 1000
     }
 
-    // Dropped between two issues - position in the middle
     const prevIssue = otherIssues[overIndex - 1]
     const nextIssue = otherIssues[overIndex]
     return (prevIssue.position + nextIssue.position) / 2
@@ -1298,48 +1577,42 @@ export function Projects() {
     const activeId = active.id as number
     const overId = over.id as number | string
 
-    // Find the active issue
     const activeIssue = issues.find((i) => i.id === activeId)
     if (!activeIssue) return
 
-    // Check if dragging over a column directly
     const overColumn = STATE_COLUMNS.find((col) => col.id === overId)
     if (overColumn) {
-      // Moving to a different column
       if (activeIssue.state !== overColumn.id) {
         const targetIssues = issuesByState[overColumn.id]
         const newPosition = calculateNewPosition(targetIssues, null, activeId)
-        
+
         setIssues((prev) =>
           prev.map((i) =>
-            i.id === activeId 
-              ? { ...i, state: overColumn.id, position: newPosition } 
+            i.id === activeId
+              ? { ...i, state: overColumn.id, position: newPosition }
               : i
           )
         )
       }
     } else if (typeof overId === 'string' && overId.endsWith('-bottom')) {
-      // Dragging over a bottom drop zone
       const columnId = overId.replace('-bottom', '') as IssueState
       const targetIssues = issuesByState[columnId]
-      
-      // Only update if moving to different column or actually changing position
+
       const currentIndex = targetIssues.findIndex(i => i.id === activeId)
       const isLastInColumn = currentIndex === targetIssues.length - 1
-      
+
       if (activeIssue.state !== columnId || !isLastInColumn) {
         const newPosition = calculateNewPosition(targetIssues, null, activeId)
-        
+
         setIssues((prev) =>
           prev.map((i) =>
-            i.id === activeId 
-              ? { ...i, state: columnId, position: newPosition } 
+            i.id === activeId
+              ? { ...i, state: columnId, position: newPosition }
               : i
           )
         )
       }
     } else {
-      // Dragging over an issue
       const overIssue = issues.find((i) => i.id === overId)
       if (overIssue && overIssue.id !== activeIssue.id) {
         const targetIssues = issuesByState[overIssue.state]
@@ -1347,8 +1620,8 @@ export function Projects() {
 
         setIssues((prev) =>
           prev.map((i) =>
-            i.id === activeId 
-              ? { ...i, state: overIssue.state, position: newPosition } 
+            i.id === activeId
+              ? { ...i, state: overIssue.state, position: newPosition }
               : i
           )
         )
@@ -1368,122 +1641,86 @@ export function Projects() {
     const activeIssue = issues.find((i) => i.id === activeId)
     if (!activeIssue) return
 
-    // Check if dropped on a column directly
     const overColumn = STATE_COLUMNS.find((col) => col.id === overId)
     if (overColumn) {
-      // Update both state and position on server
-      await updateIssue(activeId, { 
-        state: overColumn.id, 
-        position: activeIssue.position 
+      await updateIssue(activeId, {
+        state: overColumn.id,
+        position: activeIssue.position
       })
     } else if (typeof overId === 'string' && overId.endsWith('-bottom')) {
-      // Dropped on a bottom drop zone
       const columnId = overId.replace('-bottom', '') as IssueState
-      await updateIssue(activeId, { 
-        state: columnId, 
-        position: activeIssue.position 
+      await updateIssue(activeId, {
+        state: columnId,
+        position: activeIssue.position
       })
     } else {
-      // Dropped on an issue
       const overIssue = issues.find((i) => i.id === overId)
       if (overIssue) {
-        await updateIssue(activeId, { 
-          state: overIssue.state, 
-          position: activeIssue.position 
+        await updateIssue(activeId, {
+          state: overIssue.state,
+          position: activeIssue.position
         })
       }
     }
   }
 
-  const isLoading = projectsLoading || cyclesLoading || issuesLoading
+  const isLoading = projectsLoading || issuesLoading
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-        <div className="flex items-center gap-4">
-          <h1 className="text-xl font-semibold">Projects</h1>
-          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
-            <TabsList className="bg-[#1A1A1A]">
-              <TabsTrigger value="board" className="data-[state=active]:bg-[#FF9900]/20">
-                <LayoutGrid className="w-4 h-4 mr-2" />
-                Board
-              </TabsTrigger>
-              <TabsTrigger value="list" className="data-[state=active]:bg-[#FF9900]/20">
-                <List className="w-4 h-4 mr-2" />
-                List
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-        <CreateIssueDialog projects={projects} cycles={cycles} onCreate={createIssue} />
+      {/* Header with Project Tabs */}
+      <div className="flex items-center justify-between px-6 py-3 border-b border-border">
+        <h1 className="text-xl font-semibold">Projects</h1>
+        <CreateIssueDialog
+          projects={projects}
+          onCreate={createIssue}
+          defaultProjectId={selectedProject || undefined}
+        />
       </div>
 
-      {/* Filters */}
-      <div className="flex items-center gap-3 px-6 py-3 border-b border-border bg-[#1A1A1A]/50">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Filter className="w-4 h-4" />
-          <span className="text-sm">Filters:</span>
+      {/* Project Tabs */}
+      <div className="px-6 py-2 border-b border-border bg-[#1A1A1A]/30">
+        <div className="flex items-center gap-1 overflow-x-auto">
+          <button
+            className={cn(
+              'px-3 py-1.5 text-sm rounded-md transition-colors whitespace-nowrap',
+              selectedProject === null
+                ? 'bg-[#FF9900]/20 text-[#FF9900] font-medium'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            )}
+            onClick={() => setSelectedProject(null)}
+          >
+            All
+            <span className="ml-1.5 text-xs opacity-60">{issues.length}</span>
+          </button>
+          {projects.map((project) => (
+            <button
+              key={project.id}
+              className={cn(
+                'px-3 py-1.5 text-sm rounded-md transition-colors whitespace-nowrap flex items-center gap-2',
+                selectedProject === project.id
+                  ? 'bg-[#FF9900]/20 text-[#FF9900] font-medium'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              )}
+              onClick={() => setSelectedProject(
+                selectedProject === project.id ? null : project.id
+              )}
+            >
+              <span
+                className="w-2 h-2 rounded-full shrink-0"
+                style={{ backgroundColor: project.color }}
+              />
+              {project.identifier}
+              {selectedProject === null && projectIssueCounts[project.id] && (
+                <span className="text-xs opacity-60">{projectIssueCounts[project.id]}</span>
+              )}
+            </button>
+          ))}
         </div>
+      </div>
 
-        <Select
-          value={cycleFilter?.toString() || 'all'}
-          onValueChange={(v) => setCycleFilter(v === 'all' ? null : Number(v))}
-        >
-          <SelectTrigger className="w-36 h-8 text-sm">
-            <Calendar className="w-3 h-3 mr-2" />
-            <SelectValue placeholder="All Cycles" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Cycles</SelectItem>
-            {cycles.map((cycle) => (
-              <SelectItem key={cycle.id} value={cycle.id.toString()}>
-                {cycle.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={projectFilter?.toString() || 'all'}
-          onValueChange={(v) => setProjectFilter(v === 'all' ? null : Number(v))}
-        >
-          <SelectTrigger className="w-36 h-8 text-sm">
-            <SelectValue placeholder="All Projects" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Projects</SelectItem>
-            {projects.map((project) => (
-              <SelectItem key={project.id} value={project.id.toString()}>
-                <span className="flex items-center gap-2">
-                  <span
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: project.color }}
-                  />
-                  {project.name}
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={stateFilter || 'all'}
-          onValueChange={(v) => setStateFilter(v === 'all' ? null : (v as IssueState))}
-        >
-          <SelectTrigger className="w-32 h-8 text-sm">
-            <SelectValue placeholder="All States" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All States</SelectItem>
-            {STATE_COLUMNS.map((col) => (
-              <SelectItem key={col.id} value={col.id}>
-                {col.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
+      {/* Simplified Filter Bar */}
+      <div className="flex items-center gap-3 px-6 py-2 border-b border-border bg-[#1A1A1A]/50">
         <Select
           value={priorityFilter || 'all'}
           onValueChange={(v) =>
@@ -1491,7 +1728,7 @@ export function Projects() {
           }
         >
           <SelectTrigger className="w-32 h-8 text-sm">
-            <SelectValue placeholder="All Priorities" />
+            <SelectValue placeholder="Priority" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Priorities</SelectItem>
@@ -1504,76 +1741,27 @@ export function Projects() {
         </Select>
 
         <Select
-          value={complexityFilter || 'all'}
-          onValueChange={(v) =>
-            setComplexityFilter(v === 'all' ? null : (v as IssueComplexity))
-          }
+          value={stateFilter || 'all'}
+          onValueChange={(v) => setStateFilter(v === 'all' ? null : (v as IssueState))}
         >
           <SelectTrigger className="w-32 h-8 text-sm">
-            <SelectValue placeholder="Complexity" />
+            <SelectValue placeholder="State" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Complexity</SelectItem>
-            {(['low', 'medium', 'high'] as IssueComplexity[]).map((c) => (
-              <SelectItem key={c} value={c}>
-                <span className="flex items-center gap-2">
-                  <span style={{ color: COMPLEXITY_CONFIG[c].color }}>{COMPLEXITY_CONFIG[c].icon}</span>
-                  {COMPLEXITY_CONFIG[c].label}
-                </span>
+            <SelectItem value="all">All States</SelectItem>
+            {STATE_COLUMNS.map((col) => (
+              <SelectItem key={col.id} value={col.id}>
+                {col.label}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
 
-        <Select
-          value={scopeFilter || 'all'}
-          onValueChange={(v) =>
-            setScopeFilter(v === 'all' ? null : (v as IssueScope))
-          }
-        >
-          <SelectTrigger className="w-36 h-8 text-sm">
-            <SelectValue placeholder="Scope" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Scopes</SelectItem>
-            <SelectItem value="isolated">
-              <span className="flex items-center gap-2">
-                <span style={{ color: SCOPE_CONFIG.isolated.color }}>○</span>
-                Isolated
-              </span>
-            </SelectItem>
-            <SelectItem value="cross-cutting">
-              <span className="flex items-center gap-2">
-                <span style={{ color: SCOPE_CONFIG['cross-cutting'].color }}>⟷</span>
-                Cross-cutting
-              </span>
-            </SelectItem>
-          </SelectContent>
-        </Select>
-
-        {/* Label Filter Dropdown */}
-        <LabelFilterDropdown 
-          labels={allLabels} 
-          selected={labelFilter} 
-          onChange={setLabelFilter} 
+        <LabelFilterDropdown
+          labels={allLabels}
+          selected={labelFilter}
+          onChange={setLabelFilter}
         />
-
-        {/* Group By */}
-        <Select
-          value={groupBy}
-          onValueChange={(v) => setGroupBy(v as GroupBy)}
-        >
-          <SelectTrigger className="w-32 h-8 text-sm">
-            <LayoutGrid className="w-3 h-3 mr-2" />
-            <SelectValue placeholder="Group by" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="state">State</SelectItem>
-            <SelectItem value="priority">Priority</SelectItem>
-            <SelectItem value="project">Project</SelectItem>
-            <SelectItem value="labels">Labels</SelectItem>
-          </SelectContent>
-        </Select>
 
         <div className="flex-1" />
 
@@ -1583,9 +1771,26 @@ export function Projects() {
             placeholder="Search issues..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-64 h-8 pl-9 text-sm"
+            className="w-56 h-8 pl-9 text-sm"
           />
         </div>
+
+        <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as ViewMode)}>
+          <TabsList className="bg-[#1A1A1A] h-8">
+            <TabsTrigger value="board" className="data-[state=active]:bg-[#FF9900]/20 h-7 text-xs px-2">
+              <LayoutGrid className="w-3.5 h-3.5 mr-1" />
+              Board
+            </TabsTrigger>
+            <TabsTrigger value="list" className="data-[state=active]:bg-[#FF9900]/20 h-7 text-xs px-2">
+              <List className="w-3.5 h-3.5 mr-1" />
+              List
+            </TabsTrigger>
+            <TabsTrigger value="calendar" className="data-[state=active]:bg-[#FF9900]/20 h-7 text-xs px-2">
+              <Calendar className="w-3.5 h-3.5 mr-1" />
+              Calendar
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
 
       {/* Content */}
@@ -1620,102 +1825,29 @@ export function Projects() {
               ) : null}
             </DragOverlay>
           </DndContext>
-        ) : (
-          // List View
+        ) : viewMode === 'list' ? (
+          // List View with expandable parent/child rows
           <div className="h-full overflow-auto p-4">
             <Card className="border-border">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-[#1A1A1A] text-muted-foreground">
                     <tr>
-                      <th className="text-left p-3 font-medium w-24">ID</th>
+                      <th className="text-left p-3 font-medium w-28">ID</th>
                       <th className="text-left p-3 font-medium">Title</th>
                       <th className="text-left p-3 font-medium w-24">State</th>
                       <th className="text-left p-3 font-medium w-24">Priority</th>
-                      <th className="text-left p-3 font-medium w-20">Complexity</th>
-                      <th className="text-left p-3 font-medium w-24">Scope</th>
                       <th className="text-left p-3 font-medium w-24">Type</th>
-                      <th className="text-left p-3 font-medium w-32">Project</th>
-                      <th className="text-left p-3 font-medium w-28">Cycle</th>
+                      <th className="text-left p-3 font-medium w-24">Project</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {issues.map((issue) => (
-                      <tr
+                      <ExpandableIssueRow
                         key={issue.id}
-                        className="hover:bg-[#1A1A1A]/50 cursor-pointer"
-                        onClick={() => setSelectedIssue(issue)}
-                      >
-                        <td className="p-3 font-mono text-muted-foreground">
-                          {issue.identifier}
-                        </td>
-                        <td className="p-3">
-                          <div className="font-medium">{issue.title}</div>
-                          {issue.labels.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {issue.labels.map((label) => (
-                                <LabelBadge
-                                  key={label.id}
-                                  name={label.name}
-                                  color={label.color}
-                                />
-                              ))}
-                            </div>
-                          )}
-                        </td>
-                        <td className="p-3">
-                          <span
-                            className="inline-flex items-center px-2 py-0.5 text-xs rounded"
-                            style={{
-                              backgroundColor:
-                                issue.state === 'done'
-                                  ? '#10B98120'
-                                  : issue.state === 'in_progress'
-                                  ? '#3B82F620'
-                                  : issue.state === 'testing'
-                                  ? '#A855F720'
-                                  : issue.state === 'cancelled'
-                                  ? '#6B728020'
-                                  : '#EAB30820',
-                              color:
-                                issue.state === 'done'
-                                  ? '#10B981'
-                                  : issue.state === 'in_progress'
-                                  ? '#3B82F6'
-                                  : issue.state === 'testing'
-                                  ? '#A855F7'
-                                  : issue.state === 'cancelled'
-                                  ? '#6B7280'
-                                  : '#EAB308',
-                            }}
-                          >
-                            {issue.state.replace('_', ' ')}
-                          </span>
-                        </td>
-                        <td className="p-3">
-                          <PriorityBadge priority={issue.priority} />
-                        </td>
-                        <td className="p-3">
-                          <ComplexityBadge complexity={issue.complexity} />
-                        </td>
-                        <td className="p-3">
-                          <ScopeBadge scope={issue.scope} />
-                        </td>
-                        <td className="p-3">
-                          <TypeBadge type={issue.type} />
-                        </td>
-                        <td className="p-3">
-                          {issue.project && (
-                            <ProjectBadge
-                              identifier={issue.project.identifier}
-                              color={issue.project.color}
-                            />
-                          )}
-                        </td>
-                        <td className="p-3 text-muted-foreground">
-                          {issue.cycle?.name || '-'}
-                        </td>
-                      </tr>
+                        issue={issue}
+                        onClick={setSelectedIssue}
+                      />
                     ))}
                   </tbody>
                 </table>
@@ -1727,6 +1859,9 @@ export function Projects() {
               </div>
             </Card>
           </div>
+        ) : (
+          // Calendar View
+          <CalendarView issues={issues} onIssueClick={setSelectedIssue} />
         )}
       </div>
 
@@ -1735,7 +1870,17 @@ export function Projects() {
         issue={selectedIssue}
         onClose={() => setSelectedIssue(null)}
         onUpdate={updateIssue}
-        cycles={cycles}
+        projects={projects}
+        allLabels={allLabels}
+        onCreateSubIssue={createIssue}
+        onSelectIssue={setSelectedIssue}
+        onUpdateLabels={async (issueId, labelIds) => {
+          await fetch(`/api/issues/${issueId}/labels`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ labelIds }),
+          })
+        }}
       />
 
       {/* Overlay for detail panel */}

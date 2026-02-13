@@ -15,6 +15,7 @@ import { splitMessage } from './format.js';
 import { clearAllModes } from '../scheduler/sleep-mode.js';
 import { acquireProcessingLock, releaseProcessingLock } from '../scheduler/processing-lock.js';
 import { dispatchBackgroundTask } from '../scheduler/background-runner.js';
+import { classifyMessage } from './classifier.js';
 import { MessageQueue } from './message-queue.js';
 import { textToSpeech, analyzeContentForVoice } from './tts.js';
 
@@ -103,11 +104,14 @@ export class MessageRouter {
   }
 
   /**
-   * Start the router and all registered adapters
+   * Start the router and all registered adapters.
+   * Non-critical adapters (Slack, WhatsApp) failing won't crash the bridge.
    */
   async start(): Promise<void> {
     this.startedAt = new Date();
     log.info('Starting router', { adapterCount: this.adapters.size });
+
+    const criticalAdapters = new Set(['telegram']);
 
     for (const adapter of this.adapters.values()) {
       try {
@@ -118,7 +122,13 @@ export class MessageRouter {
           channel: adapter.channel,
           error: String(err),
         });
-        throw err;
+
+        if (criticalAdapters.has(adapter.channel)) {
+          throw err; // Telegram must work — crash the bridge
+        }
+        // Non-critical adapter: log and continue without it
+        log.warn('Adapter disabled due to startup failure', { channel: adapter.channel });
+        this.adapters.delete(adapter.channel);
       }
     }
   }
@@ -240,8 +250,13 @@ export class MessageRouter {
   }
 
   /**
-   * Process a single message through the Opus agent.
-   * Handles response parsing, BACKGROUND_TASK dispatch, session management.
+   * Process a single message through the classifier + Opus agent.
+   *
+   * Flow:
+   * 1. Classifier (GPT-4o-mini, ~300ms) → determines if direct or background
+   * 2. If background + high confidence → dispatch skill directly, send ack
+   * 3. If direct → full Opus agent for conversational response
+   * 4. Opus can still emit BACKGROUND_TASK signal as fallback
    */
   private async processMessage(message: IncomingMessage, channel: string): Promise<void> {
     const memory = getMemoryService();
@@ -254,6 +269,62 @@ export class MessageRouter {
       preview: message.content.slice(0, 50),
     });
 
+    // --- Step 1: Classifier pre-routing ---
+    const classification = await classifyMessage(message.content);
+
+    if (classification.type === 'background' && classification.capability && classification.confidence >= 0.7) {
+      // Fast path: dispatch background task directly, skip Opus
+      log.info('Classifier routed to background', {
+        chatId: message.chatId,
+        capability: classification.capability,
+        confidence: classification.confidence,
+      });
+
+      // Send ack to user immediately
+      const ack = classification.ack || `Ik werk eraan...`;
+      await this.sendMessage(message.chatId, ack);
+
+      // Store ack in memory
+      try {
+        await memory.storeMessage({
+          sessionId: message.chatId,
+          channel: channel as Channel,
+          role: 'kitt',
+          content: ack,
+          metadata: { classifierRouted: true, capability: classification.capability },
+        });
+      } catch (err) {
+        log.error('Failed to store classifier ack in memory', { error: String(err) });
+      }
+
+      // Dispatch background task
+      const onComplete = async (chatId: string, result: string) => {
+        await this.sendMessage(chatId, result);
+      };
+
+      await dispatchBackgroundTask({
+        chatId: message.chatId,
+        channel,
+        capabilityId: classification.capability,
+        prompt: message.content,
+        description: ack,
+        onComplete,
+      }).catch((err) => {
+        log.error('Failed to dispatch classified background task', {
+          capability: classification.capability,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+
+      // Update chat state
+      updateChatState(message.chatId, message.groupName || message.displayName);
+      await saveState();
+
+      return;
+    }
+
+    // --- Step 2: Direct path → Opus agent ---
+
     // ACK after 5 seconds if agent hasn't responded yet
     const ACK_DELAY_MS = 5_000;
     let ackSent = false;
@@ -263,7 +334,7 @@ export class MessageRouter {
       await this.sendMessage(message.chatId, ack).catch(() => {});
     }, ACK_DELAY_MS);
 
-    // Agent call — timeout is handled by the Agent Pool (60s for chat)
+    // Agent call — timeout is handled by the Agent Pool (90s for chat)
     let response: Awaited<ReturnType<typeof runAgent>>;
 
     try {
@@ -318,7 +389,7 @@ export class MessageRouter {
       log.info('Voice mode changed', { chatId: message.chatId, enabled: voiceMode });
     }
 
-    // Parse response for BACKGROUND_TASK signal
+    // Parse response for BACKGROUND_TASK signal (Opus fallback — still supported)
     const { message: userMessage, task } = this.parseBackgroundTask(withoutVoiceSignal);
 
     // Send the organic response to the user
@@ -342,9 +413,9 @@ export class MessageRouter {
       log.error('Failed to store KITT message in memory', { error: String(err) });
     }
 
-    // If KITT requested a background task, dispatch it
+    // If KITT requested a background task (Opus fallback), dispatch it
     if (task) {
-      log.info('Dispatching background task', {
+      log.info('Dispatching background task (Opus signal)', {
         chatId: message.chatId,
         skill: task.skill,
       });

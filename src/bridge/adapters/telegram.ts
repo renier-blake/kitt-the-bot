@@ -153,10 +153,23 @@ export class TelegramAdapter implements ChannelAdapter {
     const chunks = splitMessage(content, 4000);
     for (const chunk of chunks) {
       const { text, parseMode } = formatForTelegramSafe(chunk);
-      await this.bot.api.sendMessage(rawChatId, text, {
-        parse_mode: parseMode,
-        reply_to_message_id: options?.replyToMessageId as number | undefined,
-      });
+      try {
+        await this.bot.api.sendMessage(rawChatId, text, {
+          parse_mode: parseMode,
+          reply_to_message_id: options?.replyToMessageId as number | undefined,
+        });
+      } catch (err) {
+        // If MarkdownV2 parse fails, retry as plain text
+        const isParseError = err instanceof Error && err.message.includes("can't parse entities");
+        if (isParseError && parseMode) {
+          log.warn('Telegram parse failed, retrying as plain text', { chatId });
+          await this.bot.api.sendMessage(rawChatId, chunk, {
+            reply_to_message_id: options?.replyToMessageId as number | undefined,
+          });
+        } else {
+          throw err;
+        }
+      }
     }
 
     log.info('Sent Telegram message', { chatId, length: content.length });

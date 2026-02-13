@@ -5,9 +5,9 @@ user_invocable: false
 args: issue_identifier
 ---
 
-# Issue Builder (KITT via Telegram)
+# Issue Builder (via Telegram)
 
-Deze skill is voor wanneer KITT via Telegram aan een issue gaat werken.
+Voor wanneer KITT via Telegram aan een issue gaat werken.
 
 **BELANGRIJK:** GEEN Plan Mode gebruiken — dat werkt niet via Telegram. In plaats daarvan maak je een plan en deel je het in het chatbericht.
 
@@ -19,13 +19,13 @@ Deze skill is voor wanneer KITT via Telegram aan een issue gaat werken.
 
 ```bash
 sqlite3 -json profile/data/kitt.db "
-  SELECT
-    i.identifier, i.title, i.description, i.type, i.state, i.priority,
-    i.complexity, i.scope,
-    p.identifier as project, p.name as project_name,
-    GROUP_CONCAT(l.name) as labels
+  SELECT i.identifier, i.title, i.description, i.type, i.state, i.priority,
+         p.identifier as project, p.name as project_name,
+         pi.identifier as parent,
+         GROUP_CONCAT(DISTINCT l.name) as labels
   FROM portal_issues i
   LEFT JOIN portal_projects p ON i.project_id = p.id
+  LEFT JOIN portal_issues pi ON i.parent_id = pi.id
   LEFT JOIN portal_issue_labels il ON i.id = il.issue_id
   LEFT JOIN portal_labels l ON il.label_id = l.id
   WHERE i.identifier = 'ISSUE_ID'
@@ -33,9 +33,14 @@ sqlite3 -json profile/data/kitt.db "
 "
 ```
 
-Update state naar `in_progress`:
+Update state naar `in_progress` (history first):
 
 ```bash
+sqlite3 profile/data/kitt.db "
+  INSERT INTO portal_issue_history (issue_id, type, old_value, new_value, created_at)
+  SELECT id, 'state_change', state, 'in_progress', unixepoch() * 1000
+  FROM portal_issues WHERE identifier = 'ISSUE_ID'
+"
 sqlite3 profile/data/kitt.db "
   UPDATE portal_issues
   SET state = 'in_progress', updated_at = unixepoch() * 1000
@@ -45,33 +50,19 @@ sqlite3 profile/data/kitt.db "
 
 ### 2. Context Lezen
 
-**Altijd lezen:**
-1. `_prd/architecture/ARCHITECTURE.md`
-2. `_prd/workflows/AGENT.md`
+**Altijd lezen:** `CLAUDE.md`
 
-**Op basis van labels extra code/docs lezen:**
-
-| Label | Lees ook |
-|-------|----------|
-| bridge | `src/bridge/` |
-| memory | `src/memory/` |
-| scheduler | `src/scheduler/` |
-| portal | `frontends/portal/`, `src/bridge/log-server.ts` |
-| integrations | `src/integrations/` |
-| security | `src/bridge/`, `src/credentials/` |
-| skills | `.claude/skills/`, bestaande skills |
-| infra | `src/bridge/`, `src/scheduler/` |
-| core | `src/context/`, `profile/context/` |
+**Daarna:** Bepaal op basis van de issue beschrijving en labels welke code en docs relevant zijn. Lees de relevante directories en bestanden voordat je een plan maakt.
 
 ### 3. Plan Maken & Delen
 
-Maak een plan van aanpak en **stuur dit als chatbericht naar Renier**. Het plan bevat:
+Maak een plan en **stuur dit als chatbericht**:
 
 ```
-📋 Plan: [ISSUE_ID] — [titel]
+Plan: [ISSUE_ID] — [titel]
 
 ## Wat gaat er veranderen?
-[1-3 zinnen in normale taal — wat ervaart de gebruiker straks anders?]
+[1-3 zinnen — wat ervaart de gebruiker straks anders?]
 
 ## Aanpak
 1. [Stap 1 — bestand + wat je doet]
@@ -84,15 +75,15 @@ Maak een plan van aanpak en **stuur dit als chatbericht naar Renier**. Het plan 
 Mag ik hiermee starten?
 ```
 
-**STOP hier. Wacht op goedkeuring van Renier.**
+**STOP hier. Wacht op goedkeuring.**
 
-- Als Renier "ok", "ja", "go", "doen" of iets vergelijkbaars zegt → ga door naar stap 4
-- Als Renier feedback geeft → pas het plan aan en deel opnieuw
-- Als Renier "nee" of "stop" zegt → stop en zet state terug naar `todo`
+- "ok", "ja", "go", "doen" → ga door naar stap 4
+- Feedback → pas plan aan en deel opnieuw
+- "nee" of "stop" → stop en zet state terug naar `todo`
 
 ### 4. Plan Opslaan in Issue
 
-Na goedkeuring, sla het goedgekeurde plan op in de issue description:
+Na goedkeuring, sla het plan op in de issue description:
 
 ```bash
 sqlite3 profile/data/kitt.db "
@@ -103,23 +94,18 @@ sqlite3 profile/data/kitt.db "
 "
 ```
 
-Dit zorgt ervoor dat:
-- KITT altijd weet waar hij mee bezig is als hij later terugkomt
-- Renier in de Portal kan zien wat het plan was
-- Er een audit trail is van wat is afgesproken
-
 ### 5. Bouwen
 
-Implementeer volgens het goedgekeurde plan:
-- Schrijf code
-- Test wat je bouwt
-- Geef tussentijdse updates als het langer duurt
+Implementeer volgens het goedgekeurde plan. Geef tussentijdse updates als het langer duurt.
 
 ### 6. Afronden
 
-Na completion:
-
 ```bash
+sqlite3 profile/data/kitt.db "
+  INSERT INTO portal_issue_history (issue_id, type, old_value, new_value, created_at)
+  SELECT id, 'state_change', state, 'done', unixepoch() * 1000
+  FROM portal_issues WHERE identifier = 'ISSUE_ID'
+"
 sqlite3 profile/data/kitt.db "
   UPDATE portal_issues
   SET state = 'done', updated_at = unixepoch() * 1000
@@ -127,33 +113,25 @@ sqlite3 profile/data/kitt.db "
 "
 ```
 
-**Stuur een bericht naar Renier:**
-> ✅ [ISSUE_ID] is klaar. [korte samenvatting wat er is gedaan]. Mag ik committen?
+Stuur bericht: "[ISSUE_ID] is klaar. [korte samenvatting]. Mag ik committen?"
 
-Commit pas na toestemming:
-```bash
-git add [specific files]
-git commit -m "[ISSUE_ID]: [beschrijving]"
-```
+Commit pas na toestemming.
 
 ---
 
 ## Regels
 
-- **NOOIT** in Plan Mode gaan (werkt niet via Telegram)
+- **NOOIT** Plan Mode gebruiken (werkt niet via Telegram)
 - **ALTIJD** plan delen en wachten op goedkeuring voordat je bouwt
 - **ALTIJD** plan opslaan in de issue na goedkeuring
 - **NOOIT** committen zonder toestemming
-- **Bij twijfel**: vraag Renier, niet zelf beslissen
-
----
 
 ## Fallbacks
 
 | Situatie | Actie |
 |----------|-------|
-| Issue niet gevonden | Meld aan Renier, vraag correct identifier |
-| Geen description | Vraag Renier om meer context |
-| State is al `done` | Vraag of Renier wil heropenen |
+| Issue niet gevonden | Meld, vraag correct identifier |
+| Geen description | Vraag om meer context |
+| State is al `done` | Vraag of user wil heropenen |
 | Halverwege geblokkeerd | Stuur update, vraag hulp |
 | Te complex voor één sessie | Splits in sub-stappen, deel voortgang |

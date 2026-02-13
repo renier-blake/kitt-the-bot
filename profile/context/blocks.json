@@ -33,7 +33,7 @@
       "type": "file",
       "path": "profile/user/USER.md",
       "header": "About Your Human",
-      "modes": ["chat", "think"],
+      "modes": ["chat", "think", "background"],
       "priority": 10,
       "enabled": true
     },

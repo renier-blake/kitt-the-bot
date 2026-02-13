@@ -47,7 +47,7 @@ sqlite3 -json profile/data/kitt.db "
 
 ```bash
 sqlite3 -json profile/data/kitt.db "
-  SELECT role, type, substr(content, 1, 300) as content,
+  SELECT role, type, substr(content, 1, 1000) as content,
     datetime(created_at/1000, 'unixepoch', 'localtime') as time
   FROM transcripts
   WHERE date(created_at/1000, 'unixepoch', 'localtime') = date('now', 'localtime')
