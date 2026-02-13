@@ -300,10 +300,12 @@ export function registerContentRoutes(app: Express, deps: ContentDeps): void {
 
       await database.execute({ sql: 'DELETE FROM content_item_labels WHERE item_id = ?', args: [itemId] });
 
-      for (const labelId of labelIds) {
+      if (labelIds.length > 0) {
+        const values = labelIds.map(() => '(?, ?)').join(', ');
+        const args = labelIds.flatMap(id => [itemId, id]);
         await database.execute({
-          sql: 'INSERT INTO content_item_labels (item_id, label_id) VALUES (?, ?)',
-          args: [itemId, labelId],
+          sql: `INSERT INTO content_item_labels (item_id, label_id) VALUES ${values}`,
+          args,
         });
       }
 

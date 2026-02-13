@@ -328,10 +328,12 @@ export function registerIssuesRoutes(app: Express, deps: IssuesDeps): void {
         args: [issueId],
       });
 
-      for (const labelId of labelIds) {
+      if (labelIds.length > 0) {
+        const values = labelIds.map(() => '(?, ?)').join(', ');
+        const args = labelIds.flatMap(id => [issueId, id]);
         await database.execute({
-          sql: 'INSERT INTO portal_issue_labels (issue_id, label_id) VALUES (?, ?)',
-          args: [issueId, labelId],
+          sql: `INSERT INTO portal_issue_labels (issue_id, label_id) VALUES ${values}`,
+          args,
         });
       }
 

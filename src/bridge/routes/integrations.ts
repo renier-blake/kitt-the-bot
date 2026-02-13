@@ -15,6 +15,7 @@ import {
 } from '../../integrations/nango.js';
 import {
   getAllConfig,
+  getAllConfigRaw,
   setConfigValue,
   getConnections as getLocalConnections,
   setDefaultConnection,
@@ -55,9 +56,10 @@ export function registerIntegrationsRoutes(app: Express, deps: IntegrationsDeps)
       const vaultEntries = await listCredentials();
       const vaultKeys = new Set(vaultEntries.map(e => e.key));
 
-      const { getConfigValue } = await import('../../integrations/config.js');
+      // Prefetch all config values in one call to avoid N+1 per-integration queries
+      const configMap = await getAllConfigRaw();
 
-      const integrations = await Promise.all(result.rows.map(async (row) => {
+      const integrations = result.rows.map(row => {
         const authConfig = row.auth_config ? JSON.parse(row.auth_config as string) : {};
         const authType = row.auth_type as string;
         const provider = row.provider as string;
@@ -90,7 +92,7 @@ export function registerIntegrationsRoutes(app: Express, deps: IntegrationsDeps)
         if (settings?.length) {
           settings_values = {};
           for (const s of settings) {
-            const val = await getConfigValue(s.key);
+            const val = configMap.get(s.key);
             if (val) settings_values[s.key] = val;
           }
         }
@@ -108,7 +110,7 @@ export function registerIntegrationsRoutes(app: Express, deps: IntegrationsDeps)
           connection,
           settings_values,
         };
-      }));
+      });
 
       res.json({ integrations });
     } catch (err) {

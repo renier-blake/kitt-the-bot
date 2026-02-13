@@ -75,6 +75,21 @@ export async function setConfigValue(key: string, value: string, description?: s
 }
 
 /**
+ * Get all raw config key-value pairs from database
+ */
+export async function getAllConfigRaw(): Promise<Map<string, string>> {
+  const db = getDb();
+  const map = new Map<string, string>();
+  try {
+    const result = await db.execute('SELECT key, value FROM kitt_config');
+    for (const row of result.rows) {
+      map.set(row.key as string, row.value as string);
+    }
+  } catch { /* table might not exist */ }
+  return map;
+}
+
+/**
  * Get all config values
  */
 export async function getAllConfig(): Promise<KittConfig> {
