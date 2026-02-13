@@ -9,8 +9,9 @@
 
 KITT gebruikt een gelaagd memory systeem:
 1. **MEMORY.md** - Working memory (facts, preferences) - altijd in context
-2. **kitt.db** - Long-term memory (SQLite + sqlite-vec + FTS5)
-3. **Hybrid search** - 0.7 × vector + 0.3 × BM25
+2. **kitt.db** - Long-term memory (SQLite + FTS5 keyword search)
+3. **kitt-vectors.db** - Dedicated vector store (embeddings, in-memory cosine search)
+4. **Hybrid search** - 0.7 × vector + 0.3 × BM25
 
 **Geïmplementeerd in:** `src/memory/`
 
@@ -23,11 +24,14 @@ KITT gebruikt een gelaagd memory systeem:
 │              Claude Code Session                 │
 │  (conversation context, tool results)           │
 ├─────────────────────────────────────────────────┤
-│       profile/memory/MEMORY.md                   │
+│       profile/identity/MEMORY.md                 │
 │  (persistent facts, preferences, notes)         │
 ├─────────────────────────────────────────────────┤
-│       profile/memory/kitt.db                     │
-│  (transcripts + vector index for search)        │
+│       profile/data/kitt.db                       │
+│  (transcripts, chunks metadata, FTS5 index)     │
+├─────────────────────────────────────────────────┤
+│       profile/data/kitt-vectors.db               │
+│  (embeddings as BLOB, in-memory cosine search)  │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -171,7 +175,8 @@ finalScore = 0.7 × vectorScore + 0.3 × BM25Score
 1. **Singleton Pattern** - `getMemoryService()` returns shared instance
 2. **Non-blocking Storage** - Fire-and-forget `.catch()` pattern
 3. **Background Indexing** - Debounced queue (1s idle) for batch embedding
-4. **Node 22 sqlite** - Built-in `node:sqlite`, no external dependency
+4. **Dedicated Vector Store** - Embeddings in separate `kitt-vectors.db`, loaded into memory on startup
+5. **In-Memory Cosine Search** - Brute-force over all vectors (<1ms at ~3000 vectors)
 
 ---
 
@@ -389,16 +394,22 @@ Cost:        ~$0.13 per 1M tokens
 
 ### Vector Storage
 ```
-Database:    SQLite + sqlite-vec extension
-Location:    memory/index/vectors.db
-Search:      Approximate Nearest Neighbor (ANN)
+Database:    Dedicated SQLite (plain BLOB, no vector index)
+Location:    profile/data/kitt-vectors.db
+Search:      In-memory brute-force cosine similarity (<1ms)
 ```
 
-**Waarom sqlite-vec:**
-- Single file, transparant
-- Geen server nodig
-- Makkelijk te backuppen
-- Voldoende performance voor personal scale
+**Architecture (v21, 13 feb 2026):**
+- Dedicated `VectorStore` class in `src/memory/vector-store.ts`
+- Embeddings stored as plain BLOB in separate SQLite file (no F32_BLOB, no ANN index)
+- All vectors loaded into `Map<string, Float32Array>` on startup (~35MB for 3000 vectors)
+- Cosine similarity computed in JS — sub-millisecond at current scale
+- Write-through: every store() writes to disk + updates in-memory Map
+
+**Why separate from kitt.db:**
+- libsql's vector index (`libsql_vector_idx`) inflated kitt.db from ~8MB to 1.8GB
+- The ANN shadow table used ~626KB per vector (52x raw embedding size)
+- After extraction: kitt.db = 7.7MB, kitt-vectors.db = 36MB (97.6% total reduction)
 
 ### Keyword Search
 ```
@@ -432,16 +443,17 @@ const timeAwareScore = finalScore * (0.8 + 0.2 * timeWeight);
 │                     KITT Memory System                       │
 ├─────────────────────────────────────────────────────────────┤
 │  Transparent Layer (profile/)                                │
-│  ├── profile/memory/MEMORY.md  → Core facts, always visible │
-│  ├── profile/identity/         → KITT personality files     │
-│  └── profile/user/             → User information           │
+│  ├── profile/identity/MEMORY.md → Core facts, always visible│
+│  ├── profile/identity/          → KITT personality files     │
+│  └── profile/user/              → User information           │
 ├─────────────────────────────────────────────────────────────┤
-│  Search Layer (SQLite)                                       │
-│  ├── profile/memory/kitt.db                                  │
-│  │   ├── transcripts table (full conversations)             │
-│  │   ├── chunks table (for search)                          │
-│  │   ├── chunks_vec (sqlite-vec embeddings)                 │
-│  │   └── chunks_fts (FTS5 for BM25)                         │
+│  Search Layer                                                │
+│  ├── profile/data/kitt.db                                    │
+│  │   ├── transcripts (full conversations)                   │
+│  │   ├── chunks (metadata: id, content, source, hash)       │
+│  │   └── chunks_fts (FTS5 for BM25 keyword search)          │
+│  ├── profile/data/kitt-vectors.db                            │
+│  │   └── vectors (chunk_id, embedding BLOB, dimensions)     │
 │  └── Hybrid query: 0.7 × vector + 0.3 × BM25                │
 ├─────────────────────────────────────────────────────────────┤
 │  Embedding Layer (OpenAI API)                                │
@@ -467,13 +479,14 @@ OPENAI_API_KEY=sk-...
 ### Source Code
 ```
 src/memory/
-├── index.ts        # MemoryService class + singleton
-├── types.ts        # TypeScript interfaces
-├── schema.ts       # Database init + sqlite-vec setup
-├── embeddings.ts   # OpenAI embedding wrapper
-├── search.ts       # Hybrid search implementation
-├── chunking.ts     # Token-aware text chunking
-└── utils.ts        # Hash, date, buffer helpers
+├── index.ts          # MemoryService class + singleton
+├── vector-store.ts   # Dedicated VectorStore (in-memory cosine search)
+├── types.ts          # TypeScript interfaces
+├── schema.ts         # Database init + migrations (v21: vector extraction)
+├── embeddings.ts     # OpenAI embedding wrapper
+├── search.ts         # Hybrid search (vector + FTS5)
+├── chunking.ts       # Token-aware text chunking
+└── utils.ts          # Hash, date, buffer, cosineSimilarity helpers
 ```
 
 ### Usage Example

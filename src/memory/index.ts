@@ -29,6 +29,7 @@ import {
 } from './schema.js';
 import { generateId, now, formatDate } from './utils.js';
 import { getCredential } from '../credentials/index.js';
+import { VectorStore } from './vector-store.js';
 
 // Default configuration
 const DEFAULT_CONFIG: MemoryConfig = {
@@ -48,6 +49,7 @@ export class MemoryService {
   private config: MemoryConfig;
   private status: DatabaseStatus | null = null;
   private initialized = false;
+  private vectorStore: VectorStore | null = null;
 
   // Background indexing queue
   private indexQueue: Set<string> = new Set();
@@ -93,6 +95,18 @@ export class MemoryService {
     this.status = status;
     this.initialized = true;
 
+    // Initialize dedicated vector store
+    try {
+      const vectorDbPath = this.config.dbPath.replace(/\.db$/, '-vectors.db');
+      this.vectorStore = new VectorStore(vectorDbPath, this.config.embeddingDimensions);
+      const vectorStatus = await this.vectorStore.initialize();
+      // Vector search is available if we have vectors OR can generate new ones
+      status.vectorAvailable = vectorStatus.count > 0 || !!this.config.openaiApiKey;
+    } catch (err) {
+      console.warn('[memory] Vector store initialization failed:', err);
+      this.vectorStore = null;
+    }
+
     // Log status
     if (status.errors.length > 0) {
       console.warn('[memory] Initialization warnings:', status.errors);
@@ -101,6 +115,7 @@ export class MemoryService {
     console.log('[memory] Initialized:', {
       fts: status.ftsAvailable,
       vector: status.vectorAvailable,
+      vectorCount: this.vectorStore?.count() ?? 0,
       dimensions: status.vectorDimensions,
     });
 
@@ -120,6 +135,12 @@ export class MemoryService {
     // Process remaining queue
     if (this.indexQueue.size > 0) {
       await this.processIndexQueue();
+    }
+
+    // Close vector store
+    if (this.vectorStore) {
+      this.vectorStore.close();
+      this.vectorStore = null;
     }
 
     // Close database
@@ -143,6 +164,13 @@ export class MemoryService {
    */
   getDb(): Client | null {
     return this.db;
+  }
+
+  /**
+   * Get the vector store instance
+   */
+  getVectorStore(): VectorStore | null {
+    return this.vectorStore;
   }
 
   // ==========================================
@@ -231,7 +259,7 @@ export class MemoryService {
       textWeight: this.config.textWeight,
       sources: options.sources,
       timeRange: options.timeRange,
-      vectorAvailable: this.status?.vectorAvailable ?? false,
+      vectorStore: this.vectorStore,
       ftsAvailable: this.status?.ftsAvailable ?? false,
     });
   }
@@ -486,11 +514,23 @@ export class MemoryService {
       return; // Already indexed
     }
 
+    // Get old chunk IDs for vector store cleanup
+    const oldChunks = await this.db!.execute({
+      sql: `SELECT id FROM chunks WHERE path = ? AND source = ?`,
+      args: [relativePath, source],
+    });
+    const oldChunkIds = oldChunks.rows.map((r) => String(r.id));
+
     // Delete old chunks for this path
     await this.db!.execute({
       sql: `DELETE FROM chunks WHERE path = ? AND source = ?`,
       args: [relativePath, source],
     });
+
+    // Delete from vector store
+    if (this.vectorStore && oldChunkIds.length > 0) {
+      await this.vectorStore.deleteByChunkIds(oldChunkIds);
+    }
 
     // Delete from FTS if available
     if (this.status?.ftsAvailable) {
@@ -506,7 +546,7 @@ export class MemoryService {
 
     // Get embeddings for all chunks
     let embeddings: number[][] = [];
-    if (this.status?.vectorAvailable && this.config.openaiApiKey) {
+    if (this.vectorStore && this.config.openaiApiKey) {
       if (!this._embedder) {
         const { EmbeddingService } = await import('./embeddings.js');
         this._embedder = new EmbeddingService(
@@ -532,10 +572,10 @@ export class MemoryService {
       const embedding = embeddings[i] ?? null;
       const id = generateId();
 
-      // Insert chunk with vector embedding
+      // Insert chunk metadata (without embedding — that goes to vector store)
       await this.db!.execute({
-        sql: `INSERT INTO chunks (id, transcript_id, source, path, content, hash, start_line, end_line, embedding, model, created_at)
-              VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ${embedding ? 'vector32(?)' : 'NULL'}, ?, ?)`,
+        sql: `INSERT INTO chunks (id, transcript_id, source, path, content, hash, start_line, end_line, model, created_at)
+              VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           id,
           source,
@@ -544,11 +584,15 @@ export class MemoryService {
           chunk.hash,
           chunk.startLine,
           chunk.endLine,
-          ...(embedding ? [JSON.stringify(embedding)] : []),
           this.config.embeddingModel,
           timestamp,
         ],
       });
+
+      // Store embedding in dedicated vector store
+      if (embedding && this.vectorStore) {
+        await this.vectorStore.store(id, embedding, this.config.embeddingModel);
+      }
 
       // Insert into FTS
       if (this.status?.ftsAvailable) {
@@ -628,9 +672,9 @@ export class MemoryService {
     // Skip if no meaningful chunks
     if (chunks.length === 0) return;
 
-    // Get embeddings if vector search is available
+    // Get embeddings if vector store is available
     let embeddings: number[][] = [];
-    if (this.status?.vectorAvailable && this.config.openaiApiKey) {
+    if (this.vectorStore && this.config.openaiApiKey) {
       if (!this._embedder) {
         const { EmbeddingService } = await import('./embeddings.js');
         this._embedder = new EmbeddingService(
@@ -656,10 +700,10 @@ export class MemoryService {
       const embedding = embeddings[i] ?? null;
       const id = generateId();
 
-      // Insert chunk with vector embedding
+      // Insert chunk metadata (without embedding — that goes to vector store)
       await this.db!.execute({
-        sql: `INSERT INTO chunks (id, transcript_id, source, path, content, hash, start_line, end_line, embedding, model, created_at)
-              VALUES (?, ?, 'transcript', NULL, ?, ?, ?, ?, ${embedding ? 'vector32(?)' : 'NULL'}, ?, ?)`,
+        sql: `INSERT INTO chunks (id, transcript_id, source, path, content, hash, start_line, end_line, model, created_at)
+              VALUES (?, ?, 'transcript', NULL, ?, ?, ?, ?, ?, ?)`,
         args: [
           id,
           transcriptId,
@@ -667,11 +711,15 @@ export class MemoryService {
           chunk.hash,
           chunk.startLine,
           chunk.endLine,
-          ...(embedding ? [JSON.stringify(embedding)] : []),
           this.config.embeddingModel,
           timestamp,
         ],
       });
+
+      // Store embedding in dedicated vector store
+      if (embedding && this.vectorStore) {
+        await this.vectorStore.store(id, embedding, this.config.embeddingModel);
+      }
 
       // Insert into FTS
       if (this.status?.ftsAvailable) {

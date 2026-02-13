@@ -11,7 +11,7 @@ import { createClient, type Client } from '@libsql/client';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const SCHEMA_VERSION = 20; // Content Calendar (KITT-168)
+const SCHEMA_VERSION = 21; // Vector Store Extraction (dedicated vectors.db)
 
 // Core schema SQL
 const CORE_SCHEMA = `
@@ -1031,6 +1031,72 @@ export async function initializeDatabase(
       console.log('[schema] Migration v19 -> v20 complete: Content Calendar');
     }
 
+    // Migration: v20 -> v21: Vector Store Extraction
+    if (currentVersion < 21) {
+      console.log('[schema] Running migration v20 -> v21 (Vector Store Extraction)...');
+
+      // Check if vectors have been migrated to dedicated store
+      const migrationCheck = await db.execute({
+        sql: "SELECT value FROM meta WHERE key = 'vector_migrated'",
+        args: [],
+      });
+
+      const vectorMigrated = migrationCheck.rows.length > 0 && String(migrationCheck.rows[0].value) === 'true';
+
+      if (vectorMigrated) {
+        // Safe to drop embedding column — data is in vectors.db
+        try {
+          await db.execute('DROP INDEX IF EXISTS idx_chunks_embedding');
+          console.log('[schema] Dropped vector index');
+        } catch (err) {
+          console.warn('[schema] Could not drop vector index:', err);
+        }
+
+        // Drop partial migration artifacts if they exist
+        try { await db.execute('DROP TABLE IF EXISTS chunks_v21'); } catch { /* ignore */ }
+
+        // Recreate chunks table without embedding column (no FK — orphans exist in practice)
+        await db.execute(`
+          CREATE TABLE chunks_v21 (
+            id TEXT PRIMARY KEY,
+            transcript_id TEXT,
+            source TEXT NOT NULL,
+            path TEXT,
+            content TEXT NOT NULL,
+            hash TEXT NOT NULL,
+            start_line INTEGER,
+            end_line INTEGER,
+            model TEXT,
+            created_at INTEGER NOT NULL
+          )
+        `);
+
+        await db.execute(`
+          INSERT INTO chunks_v21 (id, transcript_id, source, path, content, hash, start_line, end_line, model, created_at)
+          SELECT id, transcript_id, source, path, content, hash, start_line, end_line, model, created_at FROM chunks
+        `);
+
+        await db.execute('DROP TABLE chunks');
+        await db.execute('ALTER TABLE chunks_v21 RENAME TO chunks');
+
+        // Recreate indexes
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_chunks_transcript ON chunks(transcript_id)');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_chunks_source ON chunks(source)');
+        await db.execute('CREATE INDEX IF NOT EXISTS idx_chunks_hash ON chunks(hash)');
+
+        // Drop unused embedding_cache table
+        await db.execute('DROP TABLE IF EXISTS embedding_cache');
+
+        console.log('[schema] Migration v20 -> v21 complete: embedding column removed');
+        console.log('[schema] Running VACUUM to reclaim space...');
+        await db.execute('VACUUM');
+        console.log('[schema] VACUUM complete');
+      } else {
+        console.warn('[schema] Vector migration not yet run — skipping embedding column removal.');
+        console.warn('[schema] Run: npx tsx src/cli/migrate-vectors.ts');
+      }
+    }
+
     // Update schema version
     await db.execute({
       sql: 'INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)',
@@ -1050,24 +1116,32 @@ export async function initializeDatabase(
     errors.push(`FTS5 not available: ${message}`);
   }
 
-  // Try to create vector index (libSQL native)
-  try {
-    await db.execute(VECTOR_INDEX_SCHEMA);
-    vectorAvailable = true;
+  // Vector availability is now determined by the dedicated VectorStore in index.ts
+  // After v21 migration, the embedding column no longer exists in chunks table.
+  // Before migration, we still try the legacy vector index for backwards compat.
+  const schemaVer = await db.execute({ sql: "SELECT value FROM meta WHERE key = 'schema_version'", args: [] });
+  const currentSchemaVer = schemaVer.rows.length > 0 ? parseInt(String(schemaVer.rows[0].value), 10) : 0;
 
-    // Store vector dimensions in meta
-    await db.execute({
-      sql: 'INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)',
-      args: ['vector_dimensions', String(vectorDimensions)],
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    // Vector index might fail on older libSQL versions
-    if (!message.includes('already exists')) {
-      errors.push(`Vector index not available: ${message}`);
-    } else {
+  if (currentSchemaVer < 21) {
+    // Pre-migration: try legacy vector index
+    try {
+      await db.execute(VECTOR_INDEX_SCHEMA);
       vectorAvailable = true;
+      await db.execute({
+        sql: 'INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)',
+        args: ['vector_dimensions', String(vectorDimensions)],
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (!message.includes('already exists')) {
+        errors.push(`Vector index not available: ${message}`);
+      } else {
+        vectorAvailable = true;
+      }
     }
+  } else {
+    // Post-migration: vector availability handled by VectorStore
+    vectorAvailable = false; // Will be set to true by MemoryService after VectorStore init
   }
 
   // Seed default tasks if this is a fresh database

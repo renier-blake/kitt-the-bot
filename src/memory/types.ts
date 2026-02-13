@@ -144,7 +144,7 @@ export interface Chunk {
   hash: string;
   startLine: number | null;
   endLine: number | null;
-  embedding: number[] | null;
+  embedding?: number[] | null;
   model: string;
   createdAt: number;
 }
@@ -202,7 +202,7 @@ export interface ChunkRow {
   hash: string;
   start_line: number | null;
   end_line: number | null;
-  embedding: string | null;
+  embedding?: string | null;
   model: string;
   created_at: number;
 }

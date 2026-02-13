@@ -11,10 +11,9 @@ import type { Client } from '@libsql/client';
 import type {
   SearchResult,
   ChunkSource,
-  VectorSearchRow,
-  KeywordSearchRow,
 } from './types.js';
-import { distanceToScore, bm25RankToScore, createSnippet } from './utils.js';
+import type { VectorStore } from './vector-store.js';
+import { bm25RankToScore, createSnippet } from './utils.js';
 
 export interface HybridSearchParams {
   db: Client;
@@ -26,7 +25,7 @@ export interface HybridSearchParams {
   textWeight?: number;
   sources?: ChunkSource[];
   timeRange?: { from?: Date; to?: Date };
-  vectorAvailable: boolean;
+  vectorStore: VectorStore | null;
   ftsAvailable: boolean;
 }
 
@@ -57,7 +56,7 @@ export async function hybridSearch(
     textWeight = 0.3,
     sources,
     timeRange,
-    vectorAvailable,
+    vectorStore,
     ftsAvailable,
   } = params;
 
@@ -69,8 +68,8 @@ export async function hybridSearch(
 
   // Get results from both search methods (run in parallel)
   const [vectorResults, keywordResults] = await Promise.all([
-    vectorAvailable
-      ? searchVector(db, queryEmbedding, candidateLimit, sources, timeFilter)
+    vectorStore
+      ? searchVector(db, vectorStore, queryEmbedding, candidateLimit, sources, timeFilter)
       : Promise.resolve([]),
     ftsAvailable
       ? searchKeyword(db, query, candidateLimit, sources, timeFilter)
@@ -78,7 +77,7 @@ export async function hybridSearch(
   ]);
 
   // If neither search is available, fall back to simple text match
-  if (!vectorAvailable && !ftsAvailable) {
+  if (!vectorStore && !ftsAvailable) {
     return searchSimple(db, query, maxResults, sources, timeFilter);
   }
 
@@ -109,45 +108,57 @@ export async function hybridSearch(
 }
 
 /**
- * Vector search using libSQL native vector support
+ * Vector search using dedicated VectorStore (in-memory cosine similarity)
  */
 async function searchVector(
   db: Client,
+  vectorStore: VectorStore,
   embedding: number[],
   limit: number,
   sources?: ChunkSource[],
   timeFilter?: { sql: string; params: number[] }
 ): Promise<Array<MergedResult>> {
   try {
-    // Build source filter
+    // Over-fetch from vector store since we may filter by source/time
+    const vectorResults = vectorStore.search(embedding, limit * 2);
+
+    if (vectorResults.length === 0) return [];
+
+    // Fetch chunk metadata from kitt.db for matched IDs
+    const chunkIds = vectorResults.map((r) => r.chunkId);
+    const placeholders = chunkIds.map(() => '?').join(', ');
+
     const sourceFilter = buildSourceFilter(sources);
 
-    // libSQL native vector search using vector_distance_cos
-    // Note: vector32() converts JSON array to F32_BLOB
     const sql = `
-      SELECT id, content, source, path, start_line, end_line,
-             vector_distance_cos(embedding, vector32(?)) AS distance
+      SELECT id, content, source, path, start_line, end_line
       FROM chunks
-      WHERE embedding IS NOT NULL ${sourceFilter.sql}${timeFilter?.sql ?? ''}
-      ORDER BY distance ASC
-      LIMIT ?
+      WHERE id IN (${placeholders}) ${sourceFilter.sql}${timeFilter?.sql ?? ''}
     `;
 
     const result = await db.execute({
       sql,
-      args: [JSON.stringify(embedding), ...sourceFilter.params, ...(timeFilter?.params ?? []), limit],
+      args: [...chunkIds, ...sourceFilter.params, ...(timeFilter?.params ?? [])],
     });
 
-    return result.rows.map((row) => ({
+    // Build a score lookup from vector results
+    const scoreMap = new Map(vectorResults.map((r) => [r.chunkId, r.score]));
+
+    // Map metadata rows back with vector scores
+    const merged = result.rows.map((row) => ({
       id: String(row.id),
       content: String(row.content),
       source: String(row.source) as ChunkSource,
       path: row.path ? String(row.path) : null,
       startLine: row.start_line ? Number(row.start_line) : null,
       endLine: row.end_line ? Number(row.end_line) : null,
-      vectorScore: distanceToScore(Number(row.distance)),
+      vectorScore: scoreMap.get(String(row.id)) ?? 0,
       textScore: 0,
     }));
+
+    // Sort by vector score descending and limit
+    merged.sort((a, b) => b.vectorScore - a.vectorScore);
+    return merged.slice(0, limit);
   } catch (err) {
     console.error('[search] Vector search failed:', err);
     return [];

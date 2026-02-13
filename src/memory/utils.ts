@@ -99,6 +99,25 @@ export function bufferToEmbedding(buffer: Buffer): number[] {
 }
 
 /**
+ * Cosine similarity between two Float32Arrays
+ * Returns a value between -1 and 1 (1 = identical, 0 = orthogonal)
+ * For L2-normalized vectors this simplifies to dot product,
+ * but we compute full formula for safety.
+ */
+export function cosineSimilarity(a: Float32Array, b: Float32Array): number {
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  const denom = Math.sqrt(normA) * Math.sqrt(normB);
+  return denom > 0 ? dot / denom : 0;
+}
+
+/**
  * Convert BM25 rank to normalized score (0-1)
  * FTS5 rank is typically negative, lower is better
  *

@@ -178,9 +178,9 @@ KITT V1/
 
 ### 7. Memory Database
 - **Rol:** Hybrid search over memory
-- **Location:** `profile/data/kitt.db`
-- **Components:** sqlite-vec (vectors) + FTS5 (keyword search)
-- **Embeddings:** OpenAI text-embedding-3-large
+- **Metadata & FTS:** `profile/data/kitt.db` (transcripts, chunks, FTS5)
+- **Vectors:** `profile/data/kitt-vectors.db` (dedicated vector store, in-memory cosine search)
+- **Embeddings:** OpenAI text-embedding-3-large (3072 dims)
 - **Docs:** `_prd/architecture/memory.md`
 
 ---
@@ -201,12 +201,12 @@ KITT V1/
 
 ### Memory Access
 ```
-1. Agent reads profile/memory/MEMORY.md (always)
-2. For deeper search: query profile/memory/kitt.db
-3. Hybrid search: 0.7 × vector + 0.3 × BM25
+1. Agent reads profile/identity/MEMORY.md (always)
+2. For deeper search: hybrid query across kitt.db + kitt-vectors.db
+3. Hybrid search: 0.7 × vector (in-memory cosine) + 0.3 × BM25 (FTS5)
 4. Results injected into context
 5. New facts written to MEMORY.md
-6. Transcripts stored in kitt.db
+6. Transcripts stored in kitt.db, embeddings in kitt-vectors.db
 ```
 
 ---
@@ -218,7 +218,7 @@ KITT V1/
 | Claude Agent SDK | Full agent capabilities (tools, sessions) |
 | Telegram first | Easier setup, better API than WhatsApp |
 | Profile directory | Separates user data from code |
-| SQLite + sqlite-vec | Local, transparent, single file |
+| SQLite + dedicated vector store | Local, transparent, in-memory search |
 | File-based state | Debugbaar, zichtbaar in VS Code |
 
 ---
