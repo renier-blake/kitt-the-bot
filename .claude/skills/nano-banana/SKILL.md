@@ -31,7 +31,7 @@ FAL_KEY wordt geladen uit de **credential vault** (encrypted in DB) of als fallb
 ## Generate Image
 
 ```bash
-curl -s -X POST "https://fal.ai/api/models/fal-ai/nano-banana-pro" \
+curl -s -X POST "https://fal.run/fal-ai/nano-banana-pro" \
   -H "Authorization: Key $FAL_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -44,7 +44,7 @@ curl -s -X POST "https://fal.ai/api/models/fal-ai/nano-banana-pro" \
 ## Generate Multiple Images
 
 ```bash
-curl -s -X POST "https://fal.ai/api/models/fal-ai/nano-banana-pro" \
+curl -s -X POST "https://fal.run/fal-ai/nano-banana-pro" \
   -H "Authorization: Key $FAL_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -57,7 +57,7 @@ curl -s -X POST "https://fal.ai/api/models/fal-ai/nano-banana-pro" \
 ## With Different Aspect Ratio
 
 ```bash
-curl -s -X POST "https://fal.ai/api/models/fal-ai/nano-banana-pro" \
+curl -s -X POST "https://fal.run/fal-ai/nano-banana-pro" \
   -H "Authorization: Key $FAL_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -71,7 +71,7 @@ curl -s -X POST "https://fal.ai/api/models/fal-ai/nano-banana-pro" \
 
 ```bash
 # Generate and save
-URL=$(curl -s -X POST "https://fal.ai/api/models/fal-ai/nano-banana-pro" \
+URL=$(curl -s -X POST "https://fal.run/fal-ai/nano-banana-pro" \
   -H "Authorization: Key $FAL_KEY" \
   -H "Content-Type: application/json" \
   -d '{

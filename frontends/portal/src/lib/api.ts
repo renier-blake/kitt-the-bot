@@ -56,6 +56,35 @@ export interface Task {
   createdAt: number
 }
 
+export interface SlackPermissionMatrix {
+  globalDefault: string | null
+  channels: Array<{
+    channelId: string
+    default: string
+    overrides: Array<{ userId: string; permission: string }>
+  }>
+  users: Array<{
+    userId: string
+    permission: string
+  }>
+}
+
+export interface SlackSeenData {
+  users: Array<{
+    userId: string
+    displayName: string
+    messageCount: number
+    lastMessageAt: number
+  }>
+  channels: Array<{
+    channelId: string
+    channelName: string | null
+    isDM: boolean
+    messageCount: number
+    lastMessageAt: number
+  }>
+}
+
 export interface Skill {
   id: string
   name: string
@@ -356,6 +385,46 @@ export const api = {
       method: 'POST',
     })
     if (!res.ok) throw new Error('Failed to disconnect WhatsApp')
+  },
+
+  // Slack Permissions
+  async getSlackPermissions(adapter = 'slack'): Promise<SlackPermissionMatrix> {
+    const res = await fetch(`${API_BASE}/channels/slack/permissions?adapter=${adapter}`)
+    if (!res.ok) throw new Error('Failed to fetch slack permissions')
+    return res.json()
+  },
+
+  async upsertSlackPermission(rule: {
+    adapter?: string
+    channelId?: string
+    userId?: string
+    permission: string
+  }): Promise<void> {
+    const res = await fetch(`${API_BASE}/channels/slack/permissions`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(rule),
+    })
+    if (!res.ok) throw new Error('Failed to update permission')
+  },
+
+  async deleteSlackPermission(rule: {
+    adapter?: string
+    channelId?: string
+    userId?: string
+  }): Promise<void> {
+    const res = await fetch(`${API_BASE}/channels/slack/permissions`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(rule),
+    })
+    if (!res.ok) throw new Error('Failed to delete permission')
+  },
+
+  async getSlackSeen(): Promise<SlackSeenData> {
+    const res = await fetch(`${API_BASE}/channels/slack/seen`)
+    if (!res.ok) throw new Error('Failed to fetch slack seen contacts')
+    return res.json()
   },
 
 }

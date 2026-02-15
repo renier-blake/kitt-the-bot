@@ -13,8 +13,8 @@ import { getRouter } from '../router.js';
 import { log } from '../logger.js';
 import { formatForSlack, splitMessage } from '../format.js';
 import { getCredential } from '../../credentials/index.js';
-import { getMetaValue } from '../../capabilities/index.js';
 import { getMemoryService } from '../../memory/index.js';
+import { resolvePermission, type SlackPermission } from './slack-permissions.js';
 
 /**
  * Check if a Slack channel is a DM.
@@ -47,47 +47,9 @@ function isSlackAuthError(err: unknown): boolean {
     || msg.includes('invalid_auth') || msg.includes('account_inactive');
 }
 
-// --- Permission system (database-backed, like WhatsApp) ---
-
-export type SlackPermission = 'respond' | 'read-only' | 'blocked';
-
-/** Cache for allowed users config (30s TTL) */
-let permissionCache: Record<string, SlackPermission> | null = null;
-let permissionCacheTimestamp = 0;
-const PERMISSION_CACHE_TTL = 30_000;
-
-/**
- * Get permission level for a Slack user.
- * Config stored in meta table as 'slack_allowed_users' JSON:
- *   { "U12345": "respond", "U67890": "read-only" }
- *
- * If no config exists, all users get 'respond' (backwards compatible).
- * If config exists but user is not listed, they get 'blocked'.
- */
-async function getUserPermission(userId: string, ownUserId: string | null): Promise<SlackPermission> {
-  // Own user always gets respond (prevent self-block)
-  if (userId === ownUserId) return 'respond';
-
-  const now = Date.now();
-  if (!permissionCache || now - permissionCacheTimestamp > PERMISSION_CACHE_TTL) {
-    try {
-      const raw = await getMetaValue('slack_allowed_users');
-      if (raw) {
-        permissionCache = JSON.parse(raw);
-      } else {
-        permissionCache = null; // No config = allow all
-      }
-    } catch {
-      permissionCache = null;
-    }
-    permissionCacheTimestamp = now;
-  }
-
-  // No config → everyone allowed (backwards compatible)
-  if (!permissionCache) return 'respond';
-
-  return permissionCache[userId] || 'blocked';
-}
+// Permission system is in slack-permissions.ts (shared module)
+// Re-export for backwards compat
+export type { SlackPermission } from './slack-permissions.js';
 
 /** Slack Events API message event shape */
 export interface SlackMessageEvent {
@@ -231,6 +193,26 @@ export class SlackAdapter implements ChannelAdapter {
     return this.userId;
   }
 
+  /** Resolve a Slack channel ID to a human-readable name */
+  async getChannelName(channelId: string): Promise<string | null> {
+    if (!this.client) return null;
+    try {
+      const result = await this.client.conversations.info({ channel: channelId });
+      if (result.ok && result.channel) {
+        const ch = result.channel as { name?: string; is_im?: boolean; user?: string };
+        if (ch.is_im && ch.user) {
+          // For DMs, resolve the user's display name
+          const userInfo = await this.getUserInfo(ch.user);
+          return userInfo.displayName;
+        }
+        return ch.name ? `#${ch.name}` : null;
+      }
+    } catch {
+      // Silently fail — caller uses channelId as fallback
+    }
+    return null;
+  }
+
   /**
    * Handle an incoming Slack event.
    * Called by the Express route in slack-events.ts — not by internal polling.
@@ -250,8 +232,8 @@ export class SlackAdapter implements ChannelAdapter {
 
     const userId = event.user;
 
-    // Check user permission (database-backed)
-    const permission = await getUserPermission(userId, this.userId);
+    // Check user permission (channel & user matrix)
+    const permission = await resolvePermission('slack', userId, event.channel, this.userId);
     if (permission === 'blocked') {
       log.warn('Slack message from blocked user', { userId });
       return;

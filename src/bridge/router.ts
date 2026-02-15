@@ -307,7 +307,7 @@ export class MessageRouter {
         channel,
         capabilityId: classification.capability,
         prompt: message.content,
-        description: ack,
+        description: classification.capability,
         onComplete,
       }).catch((err) => {
         log.error('Failed to dispatch classified background task', {
@@ -325,14 +325,18 @@ export class MessageRouter {
 
     // --- Step 2: Direct path → Opus agent ---
 
-    // ACK after 5 seconds if agent hasn't responded yet
-    const ACK_DELAY_MS = 5_000;
+    // ACK: only show for complex messages that need context (skip for casual chat)
+    const shouldAck = classification.needsContext || classification.confidence < 0.8;
     let ackSent = false;
-    const ackTimer = setTimeout(async () => {
-      ackSent = true;
-      const ack = ACK_MESSAGES[Math.floor(Math.random() * ACK_MESSAGES.length)];
-      await this.sendMessage(message.chatId, ack).catch(() => {});
-    }, ACK_DELAY_MS);
+    let ackTimer: ReturnType<typeof setTimeout> | undefined;
+    if (shouldAck) {
+      const ACK_DELAY_MS = 3_000;
+      ackTimer = setTimeout(async () => {
+        ackSent = true;
+        const ack = ACK_MESSAGES[Math.floor(Math.random() * ACK_MESSAGES.length)];
+        await this.sendMessage(message.chatId, ack).catch(() => {});
+      }, ACK_DELAY_MS);
+    }
 
     // Agent call — timeout is handled by the Agent Pool (90s for chat)
     let response: Awaited<ReturnType<typeof runAgent>>;
@@ -342,14 +346,34 @@ export class MessageRouter {
         agentType: 'chat',
         chatId: message.chatId,
         allowedTools: [],
+        skipMemorySearch: !classification.needsContext,
         db: db ?? undefined,
       });
     } catch (err) {
       clearTimeout(ackTimer);
       const errorMsg = err instanceof Error ? err.message : String(err);
-      log.error('Chat agent failed', { chatId: message.chatId, error: errorMsg });
-      await this.sendMessage(message.chatId, `Sorry, ik duurde te lang. Probeer het nog eens.`);
-      return;
+
+      // SDK crash (exit code 1, SIGINT): retry once with fresh session
+      if (errorMsg.includes('exit code') || errorMsg.includes('SIGINT')) {
+        log.warn('Agent SDK crashed, retrying', { chatId: message.chatId, error: errorMsg });
+        try {
+          response = await runAgent(message.content, {
+            agentType: 'chat',
+            chatId: message.chatId,
+            allowedTools: [],
+            skipMemorySearch: !classification.needsContext,
+            db: db ?? undefined,
+          });
+        } catch (retryErr) {
+          log.error('Retry also failed', { chatId: message.chatId, error: String(retryErr) });
+          await this.sendMessage(message.chatId, 'Even technische problemen, probeer het zo nog eens.');
+          return;
+        }
+      } else {
+        log.error('Chat agent failed', { chatId: message.chatId, error: errorMsg });
+        await this.sendMessage(message.chatId, 'Sorry, er ging iets mis. Probeer het opnieuw.');
+        return;
+      }
     }
 
     clearTimeout(ackTimer);

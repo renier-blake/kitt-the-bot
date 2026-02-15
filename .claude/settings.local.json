@@ -87,7 +87,9 @@
       "WebFetch(domain:developers.asana.com)",
       "WebFetch(domain:developers.notion.com)",
       "Bash(git status:*)",
-      "Bash(pm2 env:*)"
+      "Bash(pm2 env:*)",
+      "Bash(pm2 flush:*)",
+      "WebFetch(domain:pricepertoken.com)"
     ]
   }
 }

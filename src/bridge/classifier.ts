@@ -1,8 +1,8 @@
 /**
  * KITT Message Classifier
  *
- * Uses Claude Haiku via Agent SDK for fast routing decisions.
- * Reuses the same Claude Code session auth as all other agents — no extra API key needed.
+ * Uses OpenAI gpt-4o-mini via direct API call for fast routing (~200-500ms).
+ * Reuses the same OPENAI_API_KEY as embeddings — no extra keys needed.
  *
  * Determines whether a message should be handled:
  * - Direct: Main agent (Opus) handles immediately
@@ -13,13 +13,15 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { query } from '@anthropic-ai/claude-agent-sdk';
 import {
   getBackgroundSkills,
   getAgentMode,
   type Capability,
 } from '../capabilities/index.js';
-import { log } from './logger.js';
+import { createLogger } from './logger.js';
+import { getCredential } from '../credentials/index.js';
+
+const log = createLogger('classifier');
 
 // ==========================================
 // Types
@@ -27,6 +29,7 @@ import { log } from './logger.js';
 
 export interface ClassificationResult {
   type: 'direct' | 'background';
+  needsContext: boolean; // Whether message needs long-term memory search
   capability?: string; // Skill ID for background tasks
   ack?: string; // Acknowledgment message for user
   confidence: number; // 0-1 confidence score
@@ -41,11 +44,41 @@ const CLASSIFIER_PROMPT_PATH = path.resolve(
   'profile/context/instructions/classifier.md'
 );
 
-const KITT_WORKSPACE = process.env.KITT_WORKSPACE || process.cwd();
+const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions';
+const CLASSIFIER_MODEL = 'gpt-4o-mini';
 
 // Cache for classifier prompt (reload on file change)
 let cachedPrompt: string | null = null;
 let promptMtime: number = 0;
+
+// Cache for API key (loaded once from env/vault)
+let cachedApiKey: string | null = null;
+
+// ==========================================
+// API Key
+// ==========================================
+
+async function getOpenAIKey(): Promise<string | null> {
+  if (cachedApiKey) return cachedApiKey;
+
+  // Try env first, then credential vault
+  if (process.env.OPENAI_API_KEY) {
+    cachedApiKey = process.env.OPENAI_API_KEY;
+    return cachedApiKey;
+  }
+
+  try {
+    const vaultKey = await getCredential('OPENAI_API_KEY');
+    if (vaultKey) {
+      cachedApiKey = vaultKey;
+      return cachedApiKey;
+    }
+  } catch {
+    // Vault not available
+  }
+
+  return null;
+}
 
 // ==========================================
 // Prompt Loading
@@ -67,10 +100,10 @@ function loadClassifierPrompt(): string {
     cachedPrompt = fs.readFileSync(CLASSIFIER_PROMPT_PATH, 'utf-8');
     promptMtime = currentMtime;
 
-    log.debug('Classifier prompt loaded', { length: cachedPrompt.length });
+    log.debug('Prompt loaded', { length: cachedPrompt.length });
     return cachedPrompt;
   } catch (err) {
-    log.error('Failed to load classifier prompt', { error: String(err) });
+    log.error('Failed to load prompt', { error: String(err) });
     return `Classify the user message. Return JSON with type "direct" or "background".`;
   }
 }
@@ -98,7 +131,7 @@ function formatCapabilitiesForPrompt(capabilities: Capability[]): string {
 /**
  * Classify a user message
  *
- * Uses Agent SDK with Haiku model and no tools — same auth as all other agents.
+ * Uses OpenAI gpt-4o-mini via direct API call (~200-500ms).
  *
  * @param message - User message to classify
  * @returns Classification result with type and optional capability
@@ -109,14 +142,21 @@ export async function classifyMessage(
   const startTime = Date.now();
 
   try {
+    // Get API key
+    const apiKey = await getOpenAIKey();
+    if (!apiKey) {
+      log.warn('No OpenAI API key, skipping classification');
+      return { type: 'direct', needsContext: true, confidence: 0 };
+    }
+
     // Get current mode and available background skills
     const mode = await getAgentMode();
     const backgroundSkills = await getBackgroundSkills(mode);
 
     // If no background skills available, always route direct
     if (backgroundSkills.length === 0) {
-      log.debug('No background skills available, routing direct');
-      return { type: 'direct', confidence: 1.0 };
+      log.debug('No background skills, routing direct');
+      return { type: 'direct', needsContext: true, confidence: 1.0 };
     }
 
     // Load and prepare prompt
@@ -127,30 +167,39 @@ export async function classifyMessage(
       .replace('{{CAPABILITIES}}', capabilitiesList)
       .replace('{{MODE}}', mode);
 
-    // Call Haiku via Agent SDK — uses Claude Code session auth, no separate API key
-    let content = '';
-
-    for await (const msg of query({
-      prompt: message,
-      options: {
-        cwd: KITT_WORKSPACE,
-        systemPrompt,
-        model: 'haiku',
-        allowedTools: [],
-        permissionMode: 'bypassPermissions',
-        allowDangerouslySkipPermissions: true,
+    // Direct OpenAI API call — no subprocess overhead
+    const response = await fetch(OPENAI_CHAT_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
       },
-    })) {
-      if ('result' in msg && msg.result) {
-        content = msg.result as string;
-      }
+      body: JSON.stringify({
+        model: CLASSIFIER_MODEL,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: message },
+        ],
+        temperature: 0,
+        max_tokens: 150,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OpenAI API ${response.status}: ${errorText}`);
     }
 
+    const data = await response.json() as {
+      choices: Array<{ message: { content: string } }>;
+    };
+
+    const content = data.choices?.[0]?.message?.content ?? '';
     const elapsed = Date.now() - startTime;
 
     if (!content) {
-      log.warn('Classifier got empty response', { elapsed });
-      return { type: 'direct', confidence: 0 };
+      log.warn('Empty response', { elapsed });
+      return { type: 'direct', needsContext: true, confidence: 0 };
     }
 
     const result = parseClassifierResponse(content);
@@ -161,24 +210,21 @@ export async function classifyMessage(
         (s) => s.id === result.capability
       );
       if (!validCapability) {
-        log.warn('Classifier returned invalid capability', {
+        log.warn('Invalid capability returned', {
           capability: result.capability,
           available: backgroundSkills.map((s) => s.id),
         });
-        return { type: 'direct', confidence: 0 };
+        return { type: 'direct', needsContext: true, confidence: 0 };
       }
     }
 
-    log.info('Message classified', {
+    log.info('Classified', {
       type: result.type,
+      needsContext: result.needsContext,
       capability: result.capability,
       confidence: result.confidence,
       elapsed,
     });
-
-    console.log(
-      `[classifier] ${result.type === 'background' ? '🔄' : '💬'} ${result.type}${result.capability ? ` → ${result.capability}` : ''} (${elapsed}ms)`
-    );
 
     return result;
   } catch (err) {
@@ -188,8 +234,8 @@ export async function classifyMessage(
       elapsed,
     });
 
-    // Fail-safe: route direct on error
-    return { type: 'direct', confidence: 0 };
+    // Fail-safe: route direct on error (with context search for safety)
+    return { type: 'direct', needsContext: true, confidence: 0 };
   }
 }
 
@@ -201,26 +247,27 @@ function parseClassifierResponse(text: string): ClassificationResult {
     // Extract JSON from response (might be wrapped in markdown code block)
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      log.warn('No JSON found in classifier response', { text });
-      return { type: 'direct', confidence: 0 };
+      log.warn('No JSON found in response', { text });
+      return { type: 'direct', needsContext: true, confidence: 0 };
     }
 
     const parsed = JSON.parse(jsonMatch[0]);
 
     // Validate and normalize
     const type = parsed.type === 'background' ? 'background' : 'direct';
+    const needsContext = parsed.needsContext !== false; // Default true (safe: search when unsure)
     const capability = type === 'background' ? parsed.capability : undefined;
     const ack = type === 'background' ? parsed.ack : undefined;
     const confidence = typeof parsed.confidence === 'number'
       ? Math.min(1, Math.max(0, parsed.confidence))
       : 0.8;
 
-    return { type, capability, ack, confidence };
+    return { type, needsContext, capability, ack, confidence };
   } catch (err) {
-    log.warn('Failed to parse classifier response', {
+    log.warn('Failed to parse response', {
       error: err instanceof Error ? err.message : String(err),
       text,
     });
-    return { type: 'direct', confidence: 0 };
+    return { type: 'direct', needsContext: true, confidence: 0 };
   }
 }

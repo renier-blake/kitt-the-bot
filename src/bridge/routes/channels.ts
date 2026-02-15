@@ -7,6 +7,7 @@ import type { Express } from 'express';
 import type { Client } from '@libsql/client';
 import * as fs from 'fs';
 import type { WhatsAppAdapter } from '../adapters/whatsapp.js';
+import type { SlackAdapter } from '../adapters/slack.js';
 import type { MessageRouter } from '../router.js';
 
 interface ChannelsDeps {
@@ -369,12 +370,25 @@ export function registerChannelsRoutes(app: Express, deps: ChannelsDeps): void {
         args: [],
       });
 
-      const channels = channelsResult.rows.map(row => ({
+      const rawChannels = channelsResult.rows.map(row => ({
         channelId: String(row.channelId),
         isDM: Number(row.isDM) === 1,
         messageCount: Number(row.messageCount),
         lastMessageAt: Number(row.lastMessageAt),
       }));
+
+      // Resolve channel names via Slack API
+      const router = getRouter();
+      const slackAdapter = router.getAdapter('slack') as SlackAdapter | undefined;
+      const channels = await Promise.all(
+        rawChannels.map(async (ch) => {
+          let channelName: string | null = null;
+          if (slackAdapter?.isConnected()) {
+            channelName = await slackAdapter.getChannelName(ch.channelId);
+          }
+          return { ...ch, channelName };
+        })
+      );
 
       res.json({ users, channels });
     } catch (err) {

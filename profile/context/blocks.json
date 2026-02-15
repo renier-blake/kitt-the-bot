@@ -38,6 +38,15 @@
       "enabled": true
     },
     {
+      "id": "business-info",
+      "type": "file",
+      "path": "profile/user/BUSINESS.md",
+      "header": "Business Context",
+      "modes": ["chat", "think", "background"],
+      "priority": 10,
+      "enabled": true
+    },
+    {
       "id": "working-memory",
       "type": "file",
       "path": "profile/identity/MEMORY.md",
@@ -68,7 +77,7 @@
       "priority": 30,
       "enabled": true,
       "config": {
-        "chat": { "windowMinutes": 15, "maxMessages": 20 },
+        "chat": { "windowMinutes": 60, "maxMessages": 30 },
         "think": { "windowMinutes": 10, "maxMessages": 50 }
       }
     },

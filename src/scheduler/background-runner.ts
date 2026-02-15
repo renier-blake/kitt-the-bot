@@ -146,8 +146,7 @@ async function executeTask(
       return;
     }
     if (onComplete) {
-      const skillName = task.description || task.capabilityId;
-      await onComplete(task.chatId, `Nog bezig met ${skillName}... (${heartbeatCount}m)`).catch(() => {});
+      await onComplete(task.chatId, `⏳ Nog even bezig... (${heartbeatCount}m)`).catch(() => {});
       log.info(`Heartbeat #${heartbeatCount}`, { taskId: task.id });
     }
   }, HEARTBEAT_INTERVAL);

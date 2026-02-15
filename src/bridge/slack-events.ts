@@ -68,6 +68,7 @@ export function registerSlackEventsRoute(
   getAdapter: () => SlackAdapter | undefined
 ): void {
   app.post('/slack/events', async (req: Request, res: Response) => {
+    log.info('Slack events endpoint hit', { type: req.body?.type, eventType: req.body?.event?.type });
     try {
       // Get raw body (preserved by express.json verify callback)
       const rawBody = (req as unknown as { rawBody?: string }).rawBody;

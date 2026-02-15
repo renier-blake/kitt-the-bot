@@ -101,7 +101,7 @@ cinematic lighting, humorous digital art style
 
 ```bash
 # Genereer image
-URL=$(curl -s -X POST "https://fal.ai/api/models/fal-ai/nano-banana-pro" \
+URL=$(curl -s -X POST "https://fal.run/fal-ai/nano-banana-pro" \
   -H "Authorization: Key $FAL_KEY" \
   -H "Content-Type: application/json" \
   -d '{

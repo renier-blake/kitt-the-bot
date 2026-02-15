@@ -12,6 +12,7 @@ import { Identity } from '@/pages/user/Identity'
 import { Skills } from '@/pages/user/Skills'
 import { UserSettings } from '@/pages/user/Settings'
 import { ContentCalendar } from '@/pages/user/ContentCalendar'
+import { SlackPermissions } from '@/pages/system/SlackPermissions'
 
 
 // Standard layout with padding and proper height
@@ -55,6 +56,7 @@ function App() {
           <Route path="/database" element={<Database />} />
           <Route path="/tasks" element={<Tasks />} />
           <Route path="/skills" element={<Skills />} />
+          <Route path="/slack-permissions" element={<SlackPermissions />} />
           <Route path="/health" element={<Navigate to="/" replace />} />
         </Route>
 

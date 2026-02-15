@@ -13,6 +13,7 @@ import {
   Wrench,
   Cpu,
   FileText,
+  Shield,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -32,6 +33,7 @@ const systemItems: NavItem[] = [
   { to: '/database', icon: <Database className="h-5 w-5" />, label: 'Database' },
   { to: '/tasks', icon: <ListTodo className="h-5 w-5" />, label: 'Task Engine' },
   { to: '/skills', icon: <Wrench className="h-5 w-5" />, label: 'Skills' },
+  { to: '/slack-permissions', icon: <Shield className="h-5 w-5" />, label: 'Slack Perms' },
   { to: '/logs', icon: <Terminal className="h-5 w-5" />, label: 'Live Logs' },
 ]
 

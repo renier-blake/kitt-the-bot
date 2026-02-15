@@ -11,7 +11,7 @@ import { createClient, type Client } from '@libsql/client';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const SCHEMA_VERSION = 21; // Vector Store Extraction (dedicated vectors.db)
+const SCHEMA_VERSION = 22; // Slack Channel & User Permission Matrix
 
 // Core schema SQL
 const CORE_SCHEMA = `
@@ -485,10 +485,10 @@ export async function initializeDatabase(
             depends_on, created_by
           ) VALUES (
             'KITT zelfreflectie',
-            'Dagelijkse zelfreflectie: reflecteer op geleerde lessen, update IDENTITY.md en USER.md. Lees .claude/skills/kitt-self-reflection/SKILL.md',
+            'Dagelijkse zelfreflectie: reflecteer op geleerde lessen, update IDENTITY.md. Lees .claude/skills/kitt-reflection/SKILL.md',
             'daily',
             'low',
-            '["kitt-self-reflection"]',
+            '["kitt-reflection"]',
             '22:00',
             '23:30',
             30,
@@ -1095,6 +1095,59 @@ export async function initializeDatabase(
         console.warn('[schema] Vector migration not yet run — skipping embedding column removal.');
         console.warn('[schema] Run: npx tsx src/cli/migrate-vectors.ts');
       }
+    }
+
+    // Migration: v21 -> v22: Slack Channel & User Permission Matrix
+    if (currentVersion < 22) {
+      console.log('[schema] Running migration v21 -> v22 (Slack Permission Matrix)...');
+
+      // Create slack_permissions table
+      await db.execute(`
+        CREATE TABLE IF NOT EXISTS slack_permissions (
+          id INTEGER PRIMARY KEY,
+          adapter TEXT NOT NULL DEFAULT 'slack',
+          channel_id TEXT NOT NULL DEFAULT '',
+          user_id TEXT NOT NULL DEFAULT '',
+          permission TEXT NOT NULL DEFAULT 'read-only',
+          created_at INTEGER DEFAULT (unixepoch() * 1000),
+          updated_at INTEGER DEFAULT (unixepoch() * 1000),
+          UNIQUE(adapter, channel_id, user_id)
+        )
+      `);
+
+      await db.execute(`
+        CREATE INDEX IF NOT EXISTS idx_slack_perm_lookup
+        ON slack_permissions(adapter, channel_id, user_id)
+      `);
+
+      // Migrate existing slack_allowed_users meta JSON -> slack_permissions rows
+      for (const metaKey of ['slack_allowed_users', 'slack_bot_allowed_users']) {
+        const adapterType = metaKey === 'slack_allowed_users' ? 'slack' : 'slack-bot';
+        try {
+          const result = await db.execute({
+            sql: "SELECT value FROM meta WHERE key = ?",
+            args: [metaKey],
+          });
+          if (result.rows.length > 0 && result.rows[0].value) {
+            const raw = String(result.rows[0].value);
+            if (raw) {
+              const users: Record<string, string> = JSON.parse(raw);
+              for (const [userId, permission] of Object.entries(users)) {
+                await db.execute({
+                  sql: `INSERT OR IGNORE INTO slack_permissions (adapter, channel_id, user_id, permission)
+                        VALUES (?, '', ?, ?)`,
+                  args: [adapterType, userId, permission],
+                });
+              }
+              console.log(`[schema] Migrated ${Object.keys(users).length} entries from ${metaKey}`);
+            }
+          }
+        } catch (err) {
+          console.warn(`[schema] Could not migrate ${metaKey}:`, err);
+        }
+      }
+
+      console.log('[schema] Migration v21 -> v22 complete: Slack Permission Matrix');
     }
 
     // Update schema version
